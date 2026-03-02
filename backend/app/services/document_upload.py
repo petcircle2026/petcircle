@@ -1,0 +1,309 @@
+"""
+PetCircle Phase 1 — Document Upload Service (Module 7)
+
+Handles file upload validation, Supabase storage, and document record
+creation. This is the entry point for the document processing pipeline:
+
+    Upload → Validate → Store → Insert DB record → Trigger extraction
+
+Validation rules:
+    - File size: max MAX_UPLOAD_MB (10MB) — from constants.
+    - MIME type: must be in ALLOWED_MIME_TYPES (jpeg, png, pdf) — from constants.
+    - Daily upload limit: MAX_UPLOADS_PER_PET_PER_DAY (10) — from constants.
+
+Storage:
+    - Private Supabase bucket (SUPABASE_BUCKET_NAME from env).
+    - Path format: {user_id}/{pet_id}/{filename} — from STORAGE_PATH_TEMPLATE constant.
+    - No public URLs — files accessed only through signed URLs.
+
+Rules:
+    - All limits from constants.py — no hardcoded values.
+    - Bucket name from environment config — never hardcoded.
+    - All operations logged.
+    - Upload failures do not crash the application.
+    - Document record inserted with extraction_status='pending'.
+"""
+
+import logging
+from datetime import datetime
+from uuid import UUID
+from sqlalchemy.orm import Session
+from sqlalchemy import func
+from app.models.document import Document
+from app.models.pet import Pet
+from app.core.constants import (
+    MAX_UPLOAD_BYTES,
+    MAX_UPLOAD_MB,
+    MAX_UPLOADS_PER_PET_PER_DAY,
+    ALLOWED_MIME_TYPES,
+    STORAGE_PATH_TEMPLATE,
+)
+from app.config import settings
+from app.utils.date_utils import get_today_ist, IST
+
+
+logger = logging.getLogger(__name__)
+
+
+def validate_file_upload(
+    file_size: int,
+    mime_type: str,
+) -> None:
+    """
+    Validate file size and MIME type before upload.
+
+    Enforces:
+        - File size must not exceed MAX_UPLOAD_BYTES (10MB).
+        - MIME type must be in ALLOWED_MIME_TYPES (jpeg, png, pdf).
+
+    All limits are read from constants.py — never hardcoded.
+
+    Args:
+        file_size: Size of the uploaded file in bytes.
+        mime_type: MIME type of the uploaded file.
+
+    Raises:
+        ValueError: If file exceeds size limit or MIME type is not allowed.
+    """
+    # --- Size validation ---
+    # MAX_UPLOAD_BYTES is derived from MAX_UPLOAD_MB in constants.
+    if file_size > MAX_UPLOAD_BYTES:
+        raise ValueError(
+            f"File size ({file_size} bytes) exceeds maximum allowed "
+            f"({MAX_UPLOAD_MB}MB / {MAX_UPLOAD_BYTES} bytes)."
+        )
+
+    # --- MIME type validation ---
+    # Only jpeg, png, and pdf are accepted — from ALLOWED_MIME_TYPES constant.
+    if mime_type not in ALLOWED_MIME_TYPES:
+        raise ValueError(
+            f"File type '{mime_type}' is not allowed. "
+            f"Accepted types: {', '.join(sorted(ALLOWED_MIME_TYPES))}."
+        )
+
+
+def check_daily_upload_limit(
+    db: Session,
+    pet_id: UUID,
+) -> None:
+    """
+    Check if the pet has reached the daily upload limit.
+
+    Enforces MAX_UPLOADS_PER_PET_PER_DAY (10) — from constants.
+    Counts documents uploaded today (IST timezone) for this pet.
+
+    Args:
+        db: SQLAlchemy database session.
+        pet_id: UUID of the pet to check.
+
+    Raises:
+        ValueError: If the daily upload limit has been reached.
+    """
+    today = get_today_ist()
+
+    # Count documents uploaded today for this pet.
+    # Uses IST date boundaries to ensure timezone-consistent counting.
+    today_count = (
+        db.query(func.count(Document.id))
+        .filter(
+            Document.pet_id == pet_id,
+            func.date(Document.created_at) == today,
+        )
+        .scalar()
+    )
+
+    if today_count >= MAX_UPLOADS_PER_PET_PER_DAY:
+        raise ValueError(
+            f"Daily upload limit reached for pet {pet_id}. "
+            f"Maximum {MAX_UPLOADS_PER_PET_PER_DAY} uploads per pet per day."
+        )
+
+
+def build_storage_path(
+    user_id: UUID,
+    pet_id: UUID,
+    filename: str,
+) -> str:
+    """
+    Build the Supabase storage path for a file.
+
+    Path format: {user_id}/{pet_id}/{filename}
+    Defined by STORAGE_PATH_TEMPLATE in constants — never hardcoded.
+
+    Args:
+        user_id: UUID of the owning user.
+        pet_id: UUID of the pet.
+        filename: Original filename of the uploaded file.
+
+    Returns:
+        Formatted storage path string.
+    """
+    return STORAGE_PATH_TEMPLATE.format(
+        user_id=str(user_id),
+        pet_id=str(pet_id),
+        filename=filename,
+    )
+
+
+async def upload_to_supabase(
+    file_content: bytes,
+    storage_path: str,
+    mime_type: str,
+) -> str:
+    """
+    Upload a file to the private Supabase storage bucket.
+
+    Bucket name is read from settings.SUPABASE_BUCKET_NAME (env var)
+    — never hardcoded. Files are stored privately with no public URLs.
+
+    Args:
+        file_content: Raw file bytes.
+        storage_path: Path within the bucket ({user_id}/{pet_id}/{filename}).
+        mime_type: MIME type of the file for content-type header.
+
+    Returns:
+        The storage path where the file was uploaded.
+
+    Raises:
+        RuntimeError: If the upload to Supabase fails.
+    """
+    # Supabase bucket name from environment — not hardcoded.
+    bucket_name = settings.SUPABASE_BUCKET_NAME
+
+    try:
+        # Use Supabase client to upload.
+        # supabase-py handles authentication via SUPABASE_SERVICE_ROLE_KEY.
+        from supabase import create_client
+        supabase_client = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_SERVICE_ROLE_KEY,
+        )
+
+        # Upload file to private bucket.
+        # content_type ensures correct MIME handling for downloads.
+        supabase_client.storage.from_(bucket_name).upload(
+            path=storage_path,
+            file=file_content,
+            file_options={"content-type": mime_type},
+        )
+
+        logger.info(
+            "File uploaded to Supabase: bucket=%s, path=%s, mime=%s, size=%d",
+            bucket_name,
+            storage_path,
+            mime_type,
+            len(file_content),
+        )
+
+        return storage_path
+
+    except Exception as e:
+        logger.error(
+            "Supabase upload failed: bucket=%s, path=%s, error=%s",
+            bucket_name,
+            storage_path,
+            str(e),
+        )
+        raise RuntimeError(
+            f"Failed to upload file to Supabase: {str(e)}"
+        ) from e
+
+
+def create_document_record(
+    db: Session,
+    pet_id: UUID,
+    file_path: str,
+    mime_type: str,
+) -> Document:
+    """
+    Insert a document record into the database.
+
+    The document is created with extraction_status='pending',
+    indicating it is ready for GPT extraction processing.
+
+    Args:
+        db: SQLAlchemy database session.
+        pet_id: UUID of the pet this document belongs to.
+        file_path: Supabase storage path of the uploaded file.
+        mime_type: MIME type of the uploaded file.
+
+    Returns:
+        The created Document model instance.
+    """
+    document = Document(
+        pet_id=pet_id,
+        file_path=file_path,
+        mime_type=mime_type,
+        extraction_status="pending",
+    )
+
+    db.add(document)
+    db.commit()
+    db.refresh(document)
+
+    logger.info(
+        "Document record created: id=%s, pet_id=%s, path=%s, "
+        "mime=%s, extraction_status=pending",
+        str(document.id),
+        str(pet_id),
+        file_path,
+        mime_type,
+    )
+
+    return document
+
+
+async def process_document_upload(
+    db: Session,
+    pet_id: UUID,
+    user_id: UUID,
+    filename: str,
+    file_content: bytes,
+    mime_type: str,
+) -> Document:
+    """
+    Full document upload pipeline: validate → store → create record.
+
+    This is the main entry point for document uploads. It performs
+    all validation, uploads to Supabase, and creates the database record.
+    After this function returns, the document is ready for GPT extraction.
+
+    Steps:
+        1. Validate file size (max 10MB from constants).
+        2. Validate MIME type (jpeg/png/pdf from constants).
+        3. Check daily upload limit (10/pet/day from constants).
+        4. Build storage path ({user_id}/{pet_id}/{filename}).
+        5. Upload to private Supabase bucket (bucket from env).
+        6. Insert document record (extraction_status='pending').
+
+    Args:
+        db: SQLAlchemy database session.
+        pet_id: UUID of the pet this document belongs to.
+        user_id: UUID of the owning user.
+        filename: Original filename of the uploaded file.
+        file_content: Raw file bytes.
+        mime_type: MIME type of the uploaded file.
+
+    Returns:
+        The created Document model instance with extraction_status='pending'.
+
+    Raises:
+        ValueError: If file fails validation (size, MIME, daily limit).
+        RuntimeError: If Supabase upload fails.
+    """
+    # --- Step 1 & 2: Validate file size and MIME type ---
+    validate_file_upload(len(file_content), mime_type)
+
+    # --- Step 3: Check daily upload limit ---
+    check_daily_upload_limit(db, pet_id)
+
+    # --- Step 4: Build storage path ---
+    storage_path = build_storage_path(user_id, pet_id, filename)
+
+    # --- Step 5: Upload to Supabase private bucket ---
+    await upload_to_supabase(file_content, storage_path, mime_type)
+
+    # --- Step 6: Create document record ---
+    document = create_document_record(db, pet_id, storage_path, mime_type)
+
+    return document

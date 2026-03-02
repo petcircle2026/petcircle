@@ -1,0 +1,530 @@
+"""
+PetCircle Phase 1 — Onboarding Service
+
+Handles the multi-step WhatsApp conversation for user registration
+and pet profile creation. State is tracked via user.onboarding_state.
+
+Conversation flow:
+    1. New number → Create user row (awaiting_consent) → ask consent
+    2. "yes" → consent_given=True, state=awaiting_name → ask name
+    3. Name → store full_name, state=awaiting_pincode → ask pincode
+    4. Pincode → store pincode, state=awaiting_pet_name → ask pet name
+    5. Pet name → state=awaiting_species → ask dog or cat
+    6. Species → create Pet, state=awaiting_breed → ask breed
+    7. Breed or "skip" → state=awaiting_gender → ask gender
+    8. Gender or "skip" → state=awaiting_dob → ask DOB
+    9. DOB or "skip" → state=awaiting_weight → ask weight
+   10. Weight or "skip" → state=awaiting_neutered → ask neutered
+   11. Neutered or "skip" → seed preventive records, generate token,
+       state=complete → send dashboard link
+
+Rules:
+    - Max 5 pets per user (from constants).
+    - Consent must be recorded before any data is stored.
+    - All dates parsed via date_utils.
+    - Species restricted to 'dog' or 'cat'.
+    - "skip" accepted for optional fields.
+"""
+
+import logging
+import secrets
+from uuid import UUID
+from sqlalchemy.orm import Session
+from app.models.user import User
+from app.models.pet import Pet
+from app.models.dashboard_token import DashboardToken
+from app.models.preventive_master import PreventiveMaster
+from app.models.preventive_record import PreventiveRecord
+from app.core.constants import MAX_PETS_PER_USER, DASHBOARD_TOKEN_BYTES
+from app.utils.date_utils import parse_date
+from app.services.preventive_seeder import seed_preventive_master
+
+
+logger = logging.getLogger(__name__)
+
+
+def get_or_create_user(db: Session, mobile_number: str) -> tuple[User | None, bool]:
+    """
+    Look up an existing user by mobile number, or return None if new.
+
+    Args:
+        db: SQLAlchemy database session.
+        mobile_number: WhatsApp phone number.
+
+    Returns:
+        Tuple of (User or None, is_existing: bool).
+    """
+    user = (
+        db.query(User)
+        .filter(User.mobile_number == mobile_number, User.is_deleted == False)
+        .first()
+    )
+    if user:
+        return user, True
+    return None, False
+
+
+def create_pending_user(db: Session, mobile_number: str) -> User:
+    """
+    Create a new user record in awaiting_consent state.
+
+    The user is created with a placeholder name. Real name is collected
+    during the onboarding conversation.
+
+    Args:
+        db: SQLAlchemy database session.
+        mobile_number: WhatsApp phone number.
+
+    Returns:
+        The created User model instance.
+    """
+    user = User(
+        mobile_number=mobile_number,
+        full_name="_pending",
+        onboarding_state="awaiting_consent",
+        consent_given=False,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info("Pending user created: id=%s, mobile=%s", str(user.id), mobile_number)
+    return user
+
+
+async def handle_onboarding_step(
+    db: Session,
+    user: User,
+    text: str,
+    send_fn,
+) -> None:
+    """
+    Process one step of the onboarding conversation.
+
+    Routes to the correct handler based on user.onboarding_state.
+
+    Args:
+        db: SQLAlchemy database session.
+        user: The User model instance.
+        text: The user's message text (stripped).
+        send_fn: Async function to send WhatsApp text messages.
+            Signature: send_fn(db, to_number, text) -> None
+    """
+    state = user.onboarding_state or "awaiting_consent"
+    mobile = user.mobile_number
+    text_lower = text.lower().strip()
+
+    if state == "awaiting_consent":
+        await _step_consent(db, user, text_lower, send_fn)
+
+    elif state == "awaiting_name":
+        await _step_name(db, user, text, send_fn)
+
+    elif state == "awaiting_pincode":
+        await _step_pincode(db, user, text, send_fn)
+
+    elif state == "awaiting_pet_name":
+        await _step_pet_name(db, user, text, send_fn)
+
+    elif state == "awaiting_species":
+        await _step_species(db, user, text_lower, send_fn)
+
+    elif state == "awaiting_breed":
+        await _step_breed(db, user, text, send_fn)
+
+    elif state == "awaiting_gender":
+        await _step_gender(db, user, text_lower, send_fn)
+
+    elif state == "awaiting_dob":
+        await _step_dob(db, user, text, send_fn)
+
+    elif state == "awaiting_weight":
+        await _step_weight(db, user, text, send_fn)
+
+    elif state == "awaiting_neutered":
+        await _step_neutered(db, user, text_lower, send_fn)
+
+    else:
+        logger.warning("Unknown onboarding state '%s' for user %s", state, mobile)
+
+
+async def _step_consent(db, user, text_lower, send_fn):
+    """Handle consent step."""
+    if text_lower in ("yes", "y", "agree", "ok", "okay"):
+        user.consent_given = True
+        user.onboarding_state = "awaiting_name"
+        db.commit()
+
+        await send_fn(
+            db, user.mobile_number,
+            "Thank you for your consent! Let's get you set up.\n\n"
+            "What is your *full name*?",
+        )
+    elif text_lower in ("no", "n", "disagree"):
+        await send_fn(
+            db, user.mobile_number,
+            "No problem. Your data won't be stored. "
+            "Send a message anytime if you change your mind.",
+        )
+        # Soft delete the pending user
+        user.is_deleted = True
+        db.commit()
+    else:
+        await send_fn(
+            db, user.mobile_number,
+            "Please reply *yes* to consent and continue, or *no* to opt out.",
+        )
+
+
+async def _step_name(db, user, text, send_fn):
+    """Handle name collection."""
+    if len(text) < 2 or len(text) > 120:
+        await send_fn(db, user.mobile_number, "Please enter a valid name (2-120 characters).")
+        return
+
+    user.full_name = text.strip()
+    user.onboarding_state = "awaiting_pincode"
+    db.commit()
+
+    await send_fn(
+        db, user.mobile_number,
+        f"Nice to meet you, {text.strip()}!\n\n"
+        f"What is your *pincode*? (Type *skip* if you prefer not to share)",
+    )
+
+
+async def _step_pincode(db, user, text, send_fn):
+    """Handle pincode collection."""
+    text_stripped = text.strip()
+    if text_stripped.lower() == "skip":
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+    else:
+        # Validate Indian pincode (6 digits)
+        if text_stripped.isdigit() and len(text_stripped) == 6:
+            user.pincode = text_stripped
+            user.onboarding_state = "awaiting_pet_name"
+            db.commit()
+        else:
+            await send_fn(
+                db, user.mobile_number,
+                "Please enter a valid 6-digit Indian pincode, or type *skip*.",
+            )
+            return
+
+    await send_fn(
+        db, user.mobile_number,
+        "Now let's add your pet!\n\n"
+        "What is your *pet's name*?",
+    )
+
+
+async def _step_pet_name(db, user, text, send_fn):
+    """Handle pet name collection — store temporarily, ask species next."""
+    pet_name = text.strip()
+    if len(pet_name) < 1 or len(pet_name) > 100:
+        await send_fn(db, user.mobile_number, "Please enter a valid pet name.")
+        return
+
+    # Check pet limit
+    pet_count = (
+        db.query(Pet)
+        .filter(Pet.user_id == user.id, Pet.is_deleted == False)
+        .count()
+    )
+    if pet_count >= MAX_PETS_PER_USER:
+        await send_fn(
+            db, user.mobile_number,
+            f"You already have {MAX_PETS_PER_USER} pets registered. That's the maximum!",
+        )
+        user.onboarding_state = "complete"
+        db.commit()
+        return
+
+    # Create pet with placeholder species — will be updated in next step.
+    # Store name now so we don't lose it between messages.
+    pet = Pet(
+        user_id=user.id,
+        name=pet_name,
+        species="_pending",
+    )
+    db.add(pet)
+    db.commit()
+
+    user.onboarding_state = "awaiting_species"
+    db.commit()
+
+    await send_fn(
+        db, user.mobile_number,
+        f"Great name! Is *{pet_name}* a *dog* or a *cat*?",
+    )
+
+
+async def _step_species(db, user, text_lower, send_fn):
+    """Handle species selection."""
+    if text_lower not in ("dog", "cat"):
+        await send_fn(
+            db, user.mobile_number,
+            "Please reply *dog* or *cat*.",
+        )
+        return
+
+    # Update the pending pet
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        return
+
+    pet.species = text_lower
+    user.onboarding_state = "awaiting_breed"
+    db.commit()
+
+    await send_fn(
+        db, user.mobile_number,
+        f"What *breed* is {pet.name}? (Type *skip* if you're not sure)",
+    )
+
+
+async def _step_breed(db, user, text, send_fn):
+    """Handle breed collection."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        return
+
+    if text.strip().lower() != "skip":
+        pet.breed = text.strip()
+
+    user.onboarding_state = "awaiting_gender"
+    db.commit()
+
+    await send_fn(
+        db, user.mobile_number,
+        f"What is {pet.name}'s *gender*? (*male* or *female*, or *skip*)",
+    )
+
+
+async def _step_gender(db, user, text_lower, send_fn):
+    """Handle gender collection."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        return
+
+    if text_lower in ("male", "female"):
+        pet.gender = text_lower
+    elif text_lower != "skip":
+        await send_fn(db, user.mobile_number, "Please reply *male*, *female*, or *skip*.")
+        return
+
+    user.onboarding_state = "awaiting_dob"
+    db.commit()
+
+    await send_fn(
+        db, user.mobile_number,
+        f"When was {pet.name} born?\n"
+        f"(DD/MM/YYYY, DD-MM-YYYY, or type *skip*)",
+    )
+
+
+async def _step_dob(db, user, text, send_fn):
+    """Handle date of birth collection."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        return
+
+    if text.strip().lower() != "skip":
+        try:
+            dob = parse_date(text.strip())
+            pet.dob = dob
+        except ValueError:
+            await send_fn(
+                db, user.mobile_number,
+                "Invalid date format. Please use DD/MM/YYYY or DD-MM-YYYY, or type *skip*.",
+            )
+            return
+
+    user.onboarding_state = "awaiting_weight"
+    db.commit()
+
+    await send_fn(
+        db, user.mobile_number,
+        f"What is {pet.name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
+    )
+
+
+async def _step_weight(db, user, text, send_fn):
+    """Handle weight collection."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        return
+
+    if text.strip().lower() != "skip":
+        try:
+            weight = float(text.strip())
+            if weight <= 0 or weight > 999.99:
+                raise ValueError("out of range")
+            pet.weight = weight
+        except ValueError:
+            await send_fn(
+                db, user.mobile_number,
+                "Please enter a valid weight in kg (e.g., 12.5), or type *skip*.",
+            )
+            return
+
+    user.onboarding_state = "awaiting_neutered"
+    db.commit()
+
+    await send_fn(
+        db, user.mobile_number,
+        f"Is {pet.name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
+    )
+
+
+async def _step_neutered(db, user, text_lower, send_fn):
+    """Handle neutered status and complete onboarding."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        return
+
+    if text_lower in ("yes", "y"):
+        pet.neutered = True
+    elif text_lower in ("no", "n"):
+        pet.neutered = False
+    elif text_lower != "skip":
+        await send_fn(db, user.mobile_number, "Please reply *yes*, *no*, or *skip*.")
+        return
+
+    db.commit()
+
+    # --- Complete onboarding ---
+    await _complete_pet_onboarding(db, user, pet, send_fn)
+
+
+async def _complete_pet_onboarding(db, user, pet, send_fn):
+    """
+    Finalize pet onboarding: seed records, generate token, send dashboard link.
+    """
+    # Seed preventive records for this pet
+    record_count = seed_preventive_records_for_pet(db, pet)
+
+    # Generate dashboard token
+    token = generate_dashboard_token(db, pet.id)
+
+    # Mark onboarding as complete
+    user.onboarding_state = "complete"
+    db.commit()
+
+    logger.info(
+        "Onboarding complete: user=%s, pet=%s (%s), records=%d",
+        user.mobile_number, pet.name, pet.species, record_count,
+    )
+
+    # Send completion message with dashboard link
+    await send_fn(
+        db, user.mobile_number,
+        f"All set! {pet.name}'s profile is ready.\n\n"
+        f"Preventive health items: {record_count} items are now being tracked.\n\n"
+        f"Access {pet.name}'s health dashboard:\n"
+        f"/dashboard/{token}\n\n"
+        f"You can upload medical records (photos, PDFs) anytime to update {pet.name}'s health data.\n\n"
+        f"Type *add pet* to add another pet, or ask any question about {pet.name}'s health!",
+    )
+
+
+def _get_pending_pet(db: Session, user_id: UUID) -> Pet | None:
+    """Get the most recently created pet for a user (the one being onboarded)."""
+    return (
+        db.query(Pet)
+        .filter(Pet.user_id == user_id, Pet.is_deleted == False)
+        .order_by(Pet.created_at.desc())
+        .first()
+    )
+
+
+def generate_dashboard_token(db: Session, pet_id: UUID) -> str:
+    """
+    Generate a secure random dashboard token for a pet.
+
+    Token is 128-bit (16 bytes), rendered as a 32-char hex string.
+
+    Args:
+        db: SQLAlchemy database session.
+        pet_id: UUID of the pet.
+
+    Returns:
+        The generated hex token string.
+    """
+    token = secrets.token_hex(DASHBOARD_TOKEN_BYTES)
+
+    dashboard_token = DashboardToken(
+        pet_id=pet_id,
+        token=token,
+        revoked=False,
+    )
+    db.add(dashboard_token)
+    db.commit()
+
+    logger.info("Dashboard token generated for pet_id=%s", str(pet_id))
+    return token
+
+
+def seed_preventive_records_for_pet(db: Session, pet: Pet) -> int:
+    """
+    Create initial preventive records for a newly onboarded pet.
+
+    Args:
+        db: SQLAlchemy database session.
+        pet: The Pet model instance.
+
+    Returns:
+        Count of preventive records created.
+    """
+    seed_preventive_master(db)
+
+    masters = (
+        db.query(PreventiveMaster)
+        .filter(PreventiveMaster.species.in_([pet.species, "both"]))
+        .all()
+    )
+
+    count = 0
+    for master in masters:
+        try:
+            record = PreventiveRecord(
+                pet_id=pet.id,
+                preventive_master_id=master.id,
+                status="upcoming",
+            )
+            db.add(record)
+            db.flush()
+            count += 1
+        except Exception as e:
+            db.rollback()
+            logger.warning(
+                "Failed to create preventive record for pet=%s, item=%s: %s",
+                str(pet.id), master.item_name, str(e),
+            )
+
+    db.commit()
+
+    logger.info(
+        "Seeded %d preventive records for pet_id=%s (species=%s)",
+        count, str(pet.id), pet.species,
+    )
+    return count
