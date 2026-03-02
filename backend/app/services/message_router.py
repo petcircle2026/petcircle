@@ -22,6 +22,8 @@ Rules:
 
 import logging
 from sqlalchemy.orm import Session
+from app.core.encryption import decrypt_field
+from app.core.log_sanitizer import mask_phone
 from app.core.constants import (
     REMINDER_DONE,
     REMINDER_SNOOZE_7,
@@ -46,6 +48,17 @@ from app.models.conflict_flag import ConflictFlag
 
 
 logger = logging.getLogger(__name__)
+
+
+def _get_mobile(user) -> str:
+    """
+    Get the plaintext mobile number for sending messages.
+
+    Prefers the cached plaintext from the current request (set by route_message).
+    Falls back to decrypting the stored encrypted mobile_number.
+    """
+    return getattr(user, "_plaintext_mobile", None) or decrypt_field(user.mobile_number)
+
 
 # All valid reminder payload IDs
 REMINDER_PAYLOADS = {REMINDER_DONE, REMINDER_SNOOZE_7, REMINDER_RESCHEDULE, REMINDER_CANCEL}
@@ -84,6 +97,10 @@ async def route_message(db: Session, message_data: dict) -> None:
             )
             return
 
+        # Attach plaintext number for downstream sending.
+        # user.mobile_number is encrypted in DB; from_number is plaintext from webhook.
+        user._plaintext_mobile = from_number
+
         # --- Step 2: Check if user is still onboarding ---
         if user.onboarding_state and user.onboarding_state != "complete":
             text = (message_data.get("text") or "").strip()
@@ -107,10 +124,10 @@ async def route_message(db: Session, message_data: dict) -> None:
             await _handle_text(db, user, message_data)
 
         else:
-            logger.info("Unhandled message type '%s' from %s", msg_type, from_number)
+            logger.info("Unhandled message type '%s' from %s", msg_type, mask_phone(from_number))
 
     except Exception as e:
-        logger.error("Error routing message from %s: %s", from_number, str(e))
+        logger.error("Error routing message from %s: %s", mask_phone(from_number), str(e))
         try:
             await send_text_message(
                 db, from_number,
@@ -131,7 +148,7 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
     """
     text = (message_data.get("text") or "").strip()
     text_lower = text.lower()
-    from_number = user.mobile_number
+    from_number = _get_mobile(user)
 
     # "add pet" command — restart pet portion of onboarding
     if text_lower in ("add pet", "new pet", "add another pet"):
@@ -167,7 +184,7 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
 async def _handle_button(db: Session, user, message_data: dict) -> None:
     """Handle a button response — route to reminder or conflict handler."""
     payload = message_data.get("button_payload", "")
-    from_number = user.mobile_number
+    from_number = _get_mobile(user)
 
     if payload in REMINDER_PAYLOADS:
         await _handle_reminder_button(db, user, payload)
@@ -186,7 +203,7 @@ async def _handle_reminder_button(db: Session, user, payload: str) -> None:
     from app.services.reminder_response import handle_reminder_response
     from app.models.preventive_record import PreventiveRecord
 
-    from_number = user.mobile_number
+    from_number = _get_mobile(user)
 
     # Find user's pets
     pets = db.query(Pet).filter(
@@ -244,7 +261,7 @@ async def _handle_conflict_button(db: Session, user, payload: str) -> None:
     from app.services.conflict_engine import resolve_conflict
     from app.models.preventive_record import PreventiveRecord
 
-    from_number = user.mobile_number
+    from_number = _get_mobile(user)
 
     pets = db.query(Pet).filter(
         Pet.user_id == user.id, Pet.is_deleted == False
@@ -285,7 +302,7 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
     from app.services.document_upload import process_document_upload
     from app.services.gpt_extraction import extract_and_process_document
 
-    from_number = user.mobile_number
+    from_number = _get_mobile(user)
     media_id = message_data.get("media_id")
 
     if not media_id:
@@ -354,7 +371,7 @@ async def _handle_query(db: Session, user, text: str) -> None:
     """Handle a general text query via GPT query engine."""
     from app.services.query_engine import answer_pet_question
 
-    from_number = user.mobile_number
+    from_number = _get_mobile(user)
 
     pet = (
         db.query(Pet)
@@ -380,10 +397,18 @@ async def _handle_query(db: Session, user, text: str) -> None:
 
 
 async def _send_dashboard_links(db, user) -> None:
-    """Send dashboard links for all user's pets."""
-    from app.models.dashboard_token import DashboardToken
+    """
+    Send dashboard links for all user's pets.
 
-    from_number = user.mobile_number
+    Auto-regenerates expired or revoked tokens so the user always
+    receives a working link.
+    """
+    from datetime import datetime
+    from app.models.dashboard_token import DashboardToken
+    from app.services.onboarding import refresh_dashboard_token
+    from app.config import settings
+
+    from_number = _get_mobile(user)
 
     pets = db.query(Pet).filter(
         Pet.user_id == user.id, Pet.is_deleted == False
@@ -395,15 +420,22 @@ async def _send_dashboard_links(db, user) -> None:
 
     messages = []
     for pet in pets:
-        token = (
+        token_record = (
             db.query(DashboardToken)
             .filter(DashboardToken.pet_id == pet.id, DashboardToken.revoked == False)
             .first()
         )
-        if token:
-            messages.append(f"{pet.name}: /dashboard/{token.token}")
+
+        # Auto-refresh if token is expired or missing.
+        if token_record and token_record.expires_at and datetime.utcnow() > token_record.expires_at:
+            new_token = refresh_dashboard_token(db, pet.id)
+            messages.append(f"{pet.name}: {settings.FRONTEND_URL}/dashboard/{new_token}")
+        elif token_record:
+            messages.append(f"{pet.name}: {settings.FRONTEND_URL}/dashboard/{token_record.token}")
         else:
-            messages.append(f"{pet.name}: No dashboard link available")
+            # No token at all — generate a fresh one.
+            new_token = refresh_dashboard_token(db, pet.id)
+            messages.append(f"{pet.name}: {settings.FRONTEND_URL}/dashboard/{new_token}")
 
     await send_text_message(
         db, from_number,

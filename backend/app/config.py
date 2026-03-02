@@ -74,6 +74,14 @@ class Settings(BaseSettings):
     # --- Database ---
     DATABASE_URL: str
 
+    # --- Security ---
+    # Fernet encryption key for PII field-level encryption.
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    ENCRYPTION_KEY: str
+
+    # Frontend URL for CORS allow-origin (e.g., https://petcircle-dashboard.onrender.com).
+    FRONTEND_URL: str
+
     # --- Timezone ---
     # Derived from constants, not from environment.
     # Exposed here so all layers can access timezone through settings.

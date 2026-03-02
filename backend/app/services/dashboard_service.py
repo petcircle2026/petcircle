@@ -32,7 +32,7 @@ Rules:
 
 import logging
 from uuid import UUID
-from datetime import date
+from datetime import date, datetime
 from sqlalchemy.orm import Session
 from app.models.dashboard_token import DashboardToken
 from app.models.pet import Pet
@@ -83,6 +83,12 @@ def validate_dashboard_token(db: Session, token: str) -> DashboardToken:
     # Revoked tokens cannot be reused — soft revocation only.
     if dashboard_token.revoked:
         raise ValueError("This dashboard link has been revoked.")
+
+    # Expired tokens are rejected — user can regenerate via WhatsApp.
+    if dashboard_token.expires_at and datetime.utcnow() > dashboard_token.expires_at:
+        raise ValueError(
+            "Dashboard link has expired. Send 'dashboard' in WhatsApp to get a new link."
+        )
 
     return dashboard_token
 

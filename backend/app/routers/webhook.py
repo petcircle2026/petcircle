@@ -21,6 +21,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.core.security import verify_webhook_signature
+from app.core.log_sanitizer import mask_phone, sanitize_payload
+from app.core.rate_limiter import rate_limiter
 from app.models.message_log import MessageLog
 
 
@@ -95,13 +97,13 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
 
     # --- Step 4: Log ALL incoming payloads ---
     # Logging must not block the flow — wrapped in try/except.
-    # Even non-message events (status updates, errors) are logged.
+    # Payloads are sanitized before storage to strip PII.
     try:
         log_entry = MessageLog(
             mobile_number=message_data.get("from_number"),
             direction="incoming",
             message_type=message_data.get("type"),
-            payload=payload,
+            payload=sanitize_payload(payload),
         )
         db.add(log_entry)
         db.commit()
@@ -113,10 +115,17 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
     # --- Step 5: Forward to service layer ---
     # Only process if we have an actual message (not a status update).
     if message_data.get("has_message"):
+        from_number = message_data.get("from_number", "unknown")
+
+        # Rate limit check — reject if this phone exceeds the limit.
+        if from_number != "unknown" and not rate_limiter.check_rate_limit(from_number):
+            logger.warning("Rate limited: phone=%s", mask_phone(from_number))
+            return {"status": "ok"}
+
         logger.info(
             "Received %s message from %s",
             message_data.get("type", "unknown"),
-            message_data.get("from_number", "unknown"),
+            mask_phone(from_number),
         )
 
         # Route message to the appropriate service handler.
@@ -129,7 +138,7 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
             # Service layer failure must never prevent 200 OK response.
             logger.error(
                 "Service layer error for message from %s: %s",
-                message_data.get("from_number", "unknown"),
+                mask_phone(from_number),
                 str(e),
             )
 

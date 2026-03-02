@@ -28,6 +28,7 @@ Rules:
 
 import logging
 import secrets
+from datetime import datetime, timedelta
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.models.user import User
@@ -35,7 +36,14 @@ from app.models.pet import Pet
 from app.models.dashboard_token import DashboardToken
 from app.models.preventive_master import PreventiveMaster
 from app.models.preventive_record import PreventiveRecord
-from app.core.constants import MAX_PETS_PER_USER, DASHBOARD_TOKEN_BYTES
+from app.core.constants import (
+    MAX_PETS_PER_USER,
+    DASHBOARD_TOKEN_BYTES,
+    DASHBOARD_TOKEN_EXPIRY_DAYS,
+)
+from app.config import settings
+from app.core.encryption import encrypt_field, decrypt_field, hash_field
+from app.core.log_sanitizer import mask_phone
 from app.utils.date_utils import parse_date
 from app.services.preventive_seeder import seed_preventive_master
 
@@ -45,18 +53,22 @@ logger = logging.getLogger(__name__)
 
 def get_or_create_user(db: Session, mobile_number: str) -> tuple[User | None, bool]:
     """
-    Look up an existing user by mobile number, or return None if new.
+    Look up an existing user by mobile number hash, or return None if new.
+
+    Uses deterministic SHA-256 hash for lookups instead of querying
+    the encrypted mobile_number column directly.
 
     Args:
         db: SQLAlchemy database session.
-        mobile_number: WhatsApp phone number.
+        mobile_number: WhatsApp phone number (plaintext from webhook).
 
     Returns:
         Tuple of (User or None, is_existing: bool).
     """
+    mobile_h = hash_field(mobile_number)
     user = (
         db.query(User)
-        .filter(User.mobile_number == mobile_number, User.is_deleted == False)
+        .filter(User.mobile_hash == mobile_h, User.is_deleted == False)
         .first()
     )
     if user:
@@ -69,17 +81,19 @@ def create_pending_user(db: Session, mobile_number: str) -> User:
     Create a new user record in awaiting_consent state.
 
     The user is created with a placeholder name. Real name is collected
-    during the onboarding conversation.
+    during the onboarding conversation. Mobile number is encrypted;
+    a deterministic hash is stored for future lookups.
 
     Args:
         db: SQLAlchemy database session.
-        mobile_number: WhatsApp phone number.
+        mobile_number: WhatsApp phone number (plaintext).
 
     Returns:
         The created User model instance.
     """
     user = User(
-        mobile_number=mobile_number,
+        mobile_number=encrypt_field(mobile_number),
+        mobile_hash=hash_field(mobile_number),
         full_name="_pending",
         onboarding_state="awaiting_consent",
         consent_given=False,
@@ -88,7 +102,7 @@ def create_pending_user(db: Session, mobile_number: str) -> User:
     db.commit()
     db.refresh(user)
 
-    logger.info("Pending user created: id=%s, mobile=%s", str(user.id), mobile_number)
+    logger.info("Pending user created: id=%s, mobile=%s", str(user.id), mask_phone(mobile_number))
     return user
 
 
@@ -111,7 +125,11 @@ async def handle_onboarding_step(
             Signature: send_fn(db, to_number, text) -> None
     """
     state = user.onboarding_state or "awaiting_consent"
-    mobile = user.mobile_number
+    # Prefer cached plaintext mobile from the current request (set by message_router).
+    # Falls back to decrypting the stored encrypted mobile_number.
+    mobile = getattr(user, "_plaintext_mobile", None) or decrypt_field(user.mobile_number)
+    # Ensure all downstream step functions can access plaintext mobile.
+    user._plaintext_mobile = mobile
     text_lower = text.lower().strip()
 
     if state == "awaiting_consent":
@@ -156,13 +174,13 @@ async def _step_consent(db, user, text_lower, send_fn):
         db.commit()
 
         await send_fn(
-            db, user.mobile_number,
+            db, user._plaintext_mobile,
             "Thank you for your consent! Let's get you set up.\n\n"
             "What is your *full name*?",
         )
     elif text_lower in ("no", "n", "disagree"):
         await send_fn(
-            db, user.mobile_number,
+            db, user._plaintext_mobile,
             "No problem. Your data won't be stored. "
             "Send a message anytime if you change your mind.",
         )
@@ -171,7 +189,7 @@ async def _step_consent(db, user, text_lower, send_fn):
         db.commit()
     else:
         await send_fn(
-            db, user.mobile_number,
+            db, user._plaintext_mobile,
             "Please reply *yes* to consent and continue, or *no* to opt out.",
         )
 
@@ -179,7 +197,7 @@ async def _step_consent(db, user, text_lower, send_fn):
 async def _step_name(db, user, text, send_fn):
     """Handle name collection."""
     if len(text) < 2 or len(text) > 120:
-        await send_fn(db, user.mobile_number, "Please enter a valid name (2-120 characters).")
+        await send_fn(db, user._plaintext_mobile, "Please enter a valid name (2-120 characters).")
         return
 
     user.full_name = text.strip()
@@ -187,7 +205,7 @@ async def _step_name(db, user, text, send_fn):
     db.commit()
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"Nice to meet you, {text.strip()}!\n\n"
         f"What is your *pincode*? (Type *skip* if you prefer not to share)",
     )
@@ -202,18 +220,19 @@ async def _step_pincode(db, user, text, send_fn):
     else:
         # Validate Indian pincode (6 digits)
         if text_stripped.isdigit() and len(text_stripped) == 6:
-            user.pincode = text_stripped
+            # Encrypt pincode before storing — PII protection.
+            user.pincode = encrypt_field(text_stripped)
             user.onboarding_state = "awaiting_pet_name"
             db.commit()
         else:
             await send_fn(
-                db, user.mobile_number,
+                db, user._plaintext_mobile,
                 "Please enter a valid 6-digit Indian pincode, or type *skip*.",
             )
             return
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         "Now let's add your pet!\n\n"
         "What is your *pet's name*?",
     )
@@ -223,7 +242,7 @@ async def _step_pet_name(db, user, text, send_fn):
     """Handle pet name collection — store temporarily, ask species next."""
     pet_name = text.strip()
     if len(pet_name) < 1 or len(pet_name) > 100:
-        await send_fn(db, user.mobile_number, "Please enter a valid pet name.")
+        await send_fn(db, user._plaintext_mobile, "Please enter a valid pet name.")
         return
 
     # Check pet limit
@@ -234,7 +253,7 @@ async def _step_pet_name(db, user, text, send_fn):
     )
     if pet_count >= MAX_PETS_PER_USER:
         await send_fn(
-            db, user.mobile_number,
+            db, user._plaintext_mobile,
             f"You already have {MAX_PETS_PER_USER} pets registered. That's the maximum!",
         )
         user.onboarding_state = "complete"
@@ -255,7 +274,7 @@ async def _step_pet_name(db, user, text, send_fn):
     db.commit()
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"Great name! Is *{pet_name}* a *dog* or a *cat*?",
     )
 
@@ -264,7 +283,7 @@ async def _step_species(db, user, text_lower, send_fn):
     """Handle species selection."""
     if text_lower not in ("dog", "cat"):
         await send_fn(
-            db, user.mobile_number,
+            db, user._plaintext_mobile,
             "Please reply *dog* or *cat*.",
         )
         return
@@ -272,7 +291,7 @@ async def _step_species(db, user, text_lower, send_fn):
     # Update the pending pet
     pet = _get_pending_pet(db, user.id)
     if not pet:
-        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         user.onboarding_state = "awaiting_pet_name"
         db.commit()
         return
@@ -282,7 +301,7 @@ async def _step_species(db, user, text_lower, send_fn):
     db.commit()
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"What *breed* is {pet.name}? (Type *skip* if you're not sure)",
     )
 
@@ -293,7 +312,7 @@ async def _step_breed(db, user, text, send_fn):
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
         db.commit()
-        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
     if text.strip().lower() != "skip":
@@ -303,7 +322,7 @@ async def _step_breed(db, user, text, send_fn):
     db.commit()
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"What is {pet.name}'s *gender*? (*male* or *female*, or *skip*)",
     )
 
@@ -314,20 +333,20 @@ async def _step_gender(db, user, text_lower, send_fn):
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
         db.commit()
-        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
     if text_lower in ("male", "female"):
         pet.gender = text_lower
     elif text_lower != "skip":
-        await send_fn(db, user.mobile_number, "Please reply *male*, *female*, or *skip*.")
+        await send_fn(db, user._plaintext_mobile, "Please reply *male*, *female*, or *skip*.")
         return
 
     user.onboarding_state = "awaiting_dob"
     db.commit()
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"When was {pet.name} born?\n"
         f"(DD/MM/YYYY, DD-MM-YYYY, or type *skip*)",
     )
@@ -339,7 +358,7 @@ async def _step_dob(db, user, text, send_fn):
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
         db.commit()
-        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
     if text.strip().lower() != "skip":
@@ -348,7 +367,7 @@ async def _step_dob(db, user, text, send_fn):
             pet.dob = dob
         except ValueError:
             await send_fn(
-                db, user.mobile_number,
+                db, user._plaintext_mobile,
                 "Invalid date format. Please use DD/MM/YYYY or DD-MM-YYYY, or type *skip*.",
             )
             return
@@ -357,7 +376,7 @@ async def _step_dob(db, user, text, send_fn):
     db.commit()
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"What is {pet.name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
     )
 
@@ -368,7 +387,7 @@ async def _step_weight(db, user, text, send_fn):
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
         db.commit()
-        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
     if text.strip().lower() != "skip":
@@ -379,7 +398,7 @@ async def _step_weight(db, user, text, send_fn):
             pet.weight = weight
         except ValueError:
             await send_fn(
-                db, user.mobile_number,
+                db, user._plaintext_mobile,
                 "Please enter a valid weight in kg (e.g., 12.5), or type *skip*.",
             )
             return
@@ -388,7 +407,7 @@ async def _step_weight(db, user, text, send_fn):
     db.commit()
 
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"Is {pet.name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
     )
 
@@ -399,7 +418,7 @@ async def _step_neutered(db, user, text_lower, send_fn):
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
         db.commit()
-        await send_fn(db, user.mobile_number, "Something went wrong. Please send your pet's name again.")
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
     if text_lower in ("yes", "y"):
@@ -407,7 +426,7 @@ async def _step_neutered(db, user, text_lower, send_fn):
     elif text_lower in ("no", "n"):
         pet.neutered = False
     elif text_lower != "skip":
-        await send_fn(db, user.mobile_number, "Please reply *yes*, *no*, or *skip*.")
+        await send_fn(db, user._plaintext_mobile, "Please reply *yes*, *no*, or *skip*.")
         return
 
     db.commit()
@@ -431,17 +450,17 @@ async def _complete_pet_onboarding(db, user, pet, send_fn):
     db.commit()
 
     logger.info(
-        "Onboarding complete: user=%s, pet=%s (%s), records=%d",
-        user.mobile_number, pet.name, pet.species, record_count,
+        "Onboarding complete: user_id=%s, pet=%s (%s), records=%d",
+        str(user.id), pet.name, pet.species, record_count,
     )
 
     # Send completion message with dashboard link
     await send_fn(
-        db, user.mobile_number,
+        db, user._plaintext_mobile,
         f"All set! {pet.name}'s profile is ready.\n\n"
         f"Preventive health items: {record_count} items are now being tracked.\n\n"
         f"Access {pet.name}'s health dashboard:\n"
-        f"/dashboard/{token}\n\n"
+        f"{settings.FRONTEND_URL}/dashboard/{token}\n\n"
         f"You can upload medical records (photos, PDFs) anytime to update {pet.name}'s health data.\n\n"
         f"Type *add pet* to add another pet, or ask any question about {pet.name}'s health!",
     )
@@ -462,6 +481,7 @@ def generate_dashboard_token(db: Session, pet_id: UUID) -> str:
     Generate a secure random dashboard token for a pet.
 
     Token is 128-bit (16 bytes), rendered as a 32-char hex string.
+    Expires after DASHBOARD_TOKEN_EXPIRY_DAYS (30 days by default).
 
     Args:
         db: SQLAlchemy database session.
@@ -476,12 +496,42 @@ def generate_dashboard_token(db: Session, pet_id: UUID) -> str:
         pet_id=pet_id,
         token=token,
         revoked=False,
+        expires_at=datetime.utcnow() + timedelta(days=DASHBOARD_TOKEN_EXPIRY_DAYS),
     )
     db.add(dashboard_token)
     db.commit()
 
     logger.info("Dashboard token generated for pet_id=%s", str(pet_id))
     return token
+
+
+def refresh_dashboard_token(db: Session, pet_id: UUID) -> str:
+    """
+    Revoke the existing token and generate a new one with fresh expiry.
+
+    Used when a user's token has expired or been revoked and they
+    request a new dashboard link via WhatsApp.
+
+    Args:
+        db: SQLAlchemy database session.
+        pet_id: UUID of the pet.
+
+    Returns:
+        The newly generated hex token string.
+    """
+    # Revoke all existing active tokens for this pet.
+    existing_tokens = (
+        db.query(DashboardToken)
+        .filter(DashboardToken.pet_id == pet_id, DashboardToken.revoked == False)
+        .all()
+    )
+    for t in existing_tokens:
+        t.revoked = True
+
+    db.flush()
+
+    logger.info("Revoked %d old token(s) for pet_id=%s", len(existing_tokens), str(pet_id))
+    return generate_dashboard_token(db, pet_id)
 
 
 def seed_preventive_records_for_pet(db: Session, pet: Pet) -> int:

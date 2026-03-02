@@ -50,6 +50,11 @@ class DashboardToken(Base):
     # Tokens are never physically deleted to preserve audit trail.
     revoked = Column(Boolean, default=False)
 
+    # Timestamp when the token expires.
+    # Tokens older than this are rejected at validation.
+    # Users can regenerate expired tokens by typing "dashboard" in WhatsApp.
+    expires_at = Column(DateTime, nullable=False)
+
     # Timestamp when the token was generated.
     created_at = Column(DateTime, default=datetime.utcnow)
 

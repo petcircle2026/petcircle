@@ -23,10 +23,11 @@ Rules:
 """
 
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.core.rate_limiter import check_dashboard_rate_limit
 from app.services.dashboard_service import (
     get_dashboard_data,
     update_pet_weight,
@@ -41,6 +42,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/dashboard",
     tags=["dashboard"],
+    dependencies=[Depends(check_dashboard_rate_limit)],
 )
 
 
@@ -85,6 +87,7 @@ class PreventiveDateUpdateRequest(BaseModel):
 @router.get("/{token}")
 def dashboard_get(
     token: str,
+    response: Response,
     db: Session = Depends(get_db),
 ):
     """
@@ -96,19 +99,25 @@ def dashboard_get(
     Token validation:
         - Token must exist in dashboard_tokens table.
         - Token must not be revoked.
+        - Token must not be expired.
+
+    Cache-Control: no-store prevents browser/CDN caching of sensitive pet data.
 
     Args:
         token: Dashboard access token from URL path.
+        response: FastAPI Response object for setting headers.
         db: SQLAlchemy database session (injected).
 
     Returns:
         Complete dashboard data dictionary.
 
     Raises:
-        HTTPException 404: If token is invalid or revoked.
+        HTTPException 404: If token is invalid, revoked, or expired.
     """
     try:
         data = get_dashboard_data(db, token)
+        # Prevent caching of sensitive pet health data.
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return data
     except ValueError as e:
         # Generic error message — do not leak internal details.
@@ -193,10 +202,10 @@ def dashboard_update_preventive(
     # parse_date raises ValueError for invalid formats.
     try:
         new_date = parse_date(body.last_done_date)
-    except ValueError as e:
+    except ValueError:
         raise HTTPException(
             status_code=400,
-            detail=str(e),
+            detail="Invalid date format. Use DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD.",
         )
 
     try:

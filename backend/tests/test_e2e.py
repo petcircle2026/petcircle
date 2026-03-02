@@ -64,6 +64,7 @@ from app.services.gpt_extraction import (
 )
 from app.utils.date_utils import parse_date, format_date_for_db, get_today_ist
 from app.core.constants import *
+from app.core.encryption import encrypt_field, decrypt_field, hash_field
 from datetime import date, timedelta
 import uuid
 
@@ -94,8 +95,8 @@ def main():
         # ===================================================================
 
         test_mobile = "919999900001"
-        # Clean up any existing test data
-        existing_user = db.query(User).filter(User.mobile_number == test_mobile).first()
+        # Clean up any existing test data (lookup by hash since mobile is encrypted)
+        existing_user = db.query(User).filter(User.mobile_hash == hash_field(test_mobile)).first()
         if existing_user:
             # Delete all related data
             pets = db.query(Pet).filter(Pet.user_id == existing_user.id).all()
@@ -124,11 +125,15 @@ def main():
         test("User has pending state", user.onboarding_state == "awaiting_consent")
         test("User consent not given", user.consent_given == False)
         test("User name is _pending", user.full_name == "_pending")
-        test("User mobile correct", user.mobile_number == test_mobile)
+        test("User mobile encrypted", decrypt_field(user.mobile_number) == test_mobile)
+        test("User mobile_hash correct", user.mobile_hash == hash_field(test_mobile))
 
         # Mock send function (no-op)
         async def mock_send(db, to, text):
             pass
+
+        # Set plaintext mobile for onboarding steps (normally set by message_router)
+        user._plaintext_mobile = test_mobile
 
         # Step through onboarding
         loop = asyncio.new_event_loop()
@@ -148,7 +153,7 @@ def main():
         # Step 3: Pincode
         loop.run_until_complete(handle_onboarding_step(db, user, "400001", mock_send))
         db.refresh(user)
-        test("Pincode stored", user.pincode == "400001")
+        test("Pincode encrypted and stored", decrypt_field(user.pincode) == "400001")
         test("State -> awaiting_pet_name", user.onboarding_state == "awaiting_pet_name")
 
         # Step 4: Pet name
@@ -556,6 +561,7 @@ def main():
 
         # Simulate adding a second pet
         user.onboarding_state = "awaiting_pet_name"
+        user._plaintext_mobile = test_mobile
         db.commit()
 
         loop.run_until_complete(handle_onboarding_step(db, user, "Milo", mock_send))

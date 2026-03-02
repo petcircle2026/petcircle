@@ -175,6 +175,25 @@ export async function updatePreventiveDate(
   return res.json();
 }
 
+/**
+ * Verify an admin key against the backend before showing the admin UI.
+ * Returns true if the key is valid, false otherwise.
+ */
+export async function verifyAdminKey(adminKey: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/admin/verify-key`, {
+      method: "POST",
+      headers: {
+        "X-ADMIN-KEY": adminKey,
+        "Content-Type": "application/json",
+      },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // --- Admin API ---
 
 async function adminFetch<T>(path: string, adminKey: string): Promise<T> {

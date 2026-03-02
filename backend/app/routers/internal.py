@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.core.security import validate_admin_key
+from app.core.rate_limiter import check_admin_rate_limit
 from app.services.reminder_engine import run_reminder_engine, send_pending_reminders
 from app.services.conflict_expiry import expire_pending_conflicts
 
@@ -27,12 +28,12 @@ from app.services.conflict_expiry import expire_pending_conflicts
 logger = logging.getLogger(__name__)
 
 
-# All routes require admin authentication.
+# All routes require admin authentication and IP-based rate limiting.
 # Render cron jobs must include X-ADMIN-KEY header.
 router = APIRouter(
     prefix="/internal",
     tags=["internal"],
-    dependencies=[Depends(validate_admin_key)],
+    dependencies=[Depends(check_admin_rate_limit), Depends(validate_admin_key)],
 )
 
 

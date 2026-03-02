@@ -1,0 +1,38 @@
+name: Deploy Health Check
+
+on:
+  push:
+    branches: [dev, staging, main]
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set environment URL
+        id: env
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            echo "url=https://petcircle-api.onrender.com" >> "$GITHUB_OUTPUT"
+            echo "env_name=production" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.ref_name }}" = "staging" ]; then
+            echo "url=https://petcircle-api-staging.onrender.com" >> "$GITHUB_OUTPUT"
+            echo "env_name=staging" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=https://petcircle-api-dev.onrender.com" >> "$GITHUB_OUTPUT"
+            echo "env_name=development" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for Render build
+        run: sleep 60
+
+      - name: Health check
+        run: |
+          echo "Checking ${{ steps.env.outputs.env_name }} at ${{ steps.env.outputs.url }}/health"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.env.outputs.url }}/health" --max-time 30 || echo "000")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "Health check passed"
+          else
+            echo "Health check failed with status $STATUS"
+            exit 1
+          fi

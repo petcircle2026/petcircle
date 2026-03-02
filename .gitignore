@@ -41,10 +41,11 @@ htmlcov/
 
 # === Environment (real secrets) ===
 # Committed env files only contain placeholders.
-# Real .env files are gitignored.
+# Real .env files with secrets are gitignored.
 backend/.env
 backend/envs/.env.local
 frontend/.env.local
+# frontend/.env.development, .env.staging, .env.production are committed (no secrets).
 
 # === OS ===
 .DS_Store

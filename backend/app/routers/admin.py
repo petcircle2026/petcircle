@@ -30,6 +30,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.core.security import validate_admin_key
+from app.core.rate_limiter import check_admin_rate_limit
+from app.core.encryption import decrypt_field
+from app.core.log_sanitizer import mask_phone, sanitize_payload
 from app.models.user import User
 from app.models.pet import Pet
 from app.models.reminder import Reminder
@@ -45,7 +48,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(validate_admin_key)],
+    dependencies=[Depends(check_admin_rate_limit), Depends(validate_admin_key)],
 )
 
 
@@ -64,13 +67,14 @@ class PetUpdateRequest(BaseModel):
 def list_users(db: Session = Depends(get_db)):
     """List all registered users with full details."""
     users = db.query(User).all()
+    # Decrypt PII fields and mask mobile numbers in admin response.
     return [
         {
             "id": str(u.id),
-            "mobile_number": u.mobile_number,
+            "mobile_number": mask_phone(decrypt_field(u.mobile_number)),
             "full_name": u.full_name,
-            "pincode": u.pincode,
-            "email": u.email,
+            "pincode": decrypt_field(u.pincode) if u.pincode else None,
+            "email": decrypt_field(u.email) if u.email else None,
             "consent_given": u.consent_given,
             "onboarding_state": u.onboarding_state,
             "is_deleted": u.is_deleted,
@@ -138,7 +142,10 @@ def edit_pet(pet_id: UUID, body: PetUpdateRequest, db: Session = Depends(get_db)
             pet.dob = parse_date(body.dob)
             updated_fields.append("dob")
         except ValueError as e:
-            raise HTTPException(status_code=400, detail=f"Invalid date: {e}")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid date format. Use DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD.",
+            )
     if body.weight is not None:
         pet.weight = body.weight
         updated_fields.append("weight")
@@ -225,13 +232,15 @@ def list_messages(
         query = query.filter(MessageLog.direction == direction)
 
     messages = query.limit(limit).all()
+    # Mask mobile numbers and sanitize payloads in admin response
+    # to prevent PII exposure through the admin API.
     return [
         {
             "id": str(m.id),
-            "mobile_number": m.mobile_number,
+            "mobile_number": mask_phone(m.mobile_number),
             "direction": m.direction,
             "message_type": m.message_type,
-            "payload": m.payload,
+            "payload": sanitize_payload(m.payload) if isinstance(m.payload, dict) else m.payload,
             "created_at": str(m.created_at),
         }
         for m in messages
@@ -296,3 +305,20 @@ def trigger_reminder_for_pet(pet_id: UUID, db: Session = Depends(get_db)):
         str(pet_id), str(results),
     )
     return {"status": "triggered", "pet_id": str(pet_id), "results": results}
+
+
+@router.post("/verify-key")
+def verify_admin_key():
+    """
+    Verify admin key validity.
+
+    This endpoint exists solely for the frontend login form to validate
+    the admin key server-side before showing the admin UI.
+    The actual validation is handled by the router-level
+    validate_admin_key dependency — if execution reaches this function,
+    the key is valid.
+
+    Returns:
+        {"valid": true} if the key is accepted (403 otherwise via dependency).
+    """
+    return {"valid": True}

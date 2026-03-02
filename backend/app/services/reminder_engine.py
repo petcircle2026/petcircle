@@ -34,6 +34,8 @@ from app.models.preventive_master import PreventiveMaster
 from app.models.reminder import Reminder
 from app.models.pet import Pet
 from app.models.user import User
+from app.core.encryption import decrypt_field
+from app.core.log_sanitizer import mask_phone
 from app.utils.date_utils import get_today_ist, IST
 
 
@@ -262,11 +264,14 @@ def send_pending_reminders(db: Session) -> dict:
         # retry_whatsapp_call handles retries (1 retry, never raises).
         from app.services.whatsapp_sender import send_reminder_message
 
+        # Decrypt the user's mobile number for sending.
+        plaintext_mobile = decrypt_field(user.mobile_number)
+
         try:
             send_result = asyncio.get_event_loop().run_until_complete(
                 send_reminder_message(
                     db=db,
-                    to_number=user.mobile_number,
+                    to_number=plaintext_mobile,
                     pet_name=pet.name,
                     item_name=master.item_name if master else "unknown",
                     due_date=str(reminder.next_due_date),
@@ -278,7 +283,7 @@ def send_pending_reminders(db: Session) -> dict:
             send_result = asyncio.run(
                 send_reminder_message(
                     db=db,
-                    to_number=user.mobile_number,
+                    to_number=plaintext_mobile,
                     pet_name=pet.name,
                     item_name=master.item_name if master else "unknown",
                     due_date=str(reminder.next_due_date),
@@ -296,7 +301,7 @@ def send_pending_reminders(db: Session) -> dict:
                 "item=%s, due=%s, record_status=%s",
                 str(reminder.id),
                 pet.name,
-                user.mobile_number,
+                mask_phone(plaintext_mobile),
                 master.item_name if master else "unknown",
                 str(reminder.next_due_date),
                 record.status,
@@ -308,7 +313,7 @@ def send_pending_reminders(db: Session) -> dict:
                 "Reminder send failed: reminder_id=%s, pet=%s, user=%s",
                 str(reminder.id),
                 pet.name,
-                user.mobile_number,
+                mask_phone(plaintext_mobile),
             )
 
     db.commit()

@@ -36,6 +36,8 @@ from app.core.constants import (
     CONFLICT_USE_NEW,
     CONFLICT_KEEP_EXISTING,
 )
+from app.core.log_sanitizer import mask_phone, sanitize_payload
+from app.core.rate_limiter import rate_limiter
 from app.utils.retry import retry_whatsapp_call
 from app.models.message_log import MessageLog
 
@@ -102,7 +104,7 @@ def _log_outgoing_message(
             mobile_number=mobile_number,
             direction="outgoing",
             message_type=message_type,
-            payload=payload,
+            payload=sanitize_payload(payload),
         )
         db.add(log_entry)
         db.commit()
@@ -134,14 +136,19 @@ async def send_text_message(
         "text": {"body": text},
     }
 
+    # Rate limit check before sending.
+    if not rate_limiter.check_rate_limit(to_number):
+        logger.warning("Outgoing rate limited for %s", mask_phone(to_number))
+        return None
+
     result = await _send_whatsapp_request(payload)
 
     _log_outgoing_message(db, to_number, "text", payload)
 
     if result:
-        logger.info("Text message sent to %s", to_number)
+        logger.info("Text message sent to %s", mask_phone(to_number))
     else:
-        logger.warning("Text message failed to %s", to_number)
+        logger.warning("Text message failed to %s", mask_phone(to_number))
 
     return result
 
@@ -192,6 +199,11 @@ async def send_template_message(
     if components:
         payload["template"]["components"] = components
 
+    # Rate limit check before sending.
+    if not rate_limiter.check_rate_limit(to_number):
+        logger.warning("Outgoing rate limited for %s", mask_phone(to_number))
+        return None
+
     result = await _send_whatsapp_request(payload)
 
     _log_outgoing_message(db, to_number, "template", payload)
@@ -199,12 +211,12 @@ async def send_template_message(
     if result:
         logger.info(
             "Template '%s' sent to %s",
-            template_name, to_number,
+            template_name, mask_phone(to_number),
         )
     else:
         logger.warning(
             "Template '%s' failed to %s",
-            template_name, to_number,
+            template_name, mask_phone(to_number),
         )
 
     return result
@@ -248,14 +260,19 @@ async def send_interactive_buttons(
         },
     }
 
+    # Rate limit check before sending.
+    if not rate_limiter.check_rate_limit(to_number):
+        logger.warning("Outgoing rate limited for %s", mask_phone(to_number))
+        return None
+
     result = await _send_whatsapp_request(payload)
 
     _log_outgoing_message(db, to_number, "interactive", payload)
 
     if result:
-        logger.info("Interactive buttons sent to %s", to_number)
+        logger.info("Interactive buttons sent to %s", mask_phone(to_number))
     else:
-        logger.warning("Interactive buttons failed to %s", to_number)
+        logger.warning("Interactive buttons failed to %s", mask_phone(to_number))
 
     return result
 

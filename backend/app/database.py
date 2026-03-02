@@ -19,6 +19,10 @@ from app.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    pool_timeout=30,
+    pool_recycle=1800,
 )
 
 # Session factory — autocommit and autoflush disabled for explicit transaction control.

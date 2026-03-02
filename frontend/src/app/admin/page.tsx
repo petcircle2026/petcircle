@@ -2,17 +2,35 @@
 
 import { useState } from "react";
 import AdminDashboard from "@/components/admin/AdminDashboard";
+import { verifyAdminKey } from "@/lib/api";
 
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState("");
   const [authenticated, setAuthenticated] = useState(false);
   const [input, setInput] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (input.trim()) {
-      setAdminKey(input.trim());
-      setAuthenticated(true);
+    const key = input.trim();
+    if (!key) return;
+
+    setError("");
+    setLoading(true);
+
+    try {
+      const valid = await verifyAdminKey(key);
+      if (valid) {
+        setAdminKey(key);
+        setAuthenticated(true);
+      } else {
+        setError("Invalid admin key. Please try again.");
+      }
+    } catch {
+      setError("Could not reach the server. Please try again.");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -24,6 +42,7 @@ export default function AdminPage() {
           setAdminKey("");
           setAuthenticated(false);
           setInput("");
+          setError("");
         }}
       />
     );
@@ -48,12 +67,17 @@ export default function AdminPage() {
           placeholder="Enter admin secret key"
           className="mb-4 w-full rounded border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           autoFocus
+          disabled={loading}
         />
+        {error && (
+          <p className="mb-4 text-sm text-red-600">{error}</p>
+        )}
         <button
           type="submit"
-          className="w-full rounded bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          disabled={loading}
+          className="w-full rounded bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
         >
-          Sign In
+          {loading ? "Verifying..." : "Sign In"}
         </button>
       </form>
     </div>

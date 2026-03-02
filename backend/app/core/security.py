@@ -82,7 +82,8 @@ async def validate_admin_key(x_admin_key: str = Header(None, alias="X-ADMIN-KEY"
     Raises:
         HTTPException 403: If the key is missing or does not match.
     """
-    if not x_admin_key or x_admin_key != settings.ADMIN_SECRET_KEY:
+    # Constant-time comparison to prevent timing attacks.
+    if not x_admin_key or not hmac.compare_digest(x_admin_key, settings.ADMIN_SECRET_KEY):
         logger.warning("Admin authentication failed — invalid X-ADMIN-KEY.")
         raise HTTPException(
             status_code=403,
