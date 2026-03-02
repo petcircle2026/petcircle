@@ -94,3 +94,31 @@ All variables listed in `backend/envs/.env.production.example` must be set. The 
 ### Cron Job
 
 The reminder engine runs daily at 8:00 AM IST (2:30 AM UTC). This is configured in `render.yaml` as a cron service.
+
+---
+
+## Git Branching Strategy
+
+```
+main        ← Production-ready code. Render auto-deploys from here.
+staging     ← Pre-production testing. Merge here before main.
+develop     ← Active development. Feature branches merge here.
+feature/*   ← Individual features (branched from develop).
+bugfix/*    ← Bug fixes (branched from develop or main for hotfixes).
+```
+
+### Branch → Environment Mapping
+
+| Branch | `APP_ENV` | Deploys To | Purpose |
+|--------|-----------|------------|---------|
+| `feature/*`, `develop` | `development` | Local | Day-to-day development |
+| `staging` | `test` | Staging (optional Render service) | Integration testing before production |
+| `main` | `production` | Render (production) | Live system |
+
+### Workflow
+
+1. **New feature**: Branch from `develop` → `feature/my-feature`
+2. **Development done**: PR from `feature/*` → `develop` (CI runs lint + tests)
+3. **Ready to test**: PR from `develop` → `staging` (run full integration tests)
+4. **Ready to ship**: PR from `staging` → `main` (Render auto-deploys)
+5. **Hotfix**: Branch from `main` → `bugfix/fix-name`, PR back to `main` and cherry-pick to `develop`
