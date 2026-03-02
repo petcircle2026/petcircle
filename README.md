@@ -65,4 +65,6 @@ See [docs/environment-setup.md](docs/environment-setup.md) for dev/test/prod con
 | AI | OpenAI GPT (gpt-4.1) |
 | Database | Supabase (PostgreSQL) |
 | Frontend | Next.js 14 + Tailwind |
-| Hosting | Render |
+| Backend Hosting | Render |
+| Frontend Hosting | Vercel |
+| Cron Jobs | GitHub Actions |

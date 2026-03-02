@@ -8,7 +8,7 @@ PetCircle uses `APP_ENV` to select the configuration file:
 |-------------|-----------|----------|---------|
 | Development | `development` | `backend/envs/.env.development` | Local dev with real or test APIs |
 | Test | `test` | `backend/envs/.env.test` | Automated tests with mock values |
-| Production | `production` | *(none — Render injects vars)* | Live system |
+| Production | `production` | *(none — hosting provider injects vars)* | Live system |
 
 ## Development Setup
 
@@ -80,45 +80,57 @@ cd backend
 pytest tests/ -v
 ```
 
-## Production Setup (Render)
+## Production Setup
+
+Production uses a split hosting model:
+
+### Backend (Render)
 
 1. Connect your GitHub repo to Render
 2. Use `render.yaml` as the blueprint
 3. Set all environment variables in the Render dashboard (see `backend/envs/.env.production.example` for the list)
-4. Render auto-deploys on push to `main`
+4. Render auto-deploys backend on push to `main`
 
-### Required Render Environment Variables
+### Frontend (Vercel)
+
+1. Connect your GitHub repo to Vercel
+2. Set root directory to `frontend/`
+3. Set `NEXT_PUBLIC_API_URL` to your production backend URL
+4. Vercel auto-deploys frontend on push to `main`
+
+### Cron Jobs (GitHub Actions)
+
+The reminder engine runs daily at 8:00 AM IST (2:30 AM UTC) via a GitHub Actions workflow (`.github/workflows/reminder-cron.yml`). It calls the backend's `/internal/run-reminder-engine` endpoint.
+
+Required GitHub Secrets:
+- `PRODUCTION_API_URL` — Backend production URL
+- `ADMIN_SECRET_KEY` — Admin key for internal endpoints
+
+### Required Backend Environment Variables
 
 All variables listed in `backend/envs/.env.production.example` must be set. The app will crash on startup if any are missing.
-
-### Cron Job
-
-The reminder engine runs daily at 8:00 AM IST (2:30 AM UTC). This is configured in `render.yaml` as a cron service.
 
 ---
 
 ## Git Branching Strategy
 
 ```
-main        ← Production-ready code. Render auto-deploys from here.
-staging     ← Pre-production testing. Merge here before main.
-develop     ← Active development. Feature branches merge here.
-feature/*   ← Individual features (branched from develop).
-bugfix/*    ← Bug fixes (branched from develop or main for hotfixes).
+main        ← Production-ready code. Auto-deploys to Render + Vercel.
+dev         ← Active development. Feature branches merge here.
+feature/*   ← Individual features (branched from dev).
+bugfix/*    ← Bug fixes (branched from dev or main for hotfixes).
 ```
 
 ### Branch → Environment Mapping
 
 | Branch | `APP_ENV` | Deploys To | Purpose |
 |--------|-----------|------------|---------|
-| `feature/*`, `develop` | `development` | Local | Day-to-day development |
-| `staging` | `test` | Staging (optional Render service) | Integration testing before production |
-| `main` | `production` | Render (production) | Live system |
+| `feature/*`, `dev` | `development` | Local / Dev services | Day-to-day development |
+| `main` | `production` | Render (backend) + Vercel (frontend) | Live system |
 
 ### Workflow
 
-1. **New feature**: Branch from `develop` → `feature/my-feature`
-2. **Development done**: PR from `feature/*` → `develop` (CI runs lint + tests)
-3. **Ready to test**: PR from `develop` → `staging` (run full integration tests)
-4. **Ready to ship**: PR from `staging` → `main` (Render auto-deploys)
-5. **Hotfix**: Branch from `main` → `bugfix/fix-name`, PR back to `main` and cherry-pick to `develop`
+1. **New feature**: Branch from `dev` → `feature/my-feature`
+2. **Development done**: PR from `feature/*` → `dev` (CI runs lint + tests)
+3. **Ready to ship**: PR from `dev` → `main` (auto-deploys to production)
+4. **Hotfix**: Branch from `main` → `bugfix/fix-name`, PR back to `main` and cherry-pick to `dev`

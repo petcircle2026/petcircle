@@ -56,8 +56,9 @@ Next.js Dashboard (token-based access)
 | Database | Supabase (PostgreSQL) | `backend/app/database.py`, `backend/app/models/` |
 | File Storage | Supabase Storage (private) | `backend/app/services/document_upload.py` |
 | Frontend | Next.js 14 + Tailwind | `frontend/` |
-| Hosting | Render | `render.yaml` |
-| Cron | Render Cron Jobs | `render.yaml` |
+| Backend Hosting | Render | `render.yaml` |
+| Frontend Hosting | Vercel | `frontend/` |
+| Cron | GitHub Actions | `.github/workflows/reminder-cron.yml` |
 
 ## Key Design Decisions
 

@@ -2,7 +2,7 @@ name: Deploy Health Check
 
 on:
   push:
-    branches: [dev, staging, main]
+    branches: [dev, main]
 
 jobs:
   health-check:
@@ -14,15 +14,12 @@ jobs:
           if [ "${{ github.ref_name }}" = "main" ]; then
             echo "url=https://petcircle-api.onrender.com" >> "$GITHUB_OUTPUT"
             echo "env_name=production" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.ref_name }}" = "staging" ]; then
-            echo "url=https://petcircle-api-staging.onrender.com" >> "$GITHUB_OUTPUT"
-            echo "env_name=staging" >> "$GITHUB_OUTPUT"
           else
             echo "url=https://petcircle-api-dev.onrender.com" >> "$GITHUB_OUTPUT"
             echo "env_name=development" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Wait for Render build
+      - name: Wait for deploy
         run: sleep 60
 
       - name: Health check

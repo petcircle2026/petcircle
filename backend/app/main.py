@@ -71,7 +71,7 @@ async def health_check():
 
     Returns 200 OK to confirm the service is running
     and environment configuration is valid.
-    Used by Render for uptime monitoring.
+    Used for uptime monitoring.
     """
     return {
         "status": "healthy",

@@ -41,7 +41,7 @@ python -c "from app.database import SessionLocal; from app.services.preventive_s
 # Development
 uvicorn app.main:app --reload --port 8000
 
-# Production (Render)
+# Production (hosted on Render)
 uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
@@ -73,7 +73,7 @@ WhatsApp Cloud API → FastAPI Webhook → Message Router → Service Layer → 
                                                        → Dashboard API (Next.js)
 ```
 
-## Cron Jobs (Render)
+## Cron Jobs (GitHub Actions)
 
 Daily at 8 AM IST:
 ```

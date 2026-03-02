@@ -2,8 +2,8 @@
 PetCircle Phase 1 — Internal Router
 
 Provides internal-only endpoints for cron jobs and system operations.
-These endpoints are NOT exposed to users — they are called by Render
-cron jobs or admin scripts.
+These endpoints are NOT exposed to users — they are called by GitHub
+Actions cron jobs or admin scripts.
 
 Routes:
     POST /internal/run-reminder-engine — Execute daily reminder processing.
@@ -11,7 +11,7 @@ Routes:
 
 Security:
     - Protected by the same X-ADMIN-KEY header as admin routes.
-    - Render cron jobs must include the admin key in their requests.
+    - GitHub Actions cron jobs must include the admin key in their requests.
     - No public access.
 """
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 # All routes require admin authentication and IP-based rate limiting.
-# Render cron jobs must include X-ADMIN-KEY header.
+# GitHub Actions cron jobs must include X-ADMIN-KEY header.
 router = APIRouter(
     prefix="/internal",
     tags=["internal"],
@@ -42,7 +42,7 @@ def execute_reminder_engine(db: Session = Depends(get_db)):
     """
     Execute the daily reminder engine and conflict expiry.
 
-    This endpoint is called by Render cron at 8 AM IST daily.
+    This endpoint is called by GitHub Actions cron at 8 AM IST daily.
     It performs two operations in sequence:
 
     1. Conflict expiry (Module 19):

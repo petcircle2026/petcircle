@@ -1,8 +1,8 @@
 """
 PetCircle Phase 1 — Reminder Engine (Module 10)
 
-Stateless daily reminder processor. Designed to run as a Render cron
-job at 8 AM IST.
+Stateless daily reminder processor. Triggered by GitHub Actions cron
+at 8 AM IST.
 
 Route: /internal/run-reminder-engine
 

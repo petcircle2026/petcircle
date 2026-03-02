@@ -1,0 +1,26 @@
+name: Daily Reminder Engine
+
+on:
+  schedule:
+    # 2:30 AM UTC = 8:00 AM IST — daily reminder run.
+    - cron: '30 2 * * *'
+  workflow_dispatch:
+    # Allow manual trigger for testing.
+
+jobs:
+  run-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger reminder engine
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.PRODUCTION_API_URL }}/internal/run-reminder-engine" \
+            -H "X-ADMIN-KEY: ${{ secrets.ADMIN_SECRET_KEY }}" \
+            --max-time 120)
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "Reminder engine failed with status $STATUS"
+            exit 1
+          fi
+          echo "Reminder engine completed successfully"

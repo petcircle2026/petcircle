@@ -10,7 +10,7 @@ All credentials are loaded from environment files only — never hardcoded.
 Environment selection:
   - Set APP_ENV to 'development', 'test', or 'production'.
   - Defaults to 'development' if not set.
-  - Loads envs/.env.{APP_ENV} file; in production, Render sets env vars directly.
+  - Loads envs/.env.{APP_ENV} file; in production, the hosting provider sets env vars directly.
 """
 
 import os
@@ -25,7 +25,7 @@ from app.core.constants import SYSTEM_TIMEZONE
 APP_ENV: str = os.getenv("APP_ENV", "development")
 
 # Resolve the env file path relative to the backend/ directory.
-# In production, Render injects env vars directly — no file needed.
+# In production, the hosting provider injects env vars directly — no file needed.
 _backend_dir = Path(__file__).resolve().parent.parent
 _env_file = _backend_dir / "envs" / f".env.{APP_ENV}"
 _env_file_path: str | None = str(_env_file) if _env_file.exists() else None
@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     ENCRYPTION_KEY: str
 
-    # Frontend URL for CORS allow-origin (e.g., https://petcircle-dashboard.onrender.com).
+    # Frontend URL for CORS allow-origin (e.g., https://petcircle.vercel.app).
     FRONTEND_URL: str
 
     # --- Timezone ---

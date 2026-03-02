@@ -1,8 +1,9 @@
-# Render Blueprint — PetCircle Multi-Environment
+# Render Blueprint — PetCircle Backend Services (dev + production)
 # https://render.com/docs/blueprint-spec
 #
-# Branch strategy: feature/* → dev → staging → main
-# Each branch auto-deploys to its corresponding Render service.
+# Branch strategy: feature/* → dev → main
+# Frontend hosted on Vercel. Cron jobs run via GitHub Actions.
+# This file defines backend API services only.
 
 services:
   # --- Dev API ---
@@ -29,55 +30,6 @@ services:
         sync: false
       - key: SUPABASE_BUCKET_NAME
         value: petcircle-documents-dev
-      - key: WHATSAPP_TOKEN
-        sync: false
-      - key: WHATSAPP_VERIFY_TOKEN
-        sync: false
-      - key: WHATSAPP_PHONE_NUMBER_ID
-        sync: false
-      - key: WHATSAPP_APP_SECRET
-        sync: false
-      - key: WHATSAPP_TEMPLATE_REMINDER
-        value: petcircle_reminder_v1
-      - key: WHATSAPP_TEMPLATE_OVERDUE
-        value: petcircle_overdue_v1
-      - key: WHATSAPP_TEMPLATE_NUDGE
-        value: petcircle_nudge_v1
-      - key: WHATSAPP_TEMPLATE_CONFLICT
-        value: petcircle_conflict_v1
-      - key: WHATSAPP_TEMPLATE_ONBOARDING_COMPLETE
-        value: petcircle_onboarding_complete_v1
-      - key: ADMIN_SECRET_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-    healthCheckPath: /health
-    autoDeploy: true
-
-  # --- Staging API ---
-  - type: web
-    name: petcircle-api-staging
-    runtime: python
-    region: singapore
-    plan: free
-    branch: staging
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
-    envVars:
-      - key: APP_ENV
-        value: staging
-      - key: PYTHON_VERSION
-        value: "3.11.0"
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: SUPABASE_BUCKET_NAME
-        value: petcircle-documents-staging
       - key: WHATSAPP_TOKEN
         sync: false
       - key: WHATSAPP_VERIFY_TOKEN
@@ -152,25 +104,3 @@ services:
     healthCheckPath: /health
     autoDeploy: true
 
-  # --- Reminder Cron Job (Production only) ---
-  # Reminders should not fire in dev/staging with test data.
-  - type: cron
-    name: petcircle-reminders
-    runtime: python
-    region: singapore
-    plan: free
-    branch: main
-    schedule: "30 2 * * *"  # 2:30 AM UTC = 8:00 AM IST
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: >
-      cd backend && python -c "
-      import httpx, os;
-      url = os.environ['RENDER_INTERNAL_URL'] + '/internal/run-reminder-engine';
-      r = httpx.post(url, headers={'X-ADMIN-KEY': os.environ['ADMIN_SECRET_KEY']});
-      print(f'Reminder engine: {r.status_code}')
-      "
-    envVars:
-      - key: ADMIN_SECRET_KEY
-        sync: false
-      - key: RENDER_INTERNAL_URL
-        sync: false

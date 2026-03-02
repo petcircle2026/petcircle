@@ -153,8 +153,9 @@ Worker picks up job:
 - Token-based secure access (no login for Phase 1)
 
 **Hosting & Deployment**
-- Render
-- Backend API hosting, cron jobs for reminders, automatic Git deployments
+- Backend: Render (API hosting, automatic Git deployments)
+- Frontend: Vercel (Next.js hosting, automatic Git deployments)
+- Cron: GitHub Actions (daily reminder engine at 8 AM IST)
 
 ### 2️⃣ System Architecture Flow
 
@@ -173,7 +174,7 @@ Supabase (DB + Storage)
         ↓
 OpenAI GPT (Extraction)
         ↓
-Reminder Engine (Render Cron)
+Reminder Engine (GitHub Actions Cron)
         ↓
 WhatsApp Template Messages
         ↓
@@ -195,7 +196,7 @@ Next.js Dashboard (Token-based Access)
 - Strict relational structure
 
 **Reminder Engine**
-- Daily scheduled job on Render
+- Daily scheduled job via GitHub Actions
 - Queries due items, checks completion, sends template messages, updates reminder state
 - Stateless execution
 
@@ -226,8 +227,9 @@ Next.js Dashboard (Token-based Access)
 | AI | OpenAI GPT |
 | Database & Storage | Supabase |
 | Frontend | Next.js |
-| Hosting | Render |
-| Reminder Engine | Render Cron |
+| Backend Hosting | Render |
+| Frontend Hosting | Vercel |
+| Reminder Engine | GitHub Actions Cron |
 
 ---
 

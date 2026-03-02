@@ -6,7 +6,7 @@ Automatically resolve any pending conflicts that have exceeded the 5-day respons
 
 ## Trigger
 
-Daily scheduled job (can run alongside the reminder cron or as a separate Render cron job).
+Daily scheduled job (runs alongside the reminder cron via GitHub Actions).
 
 ## Required Inputs
 

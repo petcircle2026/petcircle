@@ -6,7 +6,7 @@ Send timely WhatsApp reminders to pet parents for upcoming or overdue preventive
 
 ## Trigger
 
-Render cron job fires daily at **8:00 AM IST** (Asia/Kolkata).
+GitHub Actions cron job fires daily at **8:00 AM IST** (Asia/Kolkata).
 
 ## Required Inputs
 
