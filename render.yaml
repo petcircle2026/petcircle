@@ -52,6 +52,10 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://pet-circle-chi.vercel.app
     healthCheckPath: /health
     autoDeploy: true
 
@@ -101,6 +105,10 @@ services:
         sync: false
       - key: DATABASE_URL
         sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://pet-circle-chi.vercel.app
     healthCheckPath: /health
     autoDeploy: true
 

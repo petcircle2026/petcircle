@@ -308,7 +308,7 @@ def main():
         test("Extraction status pending", doc.extraction_status == "pending")
 
         # Upload to Supabase with a real sample file
-        sample_dir = "C:/Users/Hp/Desktop/Experiment/Pet MVP/Sample_Reports/Sample_Reports"
+        sample_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "fixtures", "sample_reports")
         sample_files = os.listdir(sample_dir)
         test("Sample reports found", len(sample_files) > 0, f"got {len(sample_files)}")
         print(f"    Sample files: {sample_files[:5]}...")
