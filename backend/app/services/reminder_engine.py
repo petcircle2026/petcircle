@@ -119,6 +119,9 @@ def run_reminder_engine(db: Session) -> dict:
         # provides deduplication — if a reminder already exists for this
         # record and due date, the insert will raise IntegrityError.
         try:
+            # Use a savepoint so that IntegrityError rollback only
+            # affects this single insert, not previously flushed reminders.
+            nested = db.begin_nested()
             reminder = Reminder(
                 preventive_record_id=record.id,
                 next_due_date=record.next_due_date,
@@ -126,6 +129,7 @@ def run_reminder_engine(db: Session) -> dict:
             )
             db.add(reminder)
             db.flush()  # Flush to trigger UNIQUE constraint check.
+            nested.commit()
 
             results["reminders_created"] += 1
 
@@ -141,7 +145,8 @@ def run_reminder_engine(db: Session) -> dict:
         except IntegrityError:
             # Duplicate reminder — already exists for this record + due date.
             # This is expected behavior for stateless re-runs.
-            db.rollback()
+            # Rollback only the savepoint, not the outer transaction.
+            nested.rollback()
             results["reminders_skipped"] += 1
 
             logger.info(
@@ -153,7 +158,7 @@ def run_reminder_engine(db: Session) -> dict:
         except Exception as e:
             # Unexpected error — log and continue to next record.
             # The reminder engine must never crash on individual record failures.
-            db.rollback()
+            nested.rollback()
             results["errors"] += 1
 
             logger.error(

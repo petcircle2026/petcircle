@@ -17,6 +17,7 @@ no GPT calls. Just parsing, validation, and forwarding.
 
 import logging
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
@@ -50,9 +51,9 @@ async def verify_whatsapp_webhook(
     """
     if hub_mode == "subscribe" and hub_verify_token == settings.WHATSAPP_VERIFY_TOKEN:
         logger.info("WhatsApp webhook verification succeeded.")
-        # Meta expects the challenge echoed back as plain text.
-        # It may be numeric or alphanumeric — return as-is.
-        return hub_challenge or ""
+        # Meta expects the challenge echoed back as plain text integer,
+        # not JSON-serialized. Use PlainTextResponse to avoid quotes.
+        return PlainTextResponse(content=hub_challenge or "")
 
     logger.warning("WhatsApp webhook verification failed — token mismatch.")
     raise HTTPException(status_code=403, detail="Verification failed.")
