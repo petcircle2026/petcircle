@@ -22,6 +22,7 @@ Rules:
 
 import logging
 from sqlalchemy.orm import Session
+from app.config import settings
 from app.core.encryption import decrypt_field
 from app.core.log_sanitizer import mask_phone
 from app.core.constants import (
@@ -352,18 +353,18 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
         # Trigger GPT extraction
         try:
             document_text = f"[Uploaded file: {filename}, type: {detected_mime}]"
-            await extract_and_process_document(db, document.id, document_text)
-            await send_text_message(
-                db, from_number,
-                f"Extraction complete for {pet.name}'s document!",
-            )
+            result = await extract_and_process_document(db, document.id, document_text)
+            await _send_extraction_summary(db, user, pet, result)
         except Exception as e:
             logger.error("GPT extraction failed: %s", str(e))
-            await send_text_message(
-                db, from_number,
-                "Document saved but extraction encountered an issue. "
-                "You can update details manually via the dashboard.",
+            dashboard_link = _get_dashboard_link(db, pet)
+            msg = (
+                f"Document saved but extraction encountered an issue. "
+                f"You can update details manually via the dashboard."
             )
+            if dashboard_link:
+                msg += f"\n\nView *{pet.name}'s Dashboard*:\n{dashboard_link}"
+            await send_text_message(db, from_number, msg)
 
     except ValueError as e:
         await send_text_message(db, from_number, str(e))
@@ -445,6 +446,111 @@ async def _send_dashboard_links(db, user) -> None:
         db, from_number,
         "Your pet dashboards:\n\n" + "\n".join(messages),
     )
+
+
+def _get_dashboard_link(db: Session, pet) -> str | None:
+    """
+    Get the active dashboard link for a pet.
+
+    Returns the full URL if a valid token exists, None otherwise.
+    Auto-refreshes expired tokens.
+    """
+    from datetime import datetime
+    from app.models.dashboard_token import DashboardToken
+    from app.services.onboarding import refresh_dashboard_token
+
+    token_record = (
+        db.query(DashboardToken)
+        .filter(DashboardToken.pet_id == pet.id, DashboardToken.revoked == False)
+        .first()
+    )
+
+    if not token_record:
+        return None
+
+    # Auto-refresh expired tokens.
+    if token_record.expires_at and datetime.utcnow() > token_record.expires_at:
+        new_token = refresh_dashboard_token(db, pet.id)
+        return f"{settings.FRONTEND_URL}/dashboard/{new_token}"
+
+    return f"{settings.FRONTEND_URL}/dashboard/{token_record.token}"
+
+
+async def _send_extraction_summary(
+    db: Session, user, pet, result: dict
+) -> None:
+    """
+    Send a WhatsApp summary after GPT extraction completes.
+
+    Includes:
+        - Count of items extracted and processed.
+        - List of extracted item names with dates.
+        - Any errors or unmatched items.
+        - Dashboard link to view updated records.
+    """
+    from_number = _get_mobile(user)
+    extracted = result.get("items_extracted", 0)
+    processed = result.get("items_processed", 0)
+    errors = result.get("errors", [])
+    status = result.get("status", "failed")
+
+    if status == "failed":
+        dashboard_link = _get_dashboard_link(db, pet)
+        msg = (
+            f"Document saved but extraction encountered an issue. "
+            f"You can update details manually via the dashboard."
+        )
+        if dashboard_link:
+            msg += f"\n\nView *{pet.name}'s Dashboard*:\n{dashboard_link}"
+        await send_text_message(db, from_number, msg)
+        return
+
+    if extracted == 0:
+        await send_text_message(
+            db, from_number,
+            f"No preventive health items were found in {pet.name}'s document.\n\n"
+            f"If this looks wrong, you can update records manually from the dashboard.",
+        )
+        return
+
+    # Build extraction details from the preventive records in DB.
+    # Re-query the latest records to show accurate current state.
+    from app.models.preventive_record import PreventiveRecord
+    from app.models.preventive_master import PreventiveMaster
+
+    records = (
+        db.query(PreventiveRecord, PreventiveMaster)
+        .join(PreventiveMaster, PreventiveRecord.preventive_master_id == PreventiveMaster.id)
+        .filter(
+            PreventiveRecord.pet_id == pet.id,
+            PreventiveRecord.last_done_date.isnot(None),
+        )
+        .order_by(PreventiveRecord.last_done_date.desc())
+        .all()
+    )
+
+    lines = []
+    for record, master in records:
+        done_date = record.last_done_date.strftime("%d-%m-%Y") if record.last_done_date else "—"
+        next_due = record.next_due_date.strftime("%d-%m-%Y") if record.next_due_date else "—"
+        lines.append(f"  • {master.item_name}: done {done_date}, next due {next_due}")
+
+    msg = f"Extraction complete for *{pet.name}*!\n\n"
+    msg += f"*{processed} item(s)* updated from this document.\n"
+
+    if lines:
+        msg += f"\n*Health Records:*\n" + "\n".join(lines) + "\n"
+
+    if errors:
+        unmatched = [e.replace("No match for item: ", "") for e in errors if "No match" in e]
+        if unmatched:
+            msg += f"\nItems not matched: {', '.join(unmatched)}\n"
+
+    dashboard_link = _get_dashboard_link(db, pet)
+    if dashboard_link:
+        msg += f"\nView *{pet.name}'s Dashboard*:\n{dashboard_link}"
+
+    await send_text_message(db, from_number, msg)
 
 
 def _mime_to_ext(mime_type: str) -> str:
