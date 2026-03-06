@@ -393,40 +393,48 @@ async def download_whatsapp_media(media_id: str) -> tuple[bytes, str] | None:
     Returns:
         Tuple of (file_bytes, mime_type) on success, None on failure.
     """
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Step 1: Get media URL
-            media_url_response = await client.get(
-                f"https://graph.facebook.com/v21.0/{media_id}",
-                headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
+    import asyncio as _asyncio
+
+    # Retry on transient SSL errors from Meta's CDN.
+    max_retries = 2
+    for attempt in range(max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Step 1: Get media URL
+                media_url_response = await client.get(
+                    f"https://graph.facebook.com/v21.0/{media_id}",
+                    headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
+                )
+                media_url_response.raise_for_status()
+                media_info = media_url_response.json()
+
+                media_url = media_info.get("url")
+                mime_type = media_info.get("mime_type", "application/octet-stream")
+
+                if not media_url:
+                    logger.error("No URL in media response for media_id=%s", media_id)
+                    return None
+
+                # Step 2: Download the file
+                file_response = await client.get(
+                    media_url,
+                    headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
+                )
+                file_response.raise_for_status()
+
+                logger.info(
+                    "Media downloaded: media_id=%s, mime=%s, size=%d",
+                    media_id, mime_type, len(file_response.content),
+                )
+
+                return file_response.content, mime_type
+
+        except Exception as e:
+            logger.error(
+                "Failed to download media: media_id=%s, attempt=%d/%d, error=%s",
+                media_id, attempt + 1, max_retries + 1, str(e),
             )
-            media_url_response.raise_for_status()
-            media_info = media_url_response.json()
-
-            media_url = media_info.get("url")
-            mime_type = media_info.get("mime_type", "application/octet-stream")
-
-            if not media_url:
-                logger.error("No URL in media response for media_id=%s", media_id)
+            if attempt < max_retries:
+                await _asyncio.sleep(1)
+            else:
                 return None
-
-            # Step 2: Download the file
-            file_response = await client.get(
-                media_url,
-                headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
-            )
-            file_response.raise_for_status()
-
-            logger.info(
-                "Media downloaded: media_id=%s, mime=%s, size=%d",
-                media_id, mime_type, len(file_response.content),
-            )
-
-            return file_response.content, mime_type
-
-    except Exception as e:
-        logger.error(
-            "Failed to download media: media_id=%s, error=%s",
-            media_id, str(e),
-        )
-        return None

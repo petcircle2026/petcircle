@@ -292,13 +292,13 @@ async def _step_name(db, user, text, send_fn):
         await send_fn(db, user._plaintext_mobile, "Please enter a valid name (2-120 characters).")
         return
 
-    user.full_name = text.strip()
+    user.full_name = text.strip().title()
     user.onboarding_state = "awaiting_pincode"
     db.commit()
 
     await send_fn(
         db, user._plaintext_mobile,
-        f"Nice to meet you, {text.strip()}!\n\n"
+        f"Nice to meet you, {user.full_name}!\n\n"
         f"What is your *pincode*? (Type *skip* if you prefer not to share)",
     )
 
@@ -415,7 +415,7 @@ async def _step_breed(db, user, text, send_fn):
     user.onboarding_state = "awaiting_gender"
     db.commit()
 
-    breed_confirm = f" ({pet.breed})" if pet.breed else ""
+    breed_confirm = f" {pet.breed}" if pet.breed else ""
     await send_fn(
         db, user._plaintext_mobile,
         f"Got it{breed_confirm}! What is {pet.name}'s *gender*? (*male* or *female*, or *skip*)",

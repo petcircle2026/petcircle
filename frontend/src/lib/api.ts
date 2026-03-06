@@ -124,17 +124,29 @@ export interface AdminMessage {
 // --- Dashboard API ---
 
 export async function fetchDashboard(token: string): Promise<DashboardData> {
-  const res = await fetch(`${API_BASE}/dashboard/${token}`, {
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    throw new Error(
-      res.status === 404
-        ? "Dashboard not found or link has expired."
-        : `Request failed: ${res.status}`
-    );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`${API_BASE}/dashboard/${token}`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(
+        res.status === 404
+          ? "Dashboard not found or link has expired."
+          : `Request failed: ${res.status}`
+      );
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 export async function updateWeight(

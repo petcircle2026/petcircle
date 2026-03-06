@@ -8,9 +8,8 @@ the get_db() dependency to ensure proper session lifecycle management.
 No business logic lives here — only connection infrastructure.
 """
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
-from sqlalchemy.exc import OperationalError, DBAPIError
 from typing import Generator
 from app.config import settings
 
@@ -22,29 +21,13 @@ from app.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=10,
+    max_overflow=20,
     pool_timeout=30,
     # Recycle connections every 5 minutes to prevent SSL connection drops.
     # Supabase pooler may close idle connections; this ensures fresh ones.
     pool_recycle=300,
 )
-
-
-# Invalidate connections on checkout if they are in a broken state.
-# This prevents "SSL connection has been closed unexpectedly" cascading failures.
-@event.listens_for(engine, "checkout")
-def _checkout_listener(dbapi_conn, connection_record, connection_proxy):
-    """Test connection health on checkout from pool."""
-    try:
-        cursor = dbapi_conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.close()
-    except Exception:
-        # Connection is dead — raise DisconnectionError to trigger pool recycling.
-        raise OperationalError(
-            "Connection health check failed", None, None
-        )
 
 
 # Session factory — autocommit and autoflush disabled for explicit transaction control.

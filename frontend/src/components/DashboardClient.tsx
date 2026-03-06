@@ -17,26 +17,32 @@ export default function DashboardClient({ token }: { token: string }) {
 
   const load = useCallback(async () => {
     try {
+      setError("");
       // Only show full loading spinner on first load.
       // On refresh, keep existing data visible and show a subtle indicator.
-      if (data) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
-      setError("");
+      setData((prev) => {
+        if (prev) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
+        return prev;
+      });
       const d = await fetchDashboard(token);
       setData(d);
     } catch (e: any) {
-      // Only set error if we have no data to show.
-      if (!data) {
-        setError(e.message || "Failed to load dashboard.");
-      }
+      setData((prev) => {
+        // Only set error if we have no data to show.
+        if (!prev) {
+          setError(e.message || "Failed to load dashboard.");
+        }
+        return prev;
+      });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [token, data]);
+  }, [token]);
 
   useEffect(() => {
     load();
