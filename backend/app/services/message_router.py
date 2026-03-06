@@ -91,9 +91,13 @@ async def route_message(db: Session, message_data: dict) -> None:
             user = create_pending_user(db, from_number)
             await send_text_message(
                 db, from_number,
-                "Welcome to PetCircle! I help you track your pet's preventive health.\n\n"
-                "To get started, I need your consent to store your pet's health data.\n\n"
-                "Reply *yes* to continue or *no* to opt out.",
+                "Hey there! Welcome to *PetCircle* 🐾\n\n"
+                "I'm your pet's personal health assistant. I help you stay on top of "
+                "vaccinations, deworming, tick treatments, and all the preventive care "
+                "your furry friend needs — right here on WhatsApp.\n\n"
+                "Before we begin, I need your consent to store your pet's health data "
+                "so I can send you timely reminders and keep everything organized.\n\n"
+                "Reply *yes* to get started or *no* to opt out.",
             )
             return
 
