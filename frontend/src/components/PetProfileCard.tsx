@@ -61,7 +61,7 @@ export default function PetProfileCard({ pet, owner, token, onUpdated }: Props) 
         <dd className="capitalize">{pet.gender || "—"}</dd>
 
         <dt className="text-gray-500">Date of Birth</dt>
-        <dd>{pet.dob || "—"}</dd>
+        <dd>{pet.dob ? pet.dob.split("-").reverse().join("-") : "—"}</dd>
 
         <dt className="text-gray-500">Neutered</dt>
         <dd>{pet.neutered ? "Yes" : "No"}</dd>

@@ -45,6 +45,7 @@ from app.config import settings
 from app.core.encryption import encrypt_field, decrypt_field, hash_field
 from app.core.log_sanitizer import mask_phone
 from app.utils.date_utils import parse_date
+from app.utils.breed_normalizer import normalize_breed
 from app.services.preventive_seeder import seed_preventive_master
 
 
@@ -407,14 +408,16 @@ async def _step_breed(db, user, text, send_fn):
         return
 
     if text.strip().lower() != "skip":
-        pet.breed = text.strip()
+        # Normalize breed abbreviations (e.g., "lab" → "Labrador Retriever").
+        pet.breed = normalize_breed(text.strip(), species=pet.species)
 
     user.onboarding_state = "awaiting_gender"
     db.commit()
 
+    breed_confirm = f" ({pet.breed})" if pet.breed else ""
     await send_fn(
         db, user._plaintext_mobile,
-        f"What is {pet.name}'s *gender*? (*male* or *female*, or *skip*)",
+        f"Got it{breed_confirm}! What is {pet.name}'s *gender*? (*male* or *female*, or *skip*)",
     )
 
 
@@ -550,7 +553,7 @@ async def _complete_pet_onboarding(db, user, pet, send_fn):
         db, user._plaintext_mobile,
         f"All set! {pet.name}'s profile is ready.\n\n"
         f"Preventive health items: {record_count} items are now being tracked.\n\n"
-        f"Access {pet.name}'s health dashboard:\n"
+        f"View *{pet.name}'s Dashboard* here:\n"
         f"{settings.FRONTEND_URL}/dashboard/{token}\n\n"
         f"You can upload medical records (photos, PDFs) anytime to update {pet.name}'s health data.\n\n"
         f"Type *add pet* to add another pet, or ask any question about {pet.name}'s health!",

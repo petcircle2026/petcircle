@@ -433,13 +433,13 @@ async def _send_dashboard_links(db, user) -> None:
         # Auto-refresh if token is expired or missing.
         if token_record and token_record.expires_at and datetime.utcnow() > token_record.expires_at:
             new_token = refresh_dashboard_token(db, pet.id)
-            messages.append(f"{pet.name}: {settings.FRONTEND_URL}/dashboard/{new_token}")
+            messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
         elif token_record:
-            messages.append(f"{pet.name}: {settings.FRONTEND_URL}/dashboard/{token_record.token}")
+            messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{token_record.token}")
         else:
             # No token at all — generate a fresh one.
             new_token = refresh_dashboard_token(db, pet.id)
-            messages.append(f"{pet.name}: {settings.FRONTEND_URL}/dashboard/{new_token}")
+            messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
 
     await send_text_message(
         db, from_number,

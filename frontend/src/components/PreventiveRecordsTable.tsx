@@ -4,6 +4,14 @@ import { useState } from "react";
 import type { PreventiveRecord } from "@/lib/api";
 import { updatePreventiveDate } from "@/lib/api";
 
+/** Convert YYYY-MM-DD to DD-MM-YYYY for display. */
+function formatDate(d: string | null): string {
+  if (!d) return "—";
+  const parts = d.split("-");
+  if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  return d;
+}
+
 function statusBadge(status: string) {
   const map: Record<string, string> = {
     up_to_date: "bg-green-100 text-green-800",
@@ -63,7 +71,7 @@ export default function PreventiveRecordsTable({
         <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
           <tr>
             <th className="px-4 py-3">Item</th>
-            <th className="px-4 py-3">Category</th>
+            <th className="px-4 py-3">Priority</th>
             <th className="px-4 py-3">Last Done</th>
             <th className="px-4 py-3">Next Due</th>
             <th className="px-4 py-3">Status</th>
@@ -75,7 +83,17 @@ export default function PreventiveRecordsTable({
           {records.map((r) => (
             <tr key={r.item_name} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium">{r.item_name}</td>
-              <td className="px-4 py-3 capitalize">{r.category}</td>
+              <td className="px-4 py-3">
+                <span
+                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
+                    r.category === "essential"
+                      ? "bg-blue-100 text-blue-800"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  {r.category === "essential" ? "Core" : "Recommended"}
+                </span>
+              </td>
               <td className="px-4 py-3">
                 {editingItem === r.item_name ? (
                   <div className="flex items-center gap-2">
@@ -105,10 +123,10 @@ export default function PreventiveRecordsTable({
                     </button>
                   </div>
                 ) : (
-                  r.last_done_date || "—"
+                  formatDate(r.last_done_date)
                 )}
               </td>
-              <td className="px-4 py-3">{r.next_due_date || "—"}</td>
+              <td className="px-4 py-3">{formatDate(r.next_due_date)}</td>
               <td className="px-4 py-3">
                 <span
                   className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(r.status)}`}
