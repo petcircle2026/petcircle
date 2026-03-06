@@ -116,6 +116,8 @@ async def handle_onboarding_step(
     Process one step of the onboarding conversation.
 
     Routes to the correct handler based on user.onboarding_state.
+    If the user sends a greeting mid-onboarding, shows progress summary
+    and re-asks the current question instead of treating it as step input.
 
     Args:
         db: SQLAlchemy database session.
@@ -131,6 +133,11 @@ async def handle_onboarding_step(
     # Ensure all downstream step functions can access plaintext mobile.
     user._plaintext_mobile = mobile
     text_lower = text.lower().strip()
+
+    # Detect greetings mid-onboarding — show progress summary and re-ask current question.
+    if _is_greeting(text_lower):
+        await _send_onboarding_resume(db, user, state, send_fn)
+        return
 
     if state == "awaiting_consent":
         await _step_consent(db, user, text_lower, send_fn)
@@ -164,6 +171,90 @@ async def handle_onboarding_step(
 
     else:
         logger.warning("Unknown onboarding state '%s' for user %s", state, mobile)
+
+
+# Greetings that should trigger a welcome-back message instead of being
+# treated as onboarding input. Kept lowercase for comparison.
+_GREETINGS = frozenset({
+    "hi", "hello", "hey", "hii", "hiii", "yo", "sup",
+    "hola", "namaste", "good morning", "good evening",
+    "good afternoon", "gm", "start", "restart",
+})
+
+
+def _is_greeting(text_lower: str) -> bool:
+    """Check if the message is a greeting rather than onboarding input."""
+    return text_lower in _GREETINGS
+
+
+async def _send_onboarding_resume(db, user, state, send_fn):
+    """
+    Send a welcome-back message showing what has been filled so far,
+    then re-ask the current onboarding question.
+
+    Business rule: Until onboarding is complete, any greeting should
+    show the welcome message, display progress, and prompt the next step.
+    """
+    mobile = user._plaintext_mobile
+
+    # Build progress summary from data already collected.
+    progress_lines = []
+    if user.consent_given:
+        progress_lines.append("Consent: Yes")
+    if user.full_name and user.full_name != "_pending":
+        progress_lines.append(f"Name: {user.full_name}")
+    if user.pincode:
+        progress_lines.append("Pincode: Provided")
+
+    # Check if a pet is being onboarded.
+    pet = _get_pending_pet(db, user.id)
+    if pet:
+        progress_lines.append(f"Pet name: {pet.name}")
+        if pet.species and pet.species != "_pending":
+            progress_lines.append(f"Species: {pet.species}")
+        if pet.breed:
+            progress_lines.append(f"Breed: {pet.breed}")
+        if pet.gender:
+            progress_lines.append(f"Gender: {pet.gender}")
+        if pet.dob:
+            progress_lines.append(f"DOB: {pet.dob.strftime('%d/%m/%Y')}")
+        if pet.weight:
+            progress_lines.append(f"Weight: {pet.weight} kg")
+        if pet.neutered is not None:
+            progress_lines.append(f"Neutered: {'Yes' if pet.neutered else 'No'}")
+
+    # Compose welcome-back header.
+    greeting = "Welcome back to *PetCircle* 🐾\n\nLet's continue setting up your profile."
+
+    if progress_lines:
+        greeting += "\n\nHere's what we have so far:\n" + "\n".join(f"  • {line}" for line in progress_lines)
+
+    # Map state → next question prompt.
+    next_question = _get_question_for_state(state, pet)
+
+    await send_fn(db, mobile, f"{greeting}\n\n{next_question}")
+
+
+def _get_question_for_state(state: str, pet=None) -> str:
+    """Return the question prompt corresponding to the current onboarding state."""
+    pet_name = pet.name if pet else "your pet"
+
+    prompts = {
+        "awaiting_consent": (
+            "Before we begin, I need your consent to store your pet's health data.\n\n"
+            "Reply *yes* to get started or *no* to opt out."
+        ),
+        "awaiting_name": "What is your *full name*?",
+        "awaiting_pincode": "What is your *pincode*? (Type *skip* if you prefer not to share)",
+        "awaiting_pet_name": "What is your *pet's name*?",
+        "awaiting_species": f"Is *{pet_name}* a *dog* or a *cat*?",
+        "awaiting_breed": f"What *breed* is {pet_name}? (Type *skip* if you're not sure)",
+        "awaiting_gender": f"What is {pet_name}'s *gender*? (*male* or *female*, or *skip*)",
+        "awaiting_dob": f"When was {pet_name} born?\n(DD/MM/YYYY, DD-MM-YYYY, or type *skip*)",
+        "awaiting_weight": f"What is {pet_name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
+        "awaiting_neutered": f"Is {pet_name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
+    }
+    return prompts.get(state, "Let's continue setting up your profile.")
 
 
 async def _step_consent(db, user, text_lower, send_fn):
