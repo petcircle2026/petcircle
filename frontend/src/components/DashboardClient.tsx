@@ -13,25 +13,37 @@ export default function DashboardClient({ token }: { token: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      setLoading(true);
+      // Only show full loading spinner on first load.
+      // On refresh, keep existing data visible and show a subtle indicator.
+      if (data) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       setError("");
       const d = await fetchDashboard(token);
       setData(d);
     } catch (e: any) {
-      setError(e.message || "Failed to load dashboard.");
+      // Only set error if we have no data to show.
+      if (!data) {
+        setError(e.message || "Failed to load dashboard.");
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [token]);
+  }, [token, data]);
 
   useEffect(() => {
     load();
-  }, [load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">
@@ -42,7 +54,7 @@ export default function DashboardClient({ token }: { token: string }) {
     );
   }
 
-  if (error) {
+  if (error && !data) {
     return (
       <div className="flex min-h-screen items-center justify-center p-8">
         <div className="max-w-md rounded-lg border border-red-200 bg-red-50 p-8 text-center">
@@ -59,6 +71,14 @@ export default function DashboardClient({ token }: { token: string }) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
+      {/* Refreshing indicator */}
+      {refreshing && (
+        <div className="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1 text-xs text-white shadow">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" />
+          Updating...
+        </div>
+      )}
+
       {/* Header */}
       <header className="text-center">
         <h1 className="text-2xl font-bold sm:text-3xl">

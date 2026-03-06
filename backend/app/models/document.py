@@ -48,6 +48,11 @@ class Document(Base):
     # at the service layer before insertion.
     mime_type = Column(String(50), nullable=False)
 
+    # Human-readable document name classified by GPT during extraction.
+    # Examples: "Blood Test Report", "Vaccination Certificate", "Deworming Record".
+    # Set to None initially, populated after extraction completes.
+    document_name = Column(String(200), nullable=True)
+
     # GPT extraction pipeline status:
     # 'pending' — uploaded, awaiting extraction
     # 'success' — extraction completed, structured data saved

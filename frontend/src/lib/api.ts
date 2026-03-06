@@ -40,6 +40,7 @@ export interface ReminderItem {
 }
 
 export interface DocumentItem {
+  document_name: string | null;
   mime_type: string;
   extraction_status: string;
   uploaded_at: string | null;

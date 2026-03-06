@@ -87,11 +87,11 @@ export default function PreventiveRecordsTable({
                 <span
                   className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${
                     r.category === "essential"
-                      ? "bg-blue-100 text-blue-800"
-                      : "bg-gray-100 text-gray-600"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-purple-100 text-purple-800"
                   }`}
                 >
-                  {r.category === "essential" ? "Core" : "Recommended"}
+                  {r.category === "essential" ? "Mandatory" : "Recommended"}
                 </span>
               </td>
               <td className="px-4 py-3">
@@ -131,11 +131,11 @@ export default function PreventiveRecordsTable({
                 <span
                   className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(r.status)}`}
                 >
-                  {r.status.replace(/_/g, " ")}
+                  {r.status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                 </span>
               </td>
               <td className="px-4 py-3 text-gray-500">
-                {r.recurrence_days}d
+                {r.recurrence_days} days
               </td>
               <td className="px-4 py-3">
                 {r.status !== "cancelled" && editingItem !== r.item_name && (

@@ -110,7 +110,10 @@ def _log_outgoing_message(
         db.commit()
     except Exception as e:
         logger.error("Failed to log outgoing message: %s", str(e))
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 async def send_text_message(

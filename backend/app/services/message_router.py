@@ -133,6 +133,11 @@ async def route_message(db: Session, message_data: dict) -> None:
 
     except Exception as e:
         logger.error("Error routing message from %s: %s", mask_phone(from_number), str(e))
+        # Rollback any dirty transaction state before attempting to send error message.
+        try:
+            db.rollback()
+        except Exception:
+            pass
         try:
             await send_text_message(
                 db, from_number,
@@ -303,12 +308,18 @@ async def _handle_conflict_button(db: Session, user, payload: str) -> None:
 
 
 async def _handle_media(db: Session, user, message_data: dict) -> None:
-    """Handle image or document uploads — download, store, extract."""
+    """
+    Handle image or document uploads — download, store, then extract in background.
+
+    Upload is done synchronously for fast ack. Extraction runs in a background
+    task with its own DB session so it never blocks the webhook or other users.
+    """
+    import asyncio
     from app.services.document_upload import process_document_upload
-    from app.services.gpt_extraction import extract_and_process_document
 
     from_number = _get_mobile(user)
     media_id = message_data.get("media_id")
+    original_filename = message_data.get("filename")
 
     if not media_id:
         await send_text_message(db, from_number, "Couldn't process that file. Please try again.")
@@ -335,7 +346,7 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
     file_content, detected_mime = media_result
 
     try:
-        filename = f"{media_id}.{_mime_to_ext(detected_mime)}"
+        filename = original_filename or f"{media_id}.{_mime_to_ext(detected_mime)}"
         document = await process_document_upload(
             db=db,
             pet_id=pet.id,
@@ -350,26 +361,71 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             f"Document received for {pet.name}! Extracting health data...",
         )
 
-        # Trigger GPT extraction
-        try:
-            document_text = f"[Uploaded file: {filename}, type: {detected_mime}]"
-            result = await extract_and_process_document(db, document.id, document_text)
-            await _send_extraction_summary(db, user, pet, result)
-        except Exception as e:
-            logger.error("GPT extraction failed: %s", str(e))
-            dashboard_link = _get_dashboard_link(db, pet)
-            msg = (
-                f"Document saved but extraction encountered an issue. "
-                f"You can update details manually via the dashboard."
+        # Launch extraction in background with a FRESH DB session.
+        # This prevents: (a) blocking the webhook, (b) SSL drop cascading,
+        # (c) one extraction failure poisoning other requests.
+        doc_id = document.id
+        pet_id = pet.id
+        pet_name = pet.name
+        user_id = user.id
+        asyncio.create_task(
+            _run_extraction_in_background(
+                doc_id, pet_id, pet_name, user_id, from_number, filename, detected_mime,
             )
-            if dashboard_link:
-                msg += f"\n\nView *{pet.name}'s Dashboard*:\n{dashboard_link}"
-            await send_text_message(db, from_number, msg)
+        )
 
     except ValueError as e:
         await send_text_message(db, from_number, str(e))
     except RuntimeError:
         await send_text_message(db, from_number, "Upload failed. Please try again later.")
+
+
+async def _run_extraction_in_background(
+    doc_id, pet_id, pet_name, user_id, from_number, filename, detected_mime,
+) -> None:
+    """
+    Run GPT extraction in a background task with its own DB session.
+
+    This isolates extraction from the webhook request lifecycle:
+    - SSL drops during extraction don't affect other users.
+    - Slow extractions don't block the webhook response.
+    - Each extraction gets a clean DB session.
+    """
+    from app.database import SessionLocal
+    from app.services.gpt_extraction import extract_and_process_document
+
+    bg_db = SessionLocal()
+    try:
+        document_text = f"[Uploaded file: {filename}, type: {detected_mime}]"
+        result = await extract_and_process_document(bg_db, doc_id, document_text)
+
+        # Build and send extraction summary.
+        pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
+        from app.models.user import User
+        user = bg_db.query(User).filter(User.id == user_id).first()
+        if user and pet:
+            user._plaintext_mobile = from_number
+            await _send_extraction_summary(bg_db, user, pet, result)
+
+    except Exception as e:
+        logger.error("Background extraction failed for doc %s: %s", str(doc_id), str(e))
+        try:
+            bg_db.rollback()
+        except Exception:
+            pass
+        try:
+            dashboard_link = _get_dashboard_link(bg_db, type("Pet", (), {"id": pet_id})())
+            msg = (
+                f"Document saved but extraction encountered an issue. "
+                f"You can update details manually via the dashboard."
+            )
+            if dashboard_link:
+                msg += f"\n\nView *{pet_name}'s Dashboard*:\n{dashboard_link}"
+            await send_text_message(bg_db, from_number, msg)
+        except Exception:
+            pass
+    finally:
+        bg_db.close()
 
 
 async def _handle_query(db: Session, user, text: str) -> None:

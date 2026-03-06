@@ -17,6 +17,17 @@ function extractionBadge(status: string) {
   return map[status] || "bg-gray-100 text-gray-600";
 }
 
+/** Convert YYYY-MM-DD HH:MM:SS to DD-MM-YYYY for display. */
+function formatDate(d: string | null): string {
+  if (!d) return "\u2014";
+  const datePart = d.split(" ")[0];
+  const parts = datePart.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return d;
+}
+
 export default function DocumentsSection({
   documents,
 }: {
@@ -35,7 +46,7 @@ export default function DocumentsSection({
       <table className="w-full text-left text-sm">
         <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
           <tr>
-            <th className="px-4 py-3">Type</th>
+            <th className="px-4 py-3">Document</th>
             <th className="px-4 py-3">Extraction</th>
             <th className="px-4 py-3">Uploaded</th>
           </tr>
@@ -43,19 +54,19 @@ export default function DocumentsSection({
         <tbody className="divide-y">
           {documents.map((d, i) => (
             <tr key={i} className="hover:bg-gray-50">
-              <td className="px-4 py-3">
+              <td className="px-4 py-3 font-medium">
                 <span className="mr-2">{mimeIcon(d.mime_type)}</span>
-                {d.mime_type}
+                {d.document_name || "Uploaded Document"}
               </td>
               <td className="px-4 py-3">
                 <span
-                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${extractionBadge(d.extraction_status)}`}
+                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize ${extractionBadge(d.extraction_status)}`}
                 >
                   {d.extraction_status}
                 </span>
               </td>
               <td className="px-4 py-3 text-gray-500">
-                {d.uploaded_at || "—"}
+                {formatDate(d.uploaded_at)}
               </td>
             </tr>
           ))}

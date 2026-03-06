@@ -61,16 +61,20 @@ REQUIRED_EXTRACTION_KEYS = {"item_name", "last_done_date"}
 EXTRACTION_SYSTEM_PROMPT = (
     "You are a veterinary document data extractor. "
     "Extract preventive health items from the provided pet document. "
-    "Return ONLY a JSON array of objects, each with these exact keys:\n"
-    '  - "item_name": string (the preventive health item name, '
+    "Return a JSON object with these keys:\n"
+    '  - "document_name": string (a short descriptive name for this document, '
+    "e.g., 'Blood Test Report', 'Vaccination Certificate', 'Deworming Record', "
+    "'Vet Prescription', 'Health Checkup Report')\n"
+    '  - "items": array of objects, each with:\n'
+    '    - "item_name": string (the preventive health item name, '
     "e.g., 'Rabies Vaccine', 'Deworming')\n"
-    '  - "last_done_date": string (the date the item was done, '
+    '    - "last_done_date": string (the date the item was done, '
     "in DD/MM/YYYY or DD-MM-YYYY or DD Month YYYY or YYYY-MM-DD format)\n\n"
     "Rules:\n"
     "- Extract ONLY preventive health items (vaccines, deworming, checkups, etc.).\n"
     "- Do NOT provide medical advice or interpretation.\n"
     "- Do NOT infer dates — only extract what is explicitly stated.\n"
-    "- If no preventive items are found, return an empty array: []\n"
+    '- If no preventive items are found, return {"document_name": "...", "items": []}\n'
     "- Return valid JSON only — no markdown, no explanation, no extra text."
 )
 
@@ -118,7 +122,7 @@ async def _call_openai_extraction(document_text: str) -> str:
     return await retry_openai_call(_make_call)
 
 
-def _validate_extraction_json(raw_json: str) -> list[dict]:
+def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None]:
     """
     Parse and validate the JSON response from GPT extraction.
 
@@ -132,7 +136,7 @@ def _validate_extraction_json(raw_json: str) -> list[dict]:
         raw_json: Raw JSON string from GPT response.
 
     Returns:
-        List of validated extraction dictionaries with normalized dates.
+        Tuple of (validated items list, document_name or None).
 
     Raises:
         ValueError: If JSON is invalid or missing required keys.
@@ -144,6 +148,11 @@ def _validate_extraction_json(raw_json: str) -> list[dict]:
         raise ValueError(
             f"GPT returned invalid JSON: {str(e)}"
         ) from e
+
+    # Extract document_name if present at top level.
+    document_name = None
+    if isinstance(parsed, dict):
+        document_name = parsed.get("document_name")
 
     # Handle both direct array and wrapper object formats.
     # GPT with json_object mode returns an object, not an array.
@@ -206,7 +215,7 @@ def _validate_extraction_json(raw_json: str) -> list[dict]:
 
         validated.append(item)
 
-    return validated
+    return validated, document_name
 
 
 def _match_preventive_master(
@@ -342,8 +351,12 @@ async def extract_and_process_document(
         raw_json = await _call_openai_extraction(document_text)
 
         # --- Step 2: Validate and normalize ---
-        extracted_items = _validate_extraction_json(raw_json)
+        extracted_items, document_name = _validate_extraction_json(raw_json)
         results["items_extracted"] = len(extracted_items)
+
+        # Save classified document name from GPT.
+        if document_name:
+            document.document_name = str(document_name)[:200]
 
         if not extracted_items:
             logger.info(

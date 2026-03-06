@@ -53,10 +53,10 @@ export default function HealthScoreRing({ data }: { data: HealthScore }) {
       </div>
       <div className="flex gap-4 text-sm text-gray-600">
         <span>
-          Essential: {data.essential_done}/{data.essential_total}
+          Mandatory: {data.essential_done}/{data.essential_total}
         </span>
         <span>
-          Extra: {data.complementary_done}/{data.complementary_total}
+          Recommended: {data.complementary_done}/{data.complementary_total}
         </span>
       </div>
     </div>

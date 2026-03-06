@@ -111,7 +111,10 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
     except Exception as e:
         # Logging failure must never block message processing.
         logger.error("Failed to log incoming message: %s", str(e))
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     # --- Step 5: Forward to service layer ---
     # Only process if we have an actual message (not a status update).
@@ -129,12 +132,15 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
             mask_phone(from_number),
         )
 
-        # Route message to the appropriate service handler.
-        # Processing is done inline (not queued) in Phase 1.
-        # Errors are caught inside the router — never crashes the webhook.
+        # Route message using a FRESH database session.
+        # This ensures logging failures or SSL drops on the webhook session
+        # never poison the service layer. Each user's message gets an
+        # isolated session — one user's error cannot affect another.
+        from app.database import SessionLocal
+        service_db = SessionLocal()
         try:
             from app.services.message_router import route_message
-            await route_message(db, message_data)
+            await route_message(service_db, message_data)
         except Exception as e:
             # Service layer failure must never prevent 200 OK response.
             logger.error(
@@ -142,6 +148,12 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
                 mask_phone(from_number),
                 str(e),
             )
+            try:
+                service_db.rollback()
+            except Exception:
+                pass
+        finally:
+            service_db.close()
 
     # Return 200 OK immediately — Meta requires fast acknowledgment.
     return {"status": "ok"}
@@ -187,6 +199,7 @@ def _extract_message_data(payload: dict) -> dict:
         "media_id": None,
         "mime_type": None,
         "button_payload": None,
+        "filename": None,
     }
 
     # Safely navigate nested structure: entry → changes → value
@@ -236,6 +249,7 @@ def _extract_message_data(payload: dict) -> dict:
         doc_obj = message.get("document", {})
         result["media_id"] = doc_obj.get("id")
         result["mime_type"] = doc_obj.get("mime_type")
+        result["filename"] = doc_obj.get("filename")
 
     elif msg_type == "button":
         # Interactive button response — extract the payload ID.

@@ -332,7 +332,8 @@ async def _step_pincode(db, user, text, send_fn):
 
 async def _step_pet_name(db, user, text, send_fn):
     """Handle pet name collection — store temporarily, ask species next."""
-    pet_name = text.strip()
+    # Title-case pet name for consistent display (zayn → Zayn).
+    pet_name = text.strip().title()
     if len(pet_name) < 1 or len(pet_name) > 100:
         await send_fn(db, user._plaintext_mobile, "Please enter a valid pet name.")
         return
