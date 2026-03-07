@@ -220,18 +220,32 @@ def send_pending_reminders(db: Session) -> dict:
         plaintext_mobile = decrypt_field(user.mobile_number)
 
         try:
-            # Use asyncio.run() for clean event loop management in sync context.
-            # The reminder engine runs from a cron job (sync), not from an async handler.
-            send_result = asyncio.run(
-                send_reminder_message(
-                    db=db,
-                    to_number=plaintext_mobile,
-                    pet_name=pet.name,
-                    item_name=master.item_name,
-                    due_date=str(reminder.next_due_date),
-                    record_status=record.status,
-                )
+            # Detect whether we're already inside an event loop (e.g., called
+            # from FastAPI async context) or running in a plain thread (e.g.,
+            # GitHub Actions cron hitting a sync endpoint).
+            # asyncio.run() crashes if a loop is already running; in that case
+            # we schedule the coroutine on the existing loop instead.
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            coro = send_reminder_message(
+                db=db,
+                to_number=plaintext_mobile,
+                pet_name=pet.name,
+                item_name=master.item_name,
+                due_date=str(reminder.next_due_date),
+                record_status=record.status,
             )
+
+            if loop and loop.is_running():
+                # Already in an async context — schedule as a task and wait.
+                import concurrent.futures
+                future = asyncio.run_coroutine_threadsafe(coro, loop)
+                send_result = future.result(timeout=60)
+            else:
+                send_result = asyncio.run(coro)
         except Exception as e:
             logger.error(
                 "Error sending reminder_id=%s: %s",

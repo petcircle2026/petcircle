@@ -11,8 +11,8 @@ Connection strategy:
       use, preventing "SSL connection closed unexpectedly" errors.
     - pool_recycle=280 ensures connections are refreshed before Supabase's
       5-minute idle timeout kills them.
-    - Small pool (pool_size=2, max_overflow=3) to stay within Supabase's
-      connection limits on Render's single-worker setup.
+    - Pool (pool_size=5, max_overflow=5) sized for concurrent webhook
+      handling while staying within Supabase's connection limits.
 
 No business logic lives here — only connection infrastructure.
 """
@@ -48,12 +48,20 @@ engine = create_engine(
     settings.DATABASE_URL,
     poolclass=QueuePool,
     pool_pre_ping=True,
-    pool_size=2,
-    max_overflow=3,
+    pool_size=5,
+    max_overflow=5,
     pool_recycle=280,
     pool_timeout=10,
     connect_args=connect_args,
+    # Disable SQL echo in production — only enable for debugging.
+    echo=False,
 )
+
+
+@event.listens_for(engine, "checkout")
+def _on_checkout(dbapi_conn, connection_rec, connection_proxy):
+    """Log pool checkout events for monitoring connection usage."""
+    logger.debug("DB connection checked out from pool")
 
 
 # Session factory — autocommit and autoflush disabled for explicit transaction control.

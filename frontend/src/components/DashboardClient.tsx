@@ -14,6 +14,9 @@ export default function DashboardClient({ token }: { token: string }) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  // True when showing cached data because the API is unreachable.
+  const [stale, setStale] = useState(false);
+  const [cachedAt, setCachedAt] = useState<string | undefined>();
 
   const load = useCallback(async () => {
     try {
@@ -28,8 +31,10 @@ export default function DashboardClient({ token }: { token: string }) {
         }
         return prev;
       });
-      const d = await fetchDashboard(token);
-      setData(d);
+      const result = await fetchDashboard(token);
+      setData(result.data);
+      setStale(result.stale);
+      setCachedAt(result.cachedAt);
     } catch (e: any) {
       setData((prev) => {
         // Only set error if we have no data to show.
@@ -44,10 +49,21 @@ export default function DashboardClient({ token }: { token: string }) {
     }
   }, [token]);
 
+  // Initial load on mount.
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Auto-retry every 30s when showing stale data, so the dashboard
+  // refreshes automatically once the backend recovers.
+  // IMPORTANT: This hook must be called unconditionally (before any returns)
+  // to satisfy React's rules of hooks.
+  useEffect(() => {
+    if (!stale) return;
+    const interval = setInterval(load, 30000);
+    return () => clearInterval(interval);
+  }, [stale, load]);
 
   if (loading && !data) {
     return (
@@ -77,6 +93,24 @@ export default function DashboardClient({ token }: { token: string }) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
+      {/* Stale data banner — shown when serving cached data due to API failure */}
+      {stale && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800">
+          Showing last saved data
+          {cachedAt && (
+            <span>
+              {" "}from{" "}
+              {new Date(cachedAt).toLocaleString("en-IN", {
+                timeZone: "Asia/Kolkata",
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}
+            </span>
+          )}
+          . Live data will load automatically once the server is back.
+        </div>
+      )}
+
       {/* Refreshing indicator */}
       {refreshing && (
         <div className="fixed right-4 top-4 z-50 flex items-center gap-2 rounded-full bg-blue-600 px-3 py-1 text-xs text-white shadow">

@@ -56,7 +56,8 @@ class RateLimiter:
         Check whether a request from the given key is allowed.
 
         Evicts expired timestamps, then checks if the count is under the limit.
-        If allowed, records the current timestamp.
+        If allowed, records the current timestamp. Cleans up empty keys to
+        prevent unbounded memory growth from inactive users.
 
         Args:
             key: The rate limit key (phone number, IP address, etc.).
@@ -71,6 +72,13 @@ class RateLimiter:
         timestamps = self._requests[key]
         while timestamps and timestamps[0] < window_start:
             timestamps.popleft()
+
+        # Remove the key entirely if no timestamps remain — prevents memory leak
+        # from accumulating keys for users who are no longer active.
+        if not timestamps:
+            del self._requests[key]
+            # Re-create for the current request below.
+            timestamps = self._requests[key]
 
         if len(timestamps) >= self.max_requests:
             return False

@@ -141,6 +141,14 @@ def calculate_and_update_record(
             f"Preventive master not found for record: {preventive_record_id}"
         )
 
+    # Skip if last_done_date is not set (newly seeded record with no data).
+    if record.last_done_date is None:
+        logger.info(
+            "Skipping recalculation — no last_done_date: record_id=%s",
+            str(preventive_record_id),
+        )
+        return record
+
     # Compute next_due_date from last_done_date and DB recurrence_days.
     new_next_due = compute_next_due_date(record.last_done_date, master.recurrence_days)
 
@@ -265,6 +273,10 @@ def recalculate_all_for_pet(db: Session, pet_id: UUID) -> int:
 
     updated = 0
     for record, master in rows:
+        # Skip records with no last_done_date (newly seeded, no data yet).
+        # These cannot have next_due_date computed — leave them as-is.
+        if record.last_done_date is None:
+            continue
 
         # Recompute from DB values.
         new_next_due = compute_next_due_date(record.last_done_date, master.recurrence_days)

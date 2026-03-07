@@ -649,6 +649,9 @@ def seed_preventive_records_for_pet(db: Session, pet: Pet) -> int:
     count = 0
     for master in masters:
         try:
+            # Use a savepoint so individual failures only roll back this insert,
+            # not the entire transaction (which would lose previously flushed records).
+            nested = db.begin_nested()
             record = PreventiveRecord(
                 pet_id=pet.id,
                 preventive_master_id=master.id,
@@ -656,9 +659,10 @@ def seed_preventive_records_for_pet(db: Session, pet: Pet) -> int:
             )
             db.add(record)
             db.flush()
+            nested.commit()
             count += 1
         except Exception as e:
-            db.rollback()
+            nested.rollback()
             logger.warning(
                 "Failed to create preventive record for pet=%s, item=%s: %s",
                 str(pet.id), master.item_name, str(e),

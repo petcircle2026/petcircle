@@ -132,13 +132,11 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
             mask_phone(from_number),
         )
 
-        # Route message using a FRESH database session.
-        # pool_pre_ping ensures the connection is alive before use.
-        from app.database import get_fresh_session
-        service_db = get_fresh_session()
+        # Reuse the request-scoped db session to avoid exhausting the
+        # connection pool (each get_fresh_session() held a second slot).
         try:
             from app.services.message_router import route_message
-            await route_message(service_db, message_data)
+            await route_message(db, message_data)
         except Exception as e:
             # Service layer failure must never prevent 200 OK response.
             logger.error(
@@ -147,11 +145,9 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
                 str(e),
             )
             try:
-                service_db.rollback()
+                db.rollback()
             except Exception:
                 pass
-        finally:
-            service_db.close()
 
     # Return 200 OK immediately — Meta requires fast acknowledgment.
     return {"status": "ok"}

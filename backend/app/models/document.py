@@ -60,7 +60,8 @@ class Document(Base):
     extraction_status = Column(String(20), nullable=False)
 
     # Timestamp when the document was uploaded.
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # Indexed for daily upload limit check queries.
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
 
     # --- Relationships ---
 

@@ -22,6 +22,7 @@ Rules:
 
 import asyncio
 import logging
+import time
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.encryption import decrypt_field
@@ -41,6 +42,29 @@ from app.core.constants import (
 # Semaphore to limit concurrent background extraction tasks.
 # Prevents DB connection pool exhaustion when many documents are uploaded.
 _extraction_semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
+
+# --- Batch upload tracking ---
+# Tracks recent upload timestamps per pet to enforce the 5-file batch limit.
+# Key: str(pet_id), Value: list of upload timestamps (epoch seconds).
+# This is in-memory to avoid DB race conditions when many files arrive at once.
+_recent_uploads: dict[str, list[float]] = {}
+
+# Tracks whether a batch rejection message was already sent for a pet.
+# Prevents spamming the user with repeated "too many files" messages.
+# Key: str(pet_id), Value: True if rejection was sent this batch.
+_rejection_sent: dict[str, bool] = {}
+
+# Window in seconds for counting a "batch" of uploads.
+# Files uploaded within this window are considered one batch.
+_UPLOAD_BATCH_WINDOW_SECONDS: int = 120
+
+# Debounce timers for batch extraction per pet.
+# Key: str(pet_id), Value: asyncio.Task that waits then extracts.
+_extraction_timers: dict[str, asyncio.Task] = {}
+
+# Seconds to wait after the last upload before starting batch extraction.
+# Gives the user time to finish sending all files in a batch.
+_EXTRACTION_DELAY_SECONDS: int = 15
 from app.services.onboarding import (
     get_or_create_user,
     create_pending_user,
@@ -323,10 +347,16 @@ async def _handle_conflict_button(db: Session, user, payload: str) -> None:
 
 async def _handle_media(db: Session, user, message_data: dict) -> None:
     """
-    Handle image or document uploads — download, store, then extract in background.
+    Handle image or document uploads with batch limiting.
 
-    Upload is done synchronously for fast ack. Extraction runs in a background
-    task with its own DB session so it never blocks the webhook or other users.
+    Enforces a strict per-pet batch limit (MAX_PENDING_DOCS_PER_PET) using
+    an in-memory counter to avoid DB race conditions when many files arrive
+    concurrently. Files beyond the limit are rejected BEFORE downloading.
+
+    Extraction is deferred: after the last upload in a batch settles
+    (no new files for _EXTRACTION_DELAY_SECONDS), all pending documents
+    for the pet are extracted together. This prevents per-file GPT calls
+    from exhausting DB connections and API rate limits.
     """
     from app.services.document_upload import process_document_upload
 
@@ -338,7 +368,7 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
         await send_text_message(db, from_number, "Couldn't process that file. Please try again.")
         return
 
-    # Find user's most recent active pet
+    # Find user's most recent active pet.
     pet = (
         db.query(Pet)
         .filter(Pet.user_id == user.id, Pet.is_deleted == False)
@@ -350,28 +380,50 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
         await send_text_message(db, from_number, "Please register a pet first.")
         return
 
-    # Check pending documents limit — max 5 at a time per pet.
-    # Prevents queue flooding when users send many documents at once.
-    pending_count = (
-        db.query(Document)
-        .filter(
-            Document.pet_id == pet.id,
-            Document.extraction_status == "pending",
-        )
-        .count()
-    )
-    if pending_count >= MAX_PENDING_DOCS_PER_PET:
-        await send_text_message(
-            db, from_number,
-            f"You already have {pending_count} documents being processed for {pet.name}. "
-            f"Please wait for them to finish before uploading more "
-            f"(max {MAX_PENDING_DOCS_PER_PET} at a time).",
-        )
+    # --- Batch limit check (in-memory, race-safe) ---
+    # Count recent uploads for this pet within the batch window.
+    pet_key = str(pet.id)
+    now = time.time()
+    cutoff = now - _UPLOAD_BATCH_WINDOW_SECONDS
+
+    # Clean up old entries outside the batch window.
+    if pet_key in _recent_uploads:
+        _recent_uploads[pet_key] = [
+            ts for ts in _recent_uploads[pet_key] if ts > cutoff
+        ]
+    else:
+        _recent_uploads[pet_key] = []
+
+    recent_count = len(_recent_uploads[pet_key])
+
+    if recent_count >= MAX_PENDING_DOCS_PER_PET:
+        # Only send the rejection message once per batch to avoid spamming.
+        if not _rejection_sent.get(pet_key):
+            _rejection_sent[pet_key] = True
+            await send_text_message(
+                db, from_number,
+                f"Too many files! You've sent {recent_count} documents for "
+                f"{pet.name} already.\n\n"
+                f"Please upload maximum *{MAX_PENDING_DOCS_PER_PET} files at a time* "
+                f"and wait for extraction to finish before sending more.",
+            )
         return
 
-    # Download media from WhatsApp
+    # --- Immediate acknowledgment BEFORE downloading ---
+    # Send a quick message so the user knows the file was received
+    # and processing has started, even before the download completes.
+    _recent_uploads[pet_key].append(now)
+    current_batch_count = len(_recent_uploads[pet_key])
+    await send_text_message(
+        db, from_number,
+        f"Got it! Received file {current_batch_count} for *{pet.name}*... hang tight.",
+    )
+
+    # --- Download media from WhatsApp ---
     media_result = await download_whatsapp_media(media_id)
     if not media_result:
+        # Remove the tracked upload since download failed.
+        _recent_uploads[pet_key].pop()
         await send_text_message(db, from_number, "Failed to download the file. Please try again.")
         return
 
@@ -390,79 +442,175 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
 
         await send_text_message(
             db, from_number,
-            f"Document received for {pet.name}! Extracting health data...",
+            f"Document {current_batch_count} saved for *{pet.name}*. "
+            f"Will start extracting health data once all files are received.",
         )
 
-        # Launch extraction in background with a FRESH DB session.
-        # This prevents: (a) blocking the webhook, (b) SSL drop cascading,
-        # (c) one extraction failure poisoning other requests.
-        doc_id = document.id
-        pet_id = pet.id
-        pet_name = pet.name
-        user_id = user.id
-        asyncio.create_task(
-            _run_extraction_in_background(
-                doc_id, pet_id, pet_name, user_id, from_number, filename, detected_mime,
-            )
+        # Schedule (or reschedule) a deferred batch extraction.
+        # The timer resets with each new upload so extraction only starts
+        # after uploads have settled (_EXTRACTION_DELAY_SECONDS of silence).
+        _schedule_batch_extraction(
+            pet_id=pet.id,
+            pet_name=pet.name,
+            user_id=user.id,
+            from_number=from_number,
         )
 
     except ValueError as e:
+        # Remove the tracked upload since storage failed.
+        _recent_uploads[pet_key].pop()
         await send_text_message(db, from_number, str(e))
     except RuntimeError:
+        _recent_uploads[pet_key].pop()
         await send_text_message(db, from_number, "Upload failed. Please try again later.")
 
 
-async def _run_extraction_in_background(
-    doc_id, pet_id, pet_name, user_id, from_number, filename, detected_mime,
+def _schedule_batch_extraction(
+    pet_id, pet_name, user_id, from_number,
 ) -> None:
     """
-    Run GPT extraction in a background task with its own DB session.
+    Schedule (or reschedule) a deferred batch extraction for a pet.
 
-    Uses a semaphore to limit concurrent extractions (MAX_CONCURRENT_EXTRACTIONS)
-    and prevent DB connection pool exhaustion.
-
-    This isolates extraction from the webhook request lifecycle:
-    - SSL drops during extraction don't affect other users.
-    - Slow extractions don't block the webhook response.
-    - Each extraction gets a clean DB session.
+    Each new upload resets the timer. Extraction only starts after
+    _EXTRACTION_DELAY_SECONDS of no new uploads, ensuring the full
+    batch is received before processing begins.
     """
+    pet_key = str(pet_id)
+
+    # Cancel existing timer for this pet (debounce).
+    existing = _extraction_timers.get(pet_key)
+    if existing and not existing.done():
+        existing.cancel()
+
+    # Schedule a new delayed extraction.
+    _extraction_timers[pet_key] = asyncio.create_task(
+        _delayed_batch_extraction(pet_id, pet_name, user_id, from_number)
+    )
+
+
+async def _delayed_batch_extraction(
+    pet_id, pet_name, user_id, from_number,
+) -> None:
+    """
+    Wait for uploads to settle, then extract all pending documents for the pet.
+
+    Waits _EXTRACTION_DELAY_SECONDS, then queries all pending documents
+    for the pet and extracts them one-by-one (each under the semaphore).
+    Sends a single batch summary when all extractions are done.
+    """
+    await asyncio.sleep(_EXTRACTION_DELAY_SECONDS)
+
+    pet_key = str(pet_id)
+
+    # Clean up the extraction timer entry.
+    _extraction_timers.pop(pet_key, None)
+
     from app.database import get_fresh_session
     from app.services.gpt_extraction import extract_and_process_document
 
-    # Wait for semaphore — limits concurrent extractions to prevent pool exhaustion.
-    async with _extraction_semaphore:
-        bg_db = get_fresh_session()
-        try:
-            document_text = f"[Uploaded file: {filename}, type: {detected_mime}]"
-            result = await extract_and_process_document(bg_db, doc_id, document_text)
+    bg_db = get_fresh_session()
+    try:
+        # Fetch all pending documents for this pet.
+        pending_docs = (
+            bg_db.query(Document)
+            .filter(
+                Document.pet_id == pet_id,
+                Document.extraction_status == "pending",
+            )
+            .order_by(Document.created_at.asc())
+            .all()
+        )
 
-            # Build and send extraction summary.
-            pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
-            from app.models.user import User
-            user = bg_db.query(User).filter(User.id == user_id).first()
-            if user and pet:
-                user._plaintext_mobile = from_number
-                await _send_extraction_summary(bg_db, user, pet, result)
+        if not pending_docs:
+            return
 
-        except Exception as e:
-            logger.error("Background extraction failed for doc %s: %s", str(doc_id), str(e))
-            try:
-                bg_db.rollback()
-            except Exception:
-                pass
-            try:
-                dashboard_link = _get_dashboard_link(bg_db, type("Pet", (), {"id": pet_id})())
+        total = len(pending_docs)
+        logger.info(
+            "Starting batch extraction for pet %s: %d pending documents",
+            str(pet_id), total,
+        )
+
+        # Notify user that extraction is starting.
+        await send_text_message(
+            bg_db, from_number,
+            f"Starting extraction for {total} document(s) for *{pet_name}*...",
+        )
+
+        last_result = None
+        success_count = 0
+        fail_count = 0
+
+        # Extract each document sequentially under the semaphore.
+        for idx, doc in enumerate(pending_docs, 1):
+            async with _extraction_semaphore:
+                try:
+                    document_text = (
+                        f"[Uploaded file: {doc.file_path}, type: {doc.mime_type}]"
+                    )
+                    result = await extract_and_process_document(
+                        bg_db, doc.id, document_text,
+                    )
+                    last_result = result
+                    success_count += 1
+                    logger.info(
+                        "Extracted doc %d/%d (id=%s) for pet %s",
+                        idx, total, str(doc.id), str(pet_id),
+                    )
+                except Exception as e:
+                    fail_count += 1
+                    logger.error(
+                        "Extraction failed for doc %s (%d/%d): %s",
+                        str(doc.id), idx, total, str(e),
+                    )
+                    try:
+                        bg_db.rollback()
+                    except Exception:
+                        pass
+
+        # Send a single summary after all extractions complete.
+        pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
+        from app.models.user import User
+        user = bg_db.query(User).filter(User.id == user_id).first()
+
+        if user and pet:
+            user._plaintext_mobile = from_number
+            if last_result and success_count > 0:
+                await _send_extraction_summary(bg_db, user, pet, last_result)
+            else:
+                dashboard_link = _get_dashboard_link(bg_db, pet)
                 msg = (
-                    f"Document saved but extraction encountered an issue. "
-                    f"You can update details manually via the dashboard."
+                    f"Extraction finished for *{pet_name}*.\n"
+                    f"{success_count} succeeded, {fail_count} failed.\n\n"
+                    f"You can review and update details via the dashboard."
                 )
                 if dashboard_link:
-                    msg += f"\n\nView *{pet_name}'s Dashboard*:\n{dashboard_link}"
+                    msg += f"\n\n{dashboard_link}"
                 await send_text_message(bg_db, from_number, msg)
-            except Exception:
-                pass
-        finally:
-            bg_db.close()
+
+        # Clear the batch counter and rejection flag so user can upload again.
+        _recent_uploads.pop(pet_key, None)
+        _rejection_sent.pop(pet_key, None)
+
+    except Exception as e:
+        logger.error(
+            "Batch extraction failed for pet %s: %s", str(pet_id), str(e),
+        )
+        try:
+            bg_db.rollback()
+        except Exception:
+            pass
+        try:
+            await send_text_message(
+                bg_db, from_number,
+                f"Extraction encountered an issue for {pet_name}. "
+                f"Please check the dashboard or try uploading again.",
+            )
+        except Exception:
+            pass
+        # Clear batch counter even on failure so user isn't stuck.
+        _recent_uploads.pop(pet_key, None)
+    finally:
+        bg_db.close()
 
 
 async def _handle_query(db: Session, user, text: str) -> None:

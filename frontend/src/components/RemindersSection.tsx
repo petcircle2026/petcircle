@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { ReminderItem } from "@/lib/api";
 
 function statusDot(status: string) {
@@ -8,7 +9,7 @@ function statusDot(status: string) {
   return "bg-gray-400";
 }
 
-export default function RemindersSection({
+export default memo(function RemindersSection({
   reminders,
 }: {
   reminders: ReminderItem[];
@@ -54,4 +55,4 @@ export default function RemindersSection({
       </table>
     </div>
   );
-}
+})

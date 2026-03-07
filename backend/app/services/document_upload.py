@@ -39,6 +39,7 @@ from app.core.constants import (
     STORAGE_PATH_TEMPLATE,
 )
 from app.config import settings
+import pytz
 from app.utils.date_utils import get_today_ist, IST
 
 
@@ -107,6 +108,9 @@ def check_daily_upload_limit(
     Enforces MAX_UPLOADS_PER_PET_PER_DAY (10) — from constants.
     Counts documents uploaded today (IST timezone) for this pet.
 
+    Uses IST day boundaries (midnight to midnight IST) instead of comparing
+    against func.date(created_at) which would use UTC and be off near midnight.
+
     Args:
         db: SQLAlchemy database session.
         pet_id: UUID of the pet to check.
@@ -114,15 +118,21 @@ def check_daily_upload_limit(
     Raises:
         ValueError: If the daily upload limit has been reached.
     """
-    today = get_today_ist()
+    from datetime import datetime, timedelta
+    # Compute IST day boundaries in UTC for accurate comparison.
+    # created_at is stored as UTC, so we need UTC timestamps for IST midnight.
+    now_ist = datetime.now(IST)
+    ist_midnight = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    ist_midnight_utc = ist_midnight.astimezone(pytz.utc).replace(tzinfo=None)
+    ist_end_utc = (ist_midnight + timedelta(days=1)).astimezone(pytz.utc).replace(tzinfo=None)
 
-    # Count documents uploaded today for this pet.
-    # Uses IST date boundaries to ensure timezone-consistent counting.
+    # Count documents uploaded within today's IST boundaries (converted to UTC).
     today_count = (
         db.query(func.count(Document.id))
         .filter(
             Document.pet_id == pet_id,
-            func.date(Document.created_at) == today,
+            Document.created_at >= ist_midnight_utc,
+            Document.created_at < ist_end_utc,
         )
         .scalar()
     )

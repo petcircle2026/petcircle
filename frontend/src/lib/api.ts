@@ -121,9 +121,45 @@ export interface AdminMessage {
   created_at: string;
 }
 
+// --- Dashboard Cache (localStorage) ---
+// On success: cache the response so the dashboard can show last-known data
+// if the backend is temporarily unavailable. Cache is per-token.
+
+const CACHE_PREFIX = "petcircle_dash_";
+
+function getCachedDashboard(token: string): { data: DashboardData; cachedAt: string } | null {
+  try {
+    const raw = localStorage.getItem(`${CACHE_PREFIX}${token}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function cacheDashboard(token: string, data: DashboardData): void {
+  try {
+    localStorage.setItem(
+      `${CACHE_PREFIX}${token}`,
+      JSON.stringify({ data, cachedAt: new Date().toISOString() })
+    );
+  } catch {
+    // localStorage full or unavailable — ignore silently.
+  }
+}
+
 // --- Dashboard API ---
 
-export async function fetchDashboard(token: string): Promise<DashboardData> {
+/** Result from fetchDashboard — includes staleness info when serving cached data. */
+export interface DashboardResult {
+  data: DashboardData;
+  /** True when data is served from cache because the API is unreachable. */
+  stale: boolean;
+  /** ISO timestamp of when the cached data was last fetched, if stale. */
+  cachedAt?: string;
+}
+
+export async function fetchDashboard(token: string): Promise<DashboardResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 30000);
   try {
@@ -132,11 +168,64 @@ export async function fetchDashboard(token: string): Promise<DashboardData> {
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new Error(
-        res.status === 404
-          ? "Dashboard not found or link has expired."
-          : `Request failed: ${res.status}`
-      );
+      // 404 means token is invalid/expired — don't serve stale cache for this.
+      if (res.status === 404) {
+        throw new FetchError("Dashboard not found or link has expired.", 404);
+      }
+      throw new FetchError(`Request failed: ${res.status}`, res.status);
+    }
+    const data: DashboardData = await res.json();
+    // Cache the fresh response for offline/failure fallback.
+    cacheDashboard(token, data);
+    return { data, stale: false };
+  } catch (e: any) {
+    // For 404 (invalid token), never fall back to cache.
+    if (e instanceof FetchError && e.status === 404) {
+      throw e;
+    }
+
+    // For network errors, timeouts, 5xx — try serving cached data.
+    const cached = getCachedDashboard(token);
+    if (cached) {
+      return { data: cached.data, stale: true, cachedAt: cached.cachedAt };
+    }
+
+    // No cache available — rethrow the original error.
+    if (e.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+/** Error with HTTP status code so we can distinguish 404 from 5xx. */
+class FetchError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "FetchError";
+    this.status = status;
+  }
+}
+
+export async function updateWeight(
+  token: string,
+  weight: number
+): Promise<{ status: string; old_weight: number | null; new_weight: number }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`${API_BASE}/dashboard/${token}/weight`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weight }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.detail || `Request failed: ${res.status}`);
     }
     return res.json();
   } catch (e: any) {
@@ -147,22 +236,6 @@ export async function fetchDashboard(token: string): Promise<DashboardData> {
   } finally {
     clearTimeout(timeoutId);
   }
-}
-
-export async function updateWeight(
-  token: string,
-  weight: number
-): Promise<{ status: string; old_weight: number | null; new_weight: number }> {
-  const res = await fetch(`${API_BASE}/dashboard/${token}/weight`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ weight }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.detail || `Request failed: ${res.status}`);
-  }
-  return res.json();
 }
 
 export async function updatePreventiveDate(
@@ -176,16 +249,28 @@ export async function updatePreventiveDate(
   new_next_due_date: string;
   record_status: string;
 }> {
-  const res = await fetch(`${API_BASE}/dashboard/${token}/preventive`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ item_name, last_done_date }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.detail || `Request failed: ${res.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`${API_BASE}/dashboard/${token}/preventive`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item_name, last_done_date }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.detail || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 /**
@@ -193,6 +278,8 @@ export async function updatePreventiveDate(
  * Returns true if the key is valid, false otherwise.
  */
 export async function verifyAdminKey(adminKey: string): Promise<boolean> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
     const res = await fetch(`${API_BASE}/admin/verify-key`, {
       method: "POST",
@@ -200,23 +287,38 @@ export async function verifyAdminKey(adminKey: string): Promise<boolean> {
         "X-ADMIN-KEY": adminKey,
         "Content-Type": "application/json",
       },
+      signal: controller.signal,
     });
     return res.ok;
   } catch {
     return false;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
 // --- Admin API ---
 
 async function adminFetch<T>(path: string, adminKey: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "X-ADMIN-KEY": adminKey },
-    cache: "no-store",
-  });
-  if (res.status === 403) throw new Error("Invalid admin key.");
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return res.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { "X-ADMIN-KEY": adminKey },
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (res.status === 403) throw new Error("Invalid admin key.");
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    return res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function adminMutate<T>(
@@ -225,20 +327,32 @@ async function adminMutate<T>(
   method: "PATCH" | "POST",
   body?: unknown
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: {
-      "X-ADMIN-KEY": adminKey,
-      "Content-Type": "application/json",
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (res.status === 403) throw new Error("Invalid admin key.");
-  if (!res.ok) {
-    const data = await res.json().catch(() => null);
-    throw new Error(data?.detail || `Request failed: ${res.status}`);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers: {
+        "X-ADMIN-KEY": adminKey,
+        "Content-Type": "application/json",
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    if (res.status === 403) throw new Error("Invalid admin key.");
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.detail || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
   }
-  return res.json();
 }
 
 export const adminApi = {

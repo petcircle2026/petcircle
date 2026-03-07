@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { DocumentItem } from "@/lib/api";
 
 function mimeIcon(mime: string) {
@@ -28,7 +29,7 @@ function formatDate(d: string | null): string {
   return d;
 }
 
-export default function DocumentsSection({
+export default memo(function DocumentsSection({
   documents,
 }: {
   documents: DocumentItem[];
@@ -74,4 +75,4 @@ export default function DocumentsSection({
       </table>
     </div>
   );
-}
+})

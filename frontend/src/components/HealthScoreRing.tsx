@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import type { HealthScore } from "@/lib/api";
 
 function scoreColor(score: number): string {
@@ -14,7 +15,7 @@ function ringColor(score: number): string {
   return "stroke-red-500";
 }
 
-export default function HealthScoreRing({ data }: { data: HealthScore }) {
+export default memo(function HealthScoreRing({ data }: { data: HealthScore }) {
   const pct = Math.min(data.score, 100);
   const circumference = 2 * Math.PI * 54;
   const offset = circumference - (pct / 100) * circumference;
@@ -61,4 +62,4 @@ export default function HealthScoreRing({ data }: { data: HealthScore }) {
       </div>
     </div>
   );
-}
+})

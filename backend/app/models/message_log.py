@@ -49,4 +49,5 @@ class MessageLog(Base):
     payload = Column(JSONB, nullable=True)
 
     # Timestamp when the log entry was created.
-    created_at = Column(DateTime, default=datetime.utcnow)
+    # Indexed for admin panel queries that order by created_at desc.
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)

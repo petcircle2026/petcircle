@@ -6,9 +6,10 @@ export const metadata: Metadata = {
 };
 
 interface DashboardPageProps {
-  params: { token: string };
+  params: Promise<{ token: string }>;
 }
 
-export default function DashboardPage({ params }: DashboardPageProps) {
-  return <DashboardClient token={params.token} />;
+export default async function DashboardPage({ params }: DashboardPageProps) {
+  const { token } = await params;
+  return <DashboardClient token={token} />;
 }
