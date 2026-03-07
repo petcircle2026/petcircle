@@ -82,17 +82,21 @@ def run_reminder_engine(db: Session) -> dict:
     # Find all preventive records that are 'upcoming' or 'overdue',
     # joined with pet and user to avoid N+1 queries.
     # Filters out soft-deleted pets and users at the query level.
-    rows = (
-        db.query(PreventiveRecord, Pet, User)
-        .join(Pet, PreventiveRecord.pet_id == Pet.id)
-        .join(User, Pet.user_id == User.id)
-        .filter(
-            PreventiveRecord.status.in_(["upcoming", "overdue"]),
-            Pet.is_deleted == False,
-            User.is_deleted == False,
+    try:
+        rows = (
+            db.query(PreventiveRecord, Pet, User)
+            .join(Pet, PreventiveRecord.pet_id == Pet.id)
+            .join(User, Pet.user_id == User.id)
+            .filter(
+                PreventiveRecord.status.in_(["upcoming", "overdue"]),
+                Pet.is_deleted == False,
+                User.is_deleted == False,
+            )
+            .all()
         )
-        .all()
-    )
+    except Exception as e:
+        logger.error("Failed to query due records: %s", str(e), exc_info=True)
+        return results
 
     for record, pet, user in rows:
         results["records_checked"] += 1

@@ -56,12 +56,33 @@ WHATSAPP_HEADERS = {
 }
 
 
+# Shared httpx client for WhatsApp API calls.
+# Reusing a single client avoids the overhead of creating a new TCP
+# connection and SSL handshake for every outgoing message. Critical
+# when 100+ users trigger messages simultaneously.
+_whatsapp_http_client: httpx.AsyncClient | None = None
+
+
+def _get_whatsapp_client() -> httpx.AsyncClient:
+    """Return a shared httpx.AsyncClient, created on first use."""
+    global _whatsapp_http_client
+    if _whatsapp_http_client is None or _whatsapp_http_client.is_closed:
+        _whatsapp_http_client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(
+                max_connections=20,
+                max_keepalive_connections=10,
+            ),
+        )
+    return _whatsapp_http_client
+
+
 async def _send_whatsapp_request(payload: dict) -> dict | None:
     """
     Send a request to the WhatsApp Cloud API.
 
     Wraps the HTTP call with retry_whatsapp_call (1 retry, never raises).
-    Logs the full payload for audit trail.
+    Uses a shared httpx client for connection pooling.
 
     Args:
         payload: The JSON payload to send to the WhatsApp API.
@@ -70,14 +91,14 @@ async def _send_whatsapp_request(payload: dict) -> dict | None:
         The API response dict on success, None on failure.
     """
     async def _make_call() -> dict:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                WHATSAPP_API_URL,
-                headers=WHATSAPP_HEADERS,
-                json=payload,
-            )
-            response.raise_for_status()
-            return response.json()
+        client = _get_whatsapp_client()
+        response = await client.post(
+            WHATSAPP_API_URL,
+            headers=WHATSAPP_HEADERS,
+            json=payload,
+        )
+        response.raise_for_status()
+        return response.json()
 
     return await retry_whatsapp_call(_make_call)
 
@@ -395,39 +416,44 @@ async def download_whatsapp_media(media_id: str) -> tuple[bytes, str] | None:
     """
     import asyncio as _asyncio
 
+    # Use the shared client for connection reuse. Media downloads use a
+    # separate timeout (60s) because files can be large (up to 10MB).
+    client = _get_whatsapp_client()
+
     # Retry on transient SSL errors from Meta's CDN.
     max_retries = 2
     for attempt in range(max_retries + 1):
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                # Step 1: Get media URL
-                media_url_response = await client.get(
-                    f"https://graph.facebook.com/v21.0/{media_id}",
-                    headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
-                )
-                media_url_response.raise_for_status()
-                media_info = media_url_response.json()
+            # Step 1: Get media URL
+            media_url_response = await client.get(
+                f"https://graph.facebook.com/v21.0/{media_id}",
+                headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
+                timeout=15.0,
+            )
+            media_url_response.raise_for_status()
+            media_info = media_url_response.json()
 
-                media_url = media_info.get("url")
-                mime_type = media_info.get("mime_type", "application/octet-stream")
+            media_url = media_info.get("url")
+            mime_type = media_info.get("mime_type", "application/octet-stream")
 
-                if not media_url:
-                    logger.error("No URL in media response for media_id=%s", media_id)
-                    return None
+            if not media_url:
+                logger.error("No URL in media response for media_id=%s", media_id)
+                return None
 
-                # Step 2: Download the file
-                file_response = await client.get(
-                    media_url,
-                    headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
-                )
-                file_response.raise_for_status()
+            # Step 2: Download the file (longer timeout for large files)
+            file_response = await client.get(
+                media_url,
+                headers={"Authorization": f"Bearer {settings.WHATSAPP_TOKEN}"},
+                timeout=60.0,
+            )
+            file_response.raise_for_status()
 
-                logger.info(
-                    "Media downloaded: media_id=%s, mime=%s, size=%d",
-                    media_id, mime_type, len(file_response.content),
-                )
+            logger.info(
+                "Media downloaded: media_id=%s, mime=%s, size=%d",
+                media_id, mime_type, len(file_response.content),
+            )
 
-                return file_response.content, mime_type
+            return file_response.content, mime_type
 
         except Exception as e:
             logger.error(

@@ -181,6 +181,9 @@ async def upload_to_supabase(
     Bucket name is read from settings.SUPABASE_BUCKET_NAME (env var)
     — never hardcoded. Files are stored privately with no public URLs.
 
+    The sync Supabase SDK call is run in a thread pool via asyncio
+    to avoid blocking the event loop during concurrent uploads.
+
     Args:
         file_content: Raw file bytes.
         storage_path: Path within the bucket ({user_id}/{pet_id}/{filename}).
@@ -192,20 +195,26 @@ async def upload_to_supabase(
     Raises:
         RuntimeError: If the upload to Supabase fails.
     """
+    import asyncio
+
     # Supabase bucket name from environment — not hardcoded.
     bucket_name = settings.SUPABASE_BUCKET_NAME
 
-    try:
-        # Use cached Supabase client — avoids recreating on every upload.
+    def _sync_upload():
+        """Run the sync Supabase SDK upload in a thread."""
         supabase_client = _get_supabase_client()
-
-        # Upload file to private bucket.
-        # content_type ensures correct MIME handling for downloads.
         supabase_client.storage.from_(bucket_name).upload(
             path=storage_path,
             file=file_content,
             file_options={"content-type": mime_type},
         )
+
+    try:
+        # Run sync upload in thread pool to avoid blocking the event loop.
+        # This is critical when 100+ users upload simultaneously — without
+        # this, each sync upload blocks all other coroutines.
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _sync_upload)
 
         logger.info(
             "File uploaded to Supabase: bucket=%s, path=%s, mime=%s, size=%d",

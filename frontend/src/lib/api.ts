@@ -169,8 +169,15 @@ export async function fetchDashboard(token: string): Promise<DashboardResult> {
     });
     if (!res.ok) {
       // 404 means token is invalid/expired — don't serve stale cache for this.
+      // Parse the detail message from the backend for specific error context.
       if (res.status === 404) {
-        throw new FetchError("Dashboard not found or link has expired.", 404);
+        const body = await res.json().catch(() => null);
+        const detail = body?.detail || "Dashboard not found or link has expired.";
+        throw new FetchError(detail, 404);
+      }
+      // 503 = backend temporarily unavailable — fall back to cache below.
+      if (res.status === 503) {
+        throw new FetchError("Server temporarily unavailable.", 503);
       }
       throw new FetchError(`Request failed: ${res.status}`, res.status);
     }

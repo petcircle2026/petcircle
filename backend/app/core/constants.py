@@ -28,9 +28,10 @@ MAX_UPLOADS_PER_PET_PER_DAY: int = 10
 MAX_PENDING_DOCS_PER_PET: int = 5
 
 # Maximum number of concurrent background extraction tasks system-wide.
-# Prevents DB connection pool exhaustion when many documents are uploaded.
+# Sized to allow multiple pet batches to extract in parallel while
+# staying within DB pool limits (pool_size=10, max_overflow=10).
 # Each extraction holds a DB session for the GPT call duration (~5-15s).
-MAX_CONCURRENT_EXTRACTIONS: int = 3
+MAX_CONCURRENT_EXTRACTIONS: int = 5
 
 # Allowed MIME types for uploaded documents.
 # Only images (JPEG, PNG) and PDF are accepted.

@@ -541,14 +541,19 @@ async def _delayed_batch_extraction(
         fail_count = 0
 
         # Extract each document sequentially under the semaphore.
+        # Each extraction is given a 120s timeout to prevent one stuck GPT
+        # call from blocking the entire pipeline for all other users.
         for idx, doc in enumerate(pending_docs, 1):
             async with _extraction_semaphore:
                 try:
                     document_text = (
                         f"[Uploaded file: {doc.file_path}, type: {doc.mime_type}]"
                     )
-                    result = await extract_and_process_document(
-                        bg_db, doc.id, document_text,
+                    result = await asyncio.wait_for(
+                        extract_and_process_document(
+                            bg_db, doc.id, document_text,
+                        ),
+                        timeout=120,
                     )
                     last_result = result
                     success_count += 1
@@ -556,6 +561,21 @@ async def _delayed_batch_extraction(
                         "Extracted doc %d/%d (id=%s) for pet %s",
                         idx, total, str(doc.id), str(pet_id),
                     )
+                except asyncio.TimeoutError:
+                    fail_count += 1
+                    logger.error(
+                        "Extraction timed out for doc %s (%d/%d) pet %s",
+                        str(doc.id), idx, total, str(pet_id),
+                    )
+                    # Mark document as failed so it doesn't stay pending forever.
+                    try:
+                        doc.extraction_status = "failed"
+                        bg_db.commit()
+                    except Exception:
+                        try:
+                            bg_db.rollback()
+                        except Exception:
+                            pass
                 except Exception as e:
                     fail_count += 1
                     logger.error(
@@ -631,9 +651,19 @@ async def _handle_query(db: Session, user, text: str) -> None:
         return
 
     try:
-        result = await answer_pet_question(db, pet.id, text)
+        # 45s timeout prevents a stuck GPT call from hanging the user's session.
+        result = await asyncio.wait_for(
+            answer_pet_question(db, pet.id, text),
+            timeout=45,
+        )
         answer = result.get("answer", "Sorry, I couldn't find an answer.")
         await send_text_message(db, from_number, answer)
+    except asyncio.TimeoutError:
+        logger.error("Query engine timed out for pet %s", str(pet.id))
+        await send_text_message(
+            db, from_number,
+            "Your question is taking too long to process. Please try again.",
+        )
     except Exception as e:
         logger.error("Query engine error: %s", str(e))
         await send_text_message(
@@ -675,18 +705,26 @@ async def _send_dashboard_links(db, user) -> None:
 
     messages = []
     for pet in pets:
-        token_record = token_by_pet.get(pet.id)
+        try:
+            token_record = token_by_pet.get(pet.id)
 
-        # Auto-refresh if token is expired or missing.
-        if token_record and token_record.expires_at and datetime.utcnow() > token_record.expires_at:
-            new_token = refresh_dashboard_token(db, pet.id)
-            messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
-        elif token_record:
-            messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{token_record.token}")
-        else:
-            # No token at all — generate a fresh one.
-            new_token = refresh_dashboard_token(db, pet.id)
-            messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
+            # Auto-refresh if token is expired or missing.
+            if token_record and token_record.expires_at and datetime.utcnow() > token_record.expires_at:
+                new_token = refresh_dashboard_token(db, pet.id)
+                messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
+            elif token_record:
+                messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{token_record.token}")
+            else:
+                # No token at all — generate a fresh one.
+                new_token = refresh_dashboard_token(db, pet.id)
+                messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
+        except Exception as e:
+            logger.error("Failed to get/refresh token for pet %s: %s", str(pet.id), str(e))
+            messages.append(f"*{pet.name}'s Dashboard*: Link temporarily unavailable")
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
     await send_text_message(
         db, from_number,
@@ -699,27 +737,31 @@ def _get_dashboard_link(db: Session, pet) -> str | None:
     Get the active dashboard link for a pet.
 
     Returns the full URL if a valid token exists, None otherwise.
-    Auto-refreshes expired tokens.
+    Auto-refreshes expired tokens. Never raises — returns None on any error.
     """
-    from datetime import datetime
-    from app.models.dashboard_token import DashboardToken
-    from app.services.onboarding import refresh_dashboard_token
+    try:
+        from datetime import datetime
+        from app.models.dashboard_token import DashboardToken
+        from app.services.onboarding import refresh_dashboard_token
 
-    token_record = (
-        db.query(DashboardToken)
-        .filter(DashboardToken.pet_id == pet.id, DashboardToken.revoked == False)
-        .first()
-    )
+        token_record = (
+            db.query(DashboardToken)
+            .filter(DashboardToken.pet_id == pet.id, DashboardToken.revoked == False)
+            .first()
+        )
 
-    if not token_record:
+        if not token_record:
+            return None
+
+        # Auto-refresh expired tokens.
+        if token_record.expires_at and datetime.utcnow() > token_record.expires_at:
+            new_token = refresh_dashboard_token(db, pet.id)
+            return f"{settings.FRONTEND_URL}/dashboard/{new_token}"
+
+        return f"{settings.FRONTEND_URL}/dashboard/{token_record.token}"
+    except Exception as e:
+        logger.error("Failed to get dashboard link for pet %s: %s", str(pet.id), str(e))
         return None
-
-    # Auto-refresh expired tokens.
-    if token_record.expires_at and datetime.utcnow() > token_record.expires_at:
-        new_token = refresh_dashboard_token(db, pet.id)
-        return f"{settings.FRONTEND_URL}/dashboard/{new_token}"
-
-    return f"{settings.FRONTEND_URL}/dashboard/{token_record.token}"
 
 
 async def _send_extraction_summary(

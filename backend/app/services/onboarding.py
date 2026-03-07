@@ -533,32 +533,104 @@ async def _step_neutered(db, user, text_lower, send_fn):
 async def _complete_pet_onboarding(db, user, pet, send_fn):
     """
     Finalize pet onboarding: seed records, generate token, send dashboard link.
+
+    Each step is wrapped independently so a failure in one (e.g., token
+    generation) doesn't block the others. The user always receives a
+    message explaining what happened.
     """
-    # Seed preventive records for this pet
-    record_count = seed_preventive_records_for_pet(db, pet)
+    mobile = user._plaintext_mobile
 
-    # Generate dashboard token
-    token = generate_dashboard_token(db, pet.id)
+    # --- Step 1: Seed preventive records ---
+    record_count = 0
+    try:
+        record_count = seed_preventive_records_for_pet(db, pet)
+    except Exception as e:
+        logger.error(
+            "Preventive seeding failed for pet %s: %s",
+            str(pet.id), str(e), exc_info=True,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
-    # Mark onboarding as complete
-    user.onboarding_state = "complete"
-    db.commit()
+    if record_count == 0:
+        logger.warning(
+            "Zero preventive records created for pet %s (species=%s)",
+            str(pet.id), pet.species,
+        )
+
+    # --- Step 2: Generate dashboard token ---
+    token = None
+    try:
+        token = generate_dashboard_token(db, pet.id)
+    except Exception as e:
+        logger.error(
+            "Dashboard token generation failed for pet %s: %s",
+            str(pet.id), str(e), exc_info=True,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+    # --- Step 3: Mark onboarding complete (must succeed) ---
+    try:
+        user.onboarding_state = "complete"
+        db.commit()
+    except Exception as e:
+        logger.error("Failed to mark onboarding complete: %s", str(e), exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        # Even if commit fails, don't leave user stuck — try to inform them.
+        try:
+            await send_fn(
+                db, mobile,
+                f"{pet.name}'s profile was created but we hit a temporary issue. "
+                f"Please send *hi* to retry.",
+            )
+        except Exception:
+            pass
+        return
 
     logger.info(
-        "Onboarding complete: user_id=%s, pet=%s (%s), records=%d",
+        "Onboarding complete: user_id=%s, pet=%s (%s), records=%d, token=%s",
         str(user.id), pet.name, pet.species, record_count,
+        "generated" if token else "FAILED",
     )
 
-    # Send completion message with dashboard link
-    await send_fn(
-        db, user._plaintext_mobile,
-        f"All set! {pet.name}'s profile is ready.\n\n"
-        f"Preventive health items: {record_count} items are now being tracked.\n\n"
-        f"View *{pet.name}'s Dashboard* here:\n"
-        f"{settings.FRONTEND_URL}/dashboard/{token}\n\n"
-        f"You can upload medical records (photos, PDFs) anytime to update {pet.name}'s health data.\n\n"
-        f"Type *add pet* to add another pet, or ask any question about {pet.name}'s health!",
+    # --- Step 4: Send completion message ---
+    msg = f"All set! {pet.name}'s profile is ready.\n\n"
+
+    if record_count > 0:
+        msg += f"Preventive health items: {record_count} items are now being tracked.\n\n"
+    else:
+        msg += (
+            "We couldn't load the preventive health items right now. "
+            "They will be set up automatically — no action needed.\n\n"
+        )
+
+    if token:
+        msg += (
+            f"View *{pet.name}'s Dashboard* here:\n"
+            f"{settings.FRONTEND_URL}/dashboard/{token}\n\n"
+        )
+    else:
+        msg += (
+            "Dashboard link couldn't be generated right now. "
+            "Send *dashboard* anytime to get your link.\n\n"
+        )
+
+    msg += (
+        f"You can upload medical records (photos, PDFs) anytime to update "
+        f"{pet.name}'s health data.\n\n"
+        f"Type *add pet* to add another pet, or ask any question about "
+        f"{pet.name}'s health!"
     )
+
+    await send_fn(db, mobile, msg)
 
 
 def _get_pending_pet(db: Session, user_id: UUID) -> Pet | None:

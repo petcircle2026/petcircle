@@ -120,15 +120,31 @@ async def dashboard_get(
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
         return data
     except ValueError as e:
-        # Generic error message — do not leak internal details.
+        error_msg = str(e)
         logger.warning(
             "Dashboard access failed: token=%s..., error=%s",
             token[:8] if len(token) >= 8 else token,
+            error_msg,
+        )
+        # Return specific messages so the frontend can show helpful context.
+        # These don't leak internal IDs — only explain the token state.
+        if "revoked" in error_msg.lower():
+            detail = "This dashboard link has been revoked. Send 'dashboard' in WhatsApp to get a new link."
+        elif "expired" in error_msg.lower():
+            detail = "This dashboard link has expired. Send 'dashboard' in WhatsApp to get a new link."
+        else:
+            detail = "Dashboard not found or link has expired."
+        raise HTTPException(status_code=404, detail=detail)
+    except Exception as e:
+        logger.error(
+            "Dashboard load error: token=%s..., error=%s",
+            token[:8] if len(token) >= 8 else token,
             str(e),
+            exc_info=True,
         )
         raise HTTPException(
-            status_code=404,
-            detail="Dashboard not found or link has expired.",
+            status_code=503,
+            detail="Dashboard is temporarily unavailable. Please try again shortly.",
         )
 
 
@@ -166,6 +182,12 @@ def dashboard_update_weight(
         raise HTTPException(
             status_code=404,
             detail="Dashboard not found or link has expired.",
+        )
+    except Exception as e:
+        logger.error("Weight update error: %s", str(e), exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Update failed due to a temporary issue. Please try again.",
         )
 
 
@@ -224,4 +246,10 @@ def dashboard_update_preventive(
         raise HTTPException(
             status_code=404,
             detail="Dashboard not found or record not found.",
+        )
+    except Exception as e:
+        logger.error("Preventive update error: %s", str(e), exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Update failed due to a temporary issue. Please try again.",
         )

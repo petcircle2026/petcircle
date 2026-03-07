@@ -63,27 +63,68 @@ def execute_reminder_engine(db: Session = Depends(get_db)):
     Returns:
         Combined results from all three operations.
     """
+    # Each step runs independently so one failure doesn't block the others.
+    # This ensures reminders are still sent even if conflict expiry crashes,
+    # and vice versa.
+
     # --- Step 1: Expire stale conflicts ---
-    # Run conflict expiry first so that auto-resolved conflicts
-    # don't interfere with reminder processing.
-    conflicts_resolved = expire_pending_conflicts(db)
+    conflicts_resolved = 0
+    conflict_error = None
+    try:
+        conflicts_resolved = expire_pending_conflicts(db)
+    except Exception as e:
+        conflict_error = str(e)
+        logger.error("Conflict expiry failed: %s", str(e), exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     # --- Step 2: Create reminders for due records ---
-    reminder_results = run_reminder_engine(db)
+    reminder_results = {"records_checked": 0, "reminders_created": 0, "reminders_skipped": 0, "errors": 0}
+    reminder_error = None
+    try:
+        reminder_results = run_reminder_engine(db)
+    except Exception as e:
+        reminder_error = str(e)
+        logger.error("Reminder engine failed: %s", str(e), exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     # --- Step 3: Send pending reminders ---
-    send_results = send_pending_reminders(db)
+    send_results = {"reminders_sent": 0, "reminders_failed": 0}
+    send_error = None
+    try:
+        send_results = send_pending_reminders(db)
+    except Exception as e:
+        send_error = str(e)
+        logger.error("Reminder sending failed: %s", str(e), exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
     logger.info(
         "Daily cron completed: conflicts_resolved=%d, "
-        "reminders_created=%d, reminders_sent=%d",
+        "reminders_created=%d, reminders_sent=%d, "
+        "errors=[conflict=%s, reminder=%s, send=%s]",
         conflicts_resolved,
         reminder_results["reminders_created"],
         send_results["reminders_sent"],
+        conflict_error,
+        reminder_error,
+        send_error,
     )
 
     return {
         "conflicts_resolved": conflicts_resolved,
         "reminder_engine": reminder_results,
         "reminder_sending": send_results,
+        "errors": {
+            "conflict_expiry": conflict_error,
+            "reminder_engine": reminder_error,
+            "reminder_sending": send_error,
+        },
     }

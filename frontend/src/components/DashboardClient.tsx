@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "@/lib/api";
 import { fetchDashboard } from "@/lib/api";
+import ErrorBoundary from "./ErrorBoundary";
 import PetProfileCard from "./PetProfileCard";
 import HealthScoreRing from "./HealthScoreRing";
 import PreventiveRecordsTable from "./PreventiveRecordsTable";
 import RemindersSection from "./RemindersSection";
 import DocumentsSection from "./DocumentsSection";
 
-export default function DashboardClient({ token }: { token: string }) {
+function DashboardInner({ token }: { token: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -17,6 +18,7 @@ export default function DashboardClient({ token }: { token: string }) {
   // True when showing cached data because the API is unreachable.
   const [stale, setStale] = useState(false);
   const [cachedAt, setCachedAt] = useState<string | undefined>();
+  const [retryCount, setRetryCount] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -35,6 +37,7 @@ export default function DashboardClient({ token }: { token: string }) {
       setData(result.data);
       setStale(result.stale);
       setCachedAt(result.cachedAt);
+      if (!result.stale) setRetryCount(0);
     } catch (e: any) {
       setData((prev) => {
         // Only set error if we have no data to show.
@@ -57,13 +60,17 @@ export default function DashboardClient({ token }: { token: string }) {
 
   // Auto-retry every 30s when showing stale data, so the dashboard
   // refreshes automatically once the backend recovers.
+  // Stops after 20 retries (~10 min) to avoid polling forever.
   // IMPORTANT: This hook must be called unconditionally (before any returns)
   // to satisfy React's rules of hooks.
   useEffect(() => {
-    if (!stale) return;
-    const interval = setInterval(load, 30000);
+    if (!stale || retryCount >= 20) return;
+    const interval = setInterval(() => {
+      setRetryCount((c) => c + 1);
+      load();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [stale, load]);
+  }, [stale, retryCount, load]);
 
   if (loading && !data) {
     return (
@@ -83,7 +90,13 @@ export default function DashboardClient({ token }: { token: string }) {
           <h2 className="mb-2 text-lg font-semibold text-red-800">
             Unable to load dashboard
           </h2>
-          <p className="text-sm text-red-600">{error}</p>
+          <p className="mb-4 text-sm text-red-600">{error}</p>
+          <button
+            onClick={load}
+            className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
+            Try Again
+          </button>
         </div>
       </div>
     );
@@ -91,23 +104,35 @@ export default function DashboardClient({ token }: { token: string }) {
 
   if (!data) return null;
 
+  // Calculate how old the cached data is for the stale banner.
+  const staleMinutes = cachedAt
+    ? Math.round((Date.now() - new Date(cachedAt).getTime()) / 60000)
+    : null;
+
   return (
     <div className="mx-auto max-w-5xl space-y-8 p-4 sm:p-8">
       {/* Stale data banner — shown when serving cached data due to API failure */}
       {stale && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm text-amber-800">
-          Showing last saved data
-          {cachedAt && (
-            <span>
-              {" "}from{" "}
-              {new Date(cachedAt).toLocaleString("en-IN", {
-                timeZone: "Asia/Kolkata",
-                dateStyle: "medium",
-                timeStyle: "short",
-              })}
-            </span>
-          )}
-          . Live data will load automatically once the server is back.
+          <p>
+            Showing last saved data
+            {staleMinutes != null && staleMinutes > 0 && (
+              <span> ({staleMinutes} min ago)</span>
+            )}
+            .{" "}
+            {retryCount >= 20
+              ? "Server appears offline."
+              : "Live data will load automatically once the server is back."}
+          </p>
+          <button
+            onClick={() => {
+              setRetryCount(0);
+              load();
+            }}
+            className="mt-2 rounded bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-700"
+          >
+            Retry Now
+          </button>
         </div>
       )}
 
@@ -174,5 +199,13 @@ export default function DashboardClient({ token }: { token: string }) {
         PetCircle — Preventive Pet Health System
       </footer>
     </div>
+  );
+}
+
+export default function DashboardClient({ token }: { token: string }) {
+  return (
+    <ErrorBoundary>
+      <DashboardInner token={token} />
+    </ErrorBoundary>
   );
 }

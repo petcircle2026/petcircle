@@ -11,8 +11,9 @@ Connection strategy:
       use, preventing "SSL connection closed unexpectedly" errors.
     - pool_recycle=280 ensures connections are refreshed before Supabase's
       5-minute idle timeout kills them.
-    - Pool (pool_size=5, max_overflow=5) sized for concurrent webhook
-      handling while staying within Supabase's connection limits.
+    - Pool (pool_size=10, max_overflow=10) sized for concurrent webhook
+      handling plus background extraction tasks, while staying within
+      Supabase's connection limits.
 
 No business logic lives here — only connection infrastructure.
 """
@@ -48,10 +49,10 @@ engine = create_engine(
     settings.DATABASE_URL,
     poolclass=QueuePool,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=5,
+    pool_size=10,
+    max_overflow=10,
     pool_recycle=280,
-    pool_timeout=10,
+    pool_timeout=30,
     connect_args=connect_args,
     # Disable SQL echo in production — only enable for debugging.
     echo=False,

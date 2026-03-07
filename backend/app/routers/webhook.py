@@ -15,6 +15,7 @@ NO business logic lives here. No onboarding, no preventive logic,
 no GPT calls. Just parsing, validation, and forwarding.
 """
 
+import asyncio
 import logging
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import PlainTextResponse
@@ -136,18 +137,48 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
         # connection pool (each get_fresh_session() held a second slot).
         try:
             from app.services.message_router import route_message
-            await route_message(db, message_data)
+            # 55s timeout ensures the webhook returns 200 before Meta's
+            # 60s timeout, preventing duplicate webhook deliveries under load.
+            await asyncio.wait_for(route_message(db, message_data), timeout=55)
+        except asyncio.TimeoutError:
+            logger.error(
+                "Message routing timed out for %s", mask_phone(from_number),
+            )
+            try:
+                from app.services.whatsapp_sender import send_text_message
+                await send_text_message(
+                    db, from_number,
+                    "Your request is taking longer than expected. "
+                    "Please try again in a moment.",
+                )
+            except Exception:
+                pass
         except Exception as e:
             # Service layer failure must never prevent 200 OK response.
             logger.error(
                 "Error routing message from %s: %s",
                 mask_phone(from_number),
                 str(e),
+                exc_info=True,
             )
             try:
                 db.rollback()
             except Exception:
                 pass
+            # Always attempt to send an error message so the user is never
+            # left without a response when the backend crashes.
+            try:
+                from app.services.whatsapp_sender import send_text_message
+                await send_text_message(
+                    db, from_number,
+                    "We're experiencing a temporary issue. "
+                    "Please try again in a few minutes.",
+                )
+            except Exception:
+                logger.error(
+                    "Failed to send error message to %s after routing failure",
+                    mask_phone(from_number),
+                )
 
     # Return 200 OK immediately — Meta requires fast acknowledgment.
     return {"status": "ok"}
