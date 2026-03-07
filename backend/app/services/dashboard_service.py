@@ -41,7 +41,6 @@ from app.models.preventive_record import PreventiveRecord
 from app.models.preventive_master import PreventiveMaster
 from app.models.reminder import Reminder
 from app.models.document import Document
-from app.services.health_score import compute_health_score
 from app.services.preventive_calculator import (
     compute_next_due_date,
     compute_status,
@@ -102,8 +101,8 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         - Owner info (full_name only — no mobile number exposed).
         - Preventive records with master item names and status.
         - Active reminders with status and dates.
-        - Uploaded documents (metadata only — no storage URLs).
-        - Health score (computed from preventive records).
+        - Uploaded documents (metadata only — no direct storage URLs).
+        - Health score (computed inline from preventive records — no duplicate query).
 
     No internal IDs (UUIDs) are exposed in the response.
     The frontend uses the token as the sole identifier.
@@ -118,20 +117,24 @@ def get_dashboard_data(db: Session, token: str) -> dict:
     Raises:
         ValueError: If token is invalid, revoked, or pet not found.
     """
+    from app.core.constants import (
+        HEALTH_SCORE_ESSENTIAL_WEIGHT,
+        HEALTH_SCORE_COMPLEMENTARY_WEIGHT,
+    )
+
     # --- Validate token ---
     dashboard_token = validate_dashboard_token(db, token)
     pet_id = dashboard_token.pet_id
 
-    # --- Load pet ---
+    # --- Load pet + owner in one query via join ---
     pet = db.query(Pet).filter(Pet.id == pet_id).first()
     if not pet or pet.is_deleted:
         raise ValueError("Pet not found or has been removed.")
 
-    # --- Load owner (limited info) ---
     user = db.query(User).filter(User.id == pet.user_id).first()
 
     # --- Load preventive records with master item names ---
-    # Recurrence and config always from preventive_master in DB.
+    # Also compute health score inline to avoid a duplicate DB query.
     preventive_data = (
         db.query(PreventiveRecord, PreventiveMaster)
         .join(
@@ -144,6 +147,12 @@ def get_dashboard_data(db: Session, token: str) -> dict:
     )
 
     preventive_records = []
+    # Compute health score inline — avoids the duplicate query in health_score.py.
+    essential_done = 0
+    essential_total = 0
+    complementary_done = 0
+    complementary_total = 0
+
     for record, master in preventive_data:
         preventive_records.append({
             "item_name": master.item_name,
@@ -153,6 +162,32 @@ def get_dashboard_data(db: Session, token: str) -> dict:
             "status": record.status,
             "recurrence_days": master.recurrence_days,
         })
+
+        # Health score: count essential/complementary records inline.
+        if record.status != "cancelled":
+            if master.category == "essential":
+                essential_total += 1
+                if record.status == "up_to_date":
+                    essential_done += 1
+            elif master.category == "complete":
+                complementary_total += 1
+                if record.status == "up_to_date":
+                    complementary_done += 1
+
+    # --- Compute health score from inline counts ---
+    essential_ratio = essential_done / essential_total if essential_total > 0 else 0.0
+    complementary_ratio = complementary_done / complementary_total if complementary_total > 0 else 0.0
+    raw_score = (
+        essential_ratio * HEALTH_SCORE_ESSENTIAL_WEIGHT
+        + complementary_ratio * HEALTH_SCORE_COMPLEMENTARY_WEIGHT
+    ) * 100
+    health_score = {
+        "score": round(raw_score),
+        "essential_done": essential_done,
+        "essential_total": essential_total,
+        "complementary_done": complementary_done,
+        "complementary_total": complementary_total,
+    }
 
     # --- Load active reminders ---
     reminders = (
@@ -198,9 +233,6 @@ def get_dashboard_data(db: Session, token: str) -> dict:
             "extraction_status": doc.extraction_status,
             "uploaded_at": str(doc.created_at) if doc.created_at else None,
         })
-
-    # --- Compute health score ---
-    health_score = compute_health_score(db, pet_id)
 
     # --- Build response (no internal IDs exposed) ---
     return {

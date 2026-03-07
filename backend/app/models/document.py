@@ -37,7 +37,7 @@ class Document(Base):
 
     # Foreign key to pets table.
     # ON DELETE CASCADE — removing a pet removes its documents.
-    pet_id = Column(UUID(as_uuid=True), ForeignKey("pets.id", ondelete="CASCADE"))
+    pet_id = Column(UUID(as_uuid=True), ForeignKey("pets.id", ondelete="CASCADE"), index=True)
 
     # Storage path in Supabase bucket: {user_id}/{pet_id}/{filename}.
     # Never contains public URLs — access is always through signed URLs.

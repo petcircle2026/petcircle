@@ -42,6 +42,7 @@ class Reminder(Base):
     preventive_record_id = Column(
         UUID(as_uuid=True),
         ForeignKey("preventive_records.id", ondelete="CASCADE"),
+        index=True,
     )
 
     # The due date this reminder is for.

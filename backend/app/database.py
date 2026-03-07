@@ -21,8 +21,8 @@ from app.config import settings
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=5,
+    max_overflow=10,
     pool_timeout=30,
     # Recycle connections every 5 minutes to prevent SSL connection drops.
     # Supabase pooler may close idle connections; this ensures fresh ones.

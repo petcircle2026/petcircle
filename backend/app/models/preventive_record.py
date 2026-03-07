@@ -39,7 +39,7 @@ class PreventiveRecord(Base):
 
     # Foreign key to pets table.
     # ON DELETE CASCADE — removing a pet removes its preventive records.
-    pet_id = Column(UUID(as_uuid=True), ForeignKey("pets.id", ondelete="CASCADE"))
+    pet_id = Column(UUID(as_uuid=True), ForeignKey("pets.id", ondelete="CASCADE"), index=True)
 
     # Foreign key to preventive_master table.
     # Links this record to a specific preventive item (e.g., Rabies Vaccine).

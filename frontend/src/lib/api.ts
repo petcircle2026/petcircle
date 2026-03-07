@@ -125,7 +125,7 @@ export interface AdminMessage {
 
 export async function fetchDashboard(token: string): Promise<DashboardData> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
   try {
     const res = await fetch(`${API_BASE}/dashboard/${token}`, {
       cache: "no-store",

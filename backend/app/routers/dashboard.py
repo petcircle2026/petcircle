@@ -85,7 +85,7 @@ class PreventiveDateUpdateRequest(BaseModel):
 
 
 @router.get("/{token}")
-def dashboard_get(
+async def dashboard_get(
     token: str,
     response: Response,
     db: Session = Depends(get_db),

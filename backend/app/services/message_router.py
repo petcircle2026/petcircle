@@ -20,6 +20,7 @@ Rules:
     - Never crashes on individual message failures.
 """
 
+import asyncio
 import logging
 from sqlalchemy.orm import Session
 from app.config import settings
@@ -34,7 +35,12 @@ from app.core.constants import (
     CONFLICT_KEEP_EXISTING,
     MAX_PETS_PER_USER,
     MAX_PENDING_DOCS_PER_PET,
+    MAX_CONCURRENT_EXTRACTIONS,
 )
+
+# Semaphore to limit concurrent background extraction tasks.
+# Prevents DB connection pool exhaustion when many documents are uploaded.
+_extraction_semaphore = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTIONS)
 from app.services.onboarding import (
     get_or_create_user,
     create_pending_user,
@@ -334,7 +340,6 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
     Upload is done synchronously for fast ack. Extraction runs in a background
     task with its own DB session so it never blocks the webhook or other users.
     """
-    import asyncio
     from app.services.document_upload import process_document_upload
 
     from_number = _get_mobile(user)
@@ -425,6 +430,9 @@ async def _run_extraction_in_background(
     """
     Run GPT extraction in a background task with its own DB session.
 
+    Uses a semaphore to limit concurrent extractions (MAX_CONCURRENT_EXTRACTIONS)
+    and prevent DB connection pool exhaustion.
+
     This isolates extraction from the webhook request lifecycle:
     - SSL drops during extraction don't affect other users.
     - Slow extractions don't block the webhook response.
@@ -433,38 +441,40 @@ async def _run_extraction_in_background(
     from app.database import SessionLocal
     from app.services.gpt_extraction import extract_and_process_document
 
-    bg_db = SessionLocal()
-    try:
-        document_text = f"[Uploaded file: {filename}, type: {detected_mime}]"
-        result = await extract_and_process_document(bg_db, doc_id, document_text)
-
-        # Build and send extraction summary.
-        pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
-        from app.models.user import User
-        user = bg_db.query(User).filter(User.id == user_id).first()
-        if user and pet:
-            user._plaintext_mobile = from_number
-            await _send_extraction_summary(bg_db, user, pet, result)
-
-    except Exception as e:
-        logger.error("Background extraction failed for doc %s: %s", str(doc_id), str(e))
+    # Wait for semaphore — limits concurrent extractions to prevent pool exhaustion.
+    async with _extraction_semaphore:
+        bg_db = SessionLocal()
         try:
-            bg_db.rollback()
-        except Exception:
-            pass
-        try:
-            dashboard_link = _get_dashboard_link(bg_db, type("Pet", (), {"id": pet_id})())
-            msg = (
-                f"Document saved but extraction encountered an issue. "
-                f"You can update details manually via the dashboard."
-            )
-            if dashboard_link:
-                msg += f"\n\nView *{pet_name}'s Dashboard*:\n{dashboard_link}"
-            await send_text_message(bg_db, from_number, msg)
-        except Exception:
-            pass
-    finally:
-        bg_db.close()
+            document_text = f"[Uploaded file: {filename}, type: {detected_mime}]"
+            result = await extract_and_process_document(bg_db, doc_id, document_text)
+
+            # Build and send extraction summary.
+            pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
+            from app.models.user import User
+            user = bg_db.query(User).filter(User.id == user_id).first()
+            if user and pet:
+                user._plaintext_mobile = from_number
+                await _send_extraction_summary(bg_db, user, pet, result)
+
+        except Exception as e:
+            logger.error("Background extraction failed for doc %s: %s", str(doc_id), str(e))
+            try:
+                bg_db.rollback()
+            except Exception:
+                pass
+            try:
+                dashboard_link = _get_dashboard_link(bg_db, type("Pet", (), {"id": pet_id})())
+                msg = (
+                    f"Document saved but extraction encountered an issue. "
+                    f"You can update details manually via the dashboard."
+                )
+                if dashboard_link:
+                    msg += f"\n\nView *{pet_name}'s Dashboard*:\n{dashboard_link}"
+                await send_text_message(bg_db, from_number, msg)
+            except Exception:
+                pass
+        finally:
+            bg_db.close()
 
 
 async def _handle_query(db: Session, user, text: str) -> None:
