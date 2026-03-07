@@ -5,28 +5,42 @@ Establishes SQLAlchemy engine and session factory using DATABASE_URL
 from environment configuration. All database access flows through
 the get_db() dependency to ensure proper session lifecycle management.
 
+Connection strategy:
+    - Supabase uses PgBouncer (port 6543) in transaction mode.
+    - PgBouncer drops connections after each transaction completes.
+    - Using NullPool so SQLAlchemy doesn't cache connections that
+      PgBouncer has already closed — prevents SSL drop errors.
+    - Each request gets a fresh connection, PgBouncer handles pooling.
+
 No business logic lives here — only connection infrastructure.
 """
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
+from sqlalchemy.pool import NullPool
 from typing import Generator
 from app.config import settings
 
 
-# SQLAlchemy engine — uses DATABASE_URL from validated environment config.
-# pool_pre_ping ensures stale connections are detected and recycled.
-# pool_recycle aggressively recycles connections to prevent SSL drops
-# on Supabase's connection pooler (PgBouncer).
+# Build connection args for SSL compatibility with Supabase.
+connect_args = {}
+if "supabase" in settings.DATABASE_URL:
+    # Supabase requires SSL but psycopg2 needs keepalive settings
+    # to prevent idle connection drops from PgBouncer.
+    connect_args = {
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
+
+# SQLAlchemy engine — NullPool because Supabase PgBouncer handles pooling.
+# With NullPool, each session creates a fresh connection and closes it
+# when done. No stale connections can accumulate and cause SSL errors.
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-    pool_timeout=30,
-    # Recycle connections every 5 minutes to prevent SSL connection drops.
-    # Supabase pooler may close idle connections; this ensures fresh ones.
-    pool_recycle=300,
+    poolclass=NullPool,
+    connect_args=connect_args,
 )
 
 
