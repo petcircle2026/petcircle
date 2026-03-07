@@ -79,40 +79,23 @@ def run_reminder_engine(db: Session) -> dict:
         "errors": 0,
     }
 
-    # Find all preventive records that are 'upcoming' or 'overdue'.
-    # These are the records that need reminders.
-    records = (
-        db.query(PreventiveRecord)
+    # Find all preventive records that are 'upcoming' or 'overdue',
+    # joined with pet and user to avoid N+1 queries.
+    # Filters out soft-deleted pets and users at the query level.
+    rows = (
+        db.query(PreventiveRecord, Pet, User)
+        .join(Pet, PreventiveRecord.pet_id == Pet.id)
+        .join(User, Pet.user_id == User.id)
         .filter(
             PreventiveRecord.status.in_(["upcoming", "overdue"]),
+            Pet.is_deleted == False,
+            User.is_deleted == False,
         )
         .all()
     )
 
-    for record in records:
+    for record, pet, user in rows:
         results["records_checked"] += 1
-
-        # --- Skip records for soft-deleted pets ---
-        # Soft-deleted pets should not receive reminders.
-        pet = db.query(Pet).filter(Pet.id == record.pet_id).first()
-        if not pet or pet.is_deleted:
-            logger.info(
-                "Skipping reminder for deleted pet: record_id=%s, pet_id=%s",
-                str(record.id),
-                str(record.pet_id),
-            )
-            continue
-
-        # --- Skip records for soft-deleted users ---
-        # Soft-deleted users should not receive reminders.
-        user = db.query(User).filter(User.id == pet.user_id).first()
-        if not user or user.is_deleted:
-            logger.info(
-                "Skipping reminder for deleted user: record_id=%s, user_id=%s",
-                str(record.id),
-                str(pet.user_id),
-            )
-            continue
 
         # --- Attempt to create a reminder ---
         # The UNIQUE(preventive_record_id, next_due_date) constraint
@@ -215,54 +198,18 @@ def send_pending_reminders(db: Session) -> dict:
         "reminders_failed": 0,
     }
 
-    # Find all pending reminders that need to be sent.
-    pending_reminders = (
-        db.query(Reminder)
+    # Find all pending reminders joined with related data to avoid N+1 queries.
+    pending_rows = (
+        db.query(Reminder, PreventiveRecord, Pet, User, PreventiveMaster)
+        .join(PreventiveRecord, Reminder.preventive_record_id == PreventiveRecord.id)
+        .join(Pet, PreventiveRecord.pet_id == Pet.id)
+        .join(User, Pet.user_id == User.id)
+        .join(PreventiveMaster, PreventiveRecord.preventive_master_id == PreventiveMaster.id)
         .filter(Reminder.status == "pending")
         .all()
     )
 
-    for reminder in pending_reminders:
-        # Load the preventive record to determine which template to use.
-        record = (
-            db.query(PreventiveRecord)
-            .filter(PreventiveRecord.id == reminder.preventive_record_id)
-            .first()
-        )
-
-        if not record:
-            logger.warning(
-                "Preventive record not found for reminder_id=%s. Skipping.",
-                str(reminder.id),
-            )
-            results["reminders_failed"] += 1
-            continue
-
-        # Load pet and user for the WhatsApp message recipient.
-        pet = db.query(Pet).filter(Pet.id == record.pet_id).first()
-        if not pet:
-            logger.warning(
-                "Pet not found for reminder_id=%s. Skipping.",
-                str(reminder.id),
-            )
-            results["reminders_failed"] += 1
-            continue
-
-        user = db.query(User).filter(User.id == pet.user_id).first()
-        if not user:
-            logger.warning(
-                "User not found for reminder_id=%s. Skipping.",
-                str(reminder.id),
-            )
-            results["reminders_failed"] += 1
-            continue
-
-        # Load the preventive master item name for the message.
-        master = (
-            db.query(PreventiveMaster)
-            .filter(PreventiveMaster.id == record.preventive_master_id)
-            .first()
-        )
+    for reminder, record, pet, user, master in pending_rows:
 
         # Send the WhatsApp reminder/overdue template via Cloud API.
         # Template selection: upcoming → TEMPLATE_REMINDER, overdue → TEMPLATE_OVERDUE.
@@ -273,28 +220,25 @@ def send_pending_reminders(db: Session) -> dict:
         plaintext_mobile = decrypt_field(user.mobile_number)
 
         try:
-            send_result = asyncio.get_event_loop().run_until_complete(
-                send_reminder_message(
-                    db=db,
-                    to_number=plaintext_mobile,
-                    pet_name=pet.name,
-                    item_name=master.item_name if master else "unknown",
-                    due_date=str(reminder.next_due_date),
-                    record_status=record.status,
-                )
-            )
-        except RuntimeError:
-            # If no event loop exists (sync context), create one.
+            # Use asyncio.run() for clean event loop management in sync context.
+            # The reminder engine runs from a cron job (sync), not from an async handler.
             send_result = asyncio.run(
                 send_reminder_message(
                     db=db,
                     to_number=plaintext_mobile,
                     pet_name=pet.name,
-                    item_name=master.item_name if master else "unknown",
+                    item_name=master.item_name,
                     due_date=str(reminder.next_due_date),
                     record_status=record.status,
                 )
             )
+        except Exception as e:
+            logger.error(
+                "Error sending reminder_id=%s: %s",
+                str(reminder.id),
+                str(e),
+            )
+            send_result = False
 
         if send_result:
             reminder.status = "sent"
@@ -307,7 +251,7 @@ def send_pending_reminders(db: Session) -> dict:
                 str(reminder.id),
                 pet.name,
                 mask_phone(plaintext_mobile),
-                master.item_name if master else "unknown",
+                master.item_name,
                 str(reminder.next_due_date),
                 record.status,
             )

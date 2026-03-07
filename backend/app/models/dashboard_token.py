@@ -12,7 +12,7 @@ Constraints:
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -40,7 +40,7 @@ class DashboardToken(Base):
 
     # Foreign key to pets table.
     # ON DELETE CASCADE — removing a pet removes its dashboard token.
-    pet_id = Column(UUID(as_uuid=True), ForeignKey("pets.id", ondelete="CASCADE"))
+    pet_id = Column(UUID(as_uuid=True), ForeignKey("pets.id", ondelete="CASCADE"), index=True)
 
     # The actual token string — 128-bit random, rendered as 32-char hex.
     # UNIQUE constraint ensures no two tokens can collide.

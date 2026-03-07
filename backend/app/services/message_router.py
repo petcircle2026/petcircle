@@ -241,22 +241,15 @@ async def _handle_reminder_button(db: Session, user, payload: str) -> None:
 
     from_number = _get_mobile(user)
 
-    # Find user's pets
-    pets = db.query(Pet).filter(
-        Pet.user_id == user.id, Pet.is_deleted == False
-    ).all()
-    pet_ids = [p.id for p in pets]
-
-    if not pet_ids:
-        await send_text_message(db, from_number, "No pets found.")
-        return
-
-    # Find the latest sent reminder
+    # Find the latest sent reminder for this user's pets via direct JOIN
+    # (avoids separate pet query).
     reminder = (
         db.query(Reminder)
         .join(PreventiveRecord, Reminder.preventive_record_id == PreventiveRecord.id)
+        .join(Pet, PreventiveRecord.pet_id == Pet.id)
         .filter(
-            PreventiveRecord.pet_id.in_(pet_ids),
+            Pet.user_id == user.id,
+            Pet.is_deleted == False,
             Reminder.status == "sent",
         )
         .order_by(Reminder.sent_at.desc())
@@ -299,20 +292,15 @@ async def _handle_conflict_button(db: Session, user, payload: str) -> None:
 
     from_number = _get_mobile(user)
 
-    pets = db.query(Pet).filter(
-        Pet.user_id == user.id, Pet.is_deleted == False
-    ).all()
-    pet_ids = [p.id for p in pets]
-
-    if not pet_ids:
-        await send_text_message(db, from_number, "No pets found.")
-        return
-
+    # Find the latest pending conflict for this user's pets via direct JOIN
+    # (avoids separate pet query).
     conflict = (
         db.query(ConflictFlag)
         .join(PreventiveRecord, ConflictFlag.preventive_record_id == PreventiveRecord.id)
+        .join(Pet, PreventiveRecord.pet_id == Pet.id)
         .filter(
-            PreventiveRecord.pet_id.in_(pet_ids),
+            Pet.user_id == user.id,
+            Pet.is_deleted == False,
             ConflictFlag.status == "pending",
         )
         .order_by(ConflictFlag.created_at.desc())
@@ -438,12 +426,12 @@ async def _run_extraction_in_background(
     - Slow extractions don't block the webhook response.
     - Each extraction gets a clean DB session.
     """
-    from app.database import SessionLocal
+    from app.database import get_fresh_session
     from app.services.gpt_extraction import extract_and_process_document
 
     # Wait for semaphore — limits concurrent extractions to prevent pool exhaustion.
     async with _extraction_semaphore:
-        bg_db = SessionLocal()
+        bg_db = get_fresh_session()
         try:
             document_text = f"[Uploaded file: {filename}, type: {detected_mime}]"
             result = await extract_and_process_document(bg_db, doc_id, document_text)
@@ -528,13 +516,18 @@ async def _send_dashboard_links(db, user) -> None:
         await send_text_message(db, from_number, "No pets found.")
         return
 
+    # Batch-load all active tokens for user's pets to avoid N+1 queries.
+    pet_ids = [p.id for p in pets]
+    tokens = (
+        db.query(DashboardToken)
+        .filter(DashboardToken.pet_id.in_(pet_ids), DashboardToken.revoked == False)
+        .all()
+    )
+    token_by_pet = {t.pet_id: t for t in tokens}
+
     messages = []
     for pet in pets:
-        token_record = (
-            db.query(DashboardToken)
-            .filter(DashboardToken.pet_id == pet.id, DashboardToken.revoked == False)
-            .first()
-        )
+        token_record = token_by_pet.get(pet.id)
 
         # Auto-refresh if token is expired or missing.
         if token_record and token_record.expires_at and datetime.utcnow() > token_record.expires_at:

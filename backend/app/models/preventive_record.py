@@ -14,7 +14,7 @@ Constraints:
 
 import uuid
 from datetime import datetime, date
-from sqlalchemy import Column, String, Date, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, String, Date, DateTime, ForeignKey, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -74,6 +74,8 @@ class PreventiveRecord(Base):
             "pet_id", "preventive_master_id", "last_done_date",
             name="uq_preventive_record_pet_item_date"
         ),
+        # Composite index for reminder engine queries filtering by pet + status.
+        Index("ix_preventive_record_pet_status", "pet_id", "status"),
     )
 
     # --- Relationships ---

@@ -49,13 +49,25 @@ from app.core.constants import (
     OPENAI_QUERY_MODEL,
     OPENAI_EXTRACTION_TEMPERATURE,
     OPENAI_EXTRACTION_MAX_TOKENS,
+    HEALTH_SCORE_ESSENTIAL_WEIGHT,
+    HEALTH_SCORE_COMPLEMENTARY_WEIGHT,
 )
 from app.config import settings
 from app.utils.retry import retry_openai_call
-from app.services.health_score import compute_health_score
 
 
 logger = logging.getLogger(__name__)
+
+_openai_query_client = None
+
+
+def _get_openai_query_client():
+    """Return a cached AsyncOpenAI client for queries (created on first call)."""
+    global _openai_query_client
+    if _openai_query_client is None:
+        from openai import AsyncOpenAI
+        _openai_query_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return _openai_query_client
 
 
 # --- System prompt for strict query engine ---
@@ -137,6 +149,11 @@ def _build_pet_context(db: Session, pet_id: UUID) -> str:
         .all()
     )
 
+    # Compute health score inline from the same records query
+    # to avoid a redundant DB round-trip via compute_health_score().
+    essential_done, essential_total = 0, 0
+    complementary_done, complementary_total = 0, 0
+
     context_parts.append("\n=== Preventive Health Records ===")
     if records:
         for record, master in records:
@@ -146,6 +163,16 @@ def _build_pet_context(db: Session, pet_id: UUID) -> str:
                 f"Next due: {record.next_due_date}, "
                 f"Status: {record.status}"
             )
+            # Accumulate health score counts from the same data.
+            if record.status != "cancelled":
+                if master.category == "essential":
+                    essential_total += 1
+                    if record.status == "up_to_date":
+                        essential_done += 1
+                elif master.category == "complete":
+                    complementary_total += 1
+                    if record.status == "up_to_date":
+                        complementary_done += 1
     else:
         context_parts.append("No preventive records found.")
 
@@ -198,15 +225,20 @@ def _build_pet_context(db: Session, pet_id: UUID) -> str:
     else:
         context_parts.append("No documents uploaded.")
 
-    # --- Health score ---
-    score_data = compute_health_score(db, pet_id)
+    # --- Health score (computed inline from records already loaded above) ---
+    e_ratio = essential_done / essential_total if essential_total > 0 else 0.0
+    c_ratio = complementary_done / complementary_total if complementary_total > 0 else 0.0
+    score = round(
+        (e_ratio * HEALTH_SCORE_ESSENTIAL_WEIGHT + c_ratio * HEALTH_SCORE_COMPLEMENTARY_WEIGHT) * 100
+    )
+
     context_parts.append("\n=== Health Score ===")
-    context_parts.append(f"Overall Score: {score_data['score']}/100")
+    context_parts.append(f"Overall Score: {score}/100")
     context_parts.append(
-        f"Essential items: {score_data['essential_done']}/{score_data['essential_total']} up to date"
+        f"Essential items: {essential_done}/{essential_total} up to date"
     )
     context_parts.append(
-        f"Complementary items: {score_data['complementary_done']}/{score_data['complementary_total']} up to date"
+        f"Complementary items: {complementary_done}/{complementary_total} up to date"
     )
 
     return "\n".join(context_parts)
@@ -242,8 +274,6 @@ async def answer_pet_question(
             - answer: GPT's grounded response.
             - status: 'success' or 'error'.
     """
-    from openai import AsyncOpenAI
-
     # Build context from pet's database records.
     context = _build_pet_context(db, pet_id)
 
@@ -254,8 +284,8 @@ async def answer_pet_question(
     )
 
     try:
-        # API key from environment — never hardcoded.
-        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        # Reuse cached client — avoids recreating on every query.
+        client = _get_openai_query_client()
 
         async def _make_call() -> str:
             """Inner function wrapped by retry_openai_call."""

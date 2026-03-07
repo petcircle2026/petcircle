@@ -55,7 +55,7 @@ class Reminder(Base):
     # 'sent' — WhatsApp template message delivered
     # 'completed' — user responded REMINDER_DONE
     # 'snoozed' — user responded REMINDER_SNOOZE_7
-    status = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False, index=True)
 
     # Timestamp when the WhatsApp reminder was actually sent.
     # NULL until status transitions to 'sent'.

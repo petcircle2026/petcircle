@@ -252,30 +252,19 @@ def recalculate_all_for_pet(db: Session, pet_id: UUID) -> int:
     Returns:
         Number of records updated.
     """
-    records = (
-        db.query(PreventiveRecord)
-        .filter(PreventiveRecord.pet_id == pet_id)
+    # Join with preventive_master to avoid N+1 queries.
+    rows = (
+        db.query(PreventiveRecord, PreventiveMaster)
+        .join(PreventiveMaster, PreventiveRecord.preventive_master_id == PreventiveMaster.id)
+        .filter(
+            PreventiveRecord.pet_id == pet_id,
+            PreventiveRecord.status != "cancelled",
+        )
         .all()
     )
 
     updated = 0
-    for record in records:
-        # Skip cancelled records — they don't need recalculation.
-        if record.status == "cancelled":
-            continue
-
-        master = (
-            db.query(PreventiveMaster)
-            .filter(PreventiveMaster.id == record.preventive_master_id)
-            .first()
-        )
-
-        if not master:
-            logger.warning(
-                "Skipping record %s — preventive master not found.",
-                str(record.id),
-            )
-            continue
+    for record, master in rows:
 
         # Recompute from DB values.
         new_next_due = compute_next_due_date(record.last_done_date, master.recurrence_days)

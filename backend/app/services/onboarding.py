@@ -614,18 +614,16 @@ def refresh_dashboard_token(db: Session, pet_id: UUID) -> str:
     Returns:
         The newly generated hex token string.
     """
-    # Revoke all existing active tokens for this pet.
-    existing_tokens = (
+    # Batch-revoke all existing active tokens for this pet.
+    revoked_count = (
         db.query(DashboardToken)
         .filter(DashboardToken.pet_id == pet_id, DashboardToken.revoked == False)
-        .all()
+        .update({"revoked": True})
     )
-    for t in existing_tokens:
-        t.revoked = True
 
     db.flush()
 
-    logger.info("Revoked %d old token(s) for pet_id=%s", len(existing_tokens), str(pet_id))
+    logger.info("Revoked %d old token(s) for pet_id=%s", revoked_count, str(pet_id))
     return generate_dashboard_token(db, pet_id)
 
 

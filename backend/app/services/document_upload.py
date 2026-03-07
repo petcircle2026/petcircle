@@ -44,6 +44,21 @@ from app.utils.date_utils import get_today_ist, IST
 
 logger = logging.getLogger(__name__)
 
+# Cached Supabase client — created once, reused across uploads.
+_supabase_client = None
+
+
+def _get_supabase_client():
+    """Return a cached Supabase client instance (created on first call)."""
+    global _supabase_client
+    if _supabase_client is None:
+        from supabase import create_client
+        _supabase_client = create_client(
+            settings.SUPABASE_URL,
+            settings.SUPABASE_SERVICE_ROLE_KEY,
+        )
+    return _supabase_client
+
 
 def validate_file_upload(
     file_size: int,
@@ -171,13 +186,8 @@ async def upload_to_supabase(
     bucket_name = settings.SUPABASE_BUCKET_NAME
 
     try:
-        # Use Supabase client to upload.
-        # supabase-py handles authentication via SUPABASE_SERVICE_ROLE_KEY.
-        from supabase import create_client
-        supabase_client = create_client(
-            settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY,
-        )
+        # Use cached Supabase client — avoids recreating on every upload.
+        supabase_client = _get_supabase_client()
 
         # Upload file to private bucket.
         # content_type ensures correct MIME handling for downloads.

@@ -46,6 +46,7 @@ class ConflictFlag(Base):
     preventive_record_id = Column(
         UUID(as_uuid=True),
         ForeignKey("preventive_records.id", ondelete="CASCADE"),
+        index=True,
     )
 
     # The new date extracted from a document that conflicts with existing data.
@@ -57,7 +58,7 @@ class ConflictFlag(Base):
     # 'pending' — awaiting user decision via WhatsApp buttons
     # 'resolved' — user made an explicit choice
     # 'auto_resolved' — expired after 5 days, kept existing date
-    status = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False, index=True)
 
     # Timestamp when the conflict was detected.
     created_at = Column(DateTime, default=datetime.utcnow)

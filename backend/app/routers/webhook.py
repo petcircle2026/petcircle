@@ -133,18 +133,16 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
         )
 
         # Route message using a FRESH database session.
-        # This ensures logging failures or SSL drops on the webhook session
-        # never poison the service layer. Each user's message gets an
-        # isolated session — one user's error cannot affect another.
-        from app.database import SessionLocal
-        service_db = SessionLocal()
+        # pool_pre_ping ensures the connection is alive before use.
+        from app.database import get_fresh_session
+        service_db = get_fresh_session()
         try:
             from app.services.message_router import route_message
             await route_message(service_db, message_data)
         except Exception as e:
             # Service layer failure must never prevent 200 OK response.
             logger.error(
-                "Service layer error for message from %s: %s",
+                "Error routing message from %s: %s",
                 mask_phone(from_number),
                 str(e),
             )

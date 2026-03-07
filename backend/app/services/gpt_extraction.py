@@ -82,6 +82,18 @@ EXTRACTION_SYSTEM_PROMPT = (
 )
 
 
+_openai_extraction_client = None
+
+
+def _get_openai_extraction_client():
+    """Return a cached AsyncOpenAI client for extraction (created on first call)."""
+    global _openai_extraction_client
+    if _openai_extraction_client is None:
+        from openai import AsyncOpenAI
+        _openai_extraction_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return _openai_extraction_client
+
+
 async def _call_openai_extraction(document_text: str) -> str:
     """
     Call OpenAI GPT to extract structured data from document text.
@@ -102,10 +114,8 @@ async def _call_openai_extraction(document_text: str) -> str:
     Raises:
         Exception: If all retry attempts fail (propagated from retry_openai_call).
     """
-    from openai import AsyncOpenAI
-
-    # API key from environment — never hardcoded.
-    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    # Reuse cached client — avoids recreating on every extraction call.
+    client = _get_openai_extraction_client()
 
     async def _make_call() -> str:
         """Inner function wrapped by retry_openai_call."""
@@ -223,52 +233,59 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
     return validated, document_name, extracted_pet_name
 
 
-def _match_preventive_master(
-    db: Session,
-    item_name: str,
-    species: str,
-) -> PreventiveMaster | None:
+def _load_species_masters(db: Session, species: str) -> list[PreventiveMaster]:
     """
-    Match an extracted item name to a preventive_master record.
+    Load all preventive master records for a species (including 'both').
 
-    Uses case-insensitive matching against the frozen preventive_master
-    table. The preventive_master table is the source of truth for all
-    preventive items — recurrence_days and other values are always
-    read from this table, never hardcoded.
+    Loads once per extraction call and caches in-memory to avoid
+    repeated DB queries when matching multiple extracted items.
 
     Args:
         db: SQLAlchemy database session.
-        item_name: Extracted item name from GPT (e.g., 'Rabies Vaccine').
         species: Pet species ('dog' or 'cat').
+
+    Returns:
+        List of PreventiveMaster records for this species.
+    """
+    return (
+        db.query(PreventiveMaster)
+        .filter(PreventiveMaster.species.in_([species, "both"]))
+        .all()
+    )
+
+
+def _match_preventive_master_from_list(
+    masters: list[PreventiveMaster],
+    item_name: str,
+) -> PreventiveMaster | None:
+    """
+    Match an extracted item name to a preventive_master record using
+    in-memory matching against a pre-loaded list.
+
+    Avoids per-item DB queries by matching against a cached list.
+    Uses case-insensitive exact match first, then partial match.
+
+    Args:
+        masters: Pre-loaded list of PreventiveMaster records for this species.
+        item_name: Extracted item name from GPT (e.g., 'Rabies Vaccine').
 
     Returns:
         Matching PreventiveMaster record, or None if no match found.
     """
-    # Try exact match first (case-insensitive).
-    master = (
-        db.query(PreventiveMaster)
-        .filter(
-            PreventiveMaster.item_name.ilike(item_name),
-            PreventiveMaster.species.in_([species, "both"]),
-        )
-        .first()
-    )
+    item_lower = item_name.lower()
 
-    if master:
-        return master
+    # Try exact match first (case-insensitive).
+    for master in masters:
+        if master.item_name.lower() == item_lower:
+            return master
 
     # Try partial match — GPT may abbreviate or rephrase.
     # e.g., "Rabies" → "Rabies Vaccine"
-    master = (
-        db.query(PreventiveMaster)
-        .filter(
-            PreventiveMaster.item_name.ilike(f"%{item_name}%"),
-            PreventiveMaster.species.in_([species, "both"]),
-        )
-        .first()
-    )
+    for master in masters:
+        if item_lower in master.item_name.lower():
+            return master
 
-    return master
+    return None
 
 
 async def extract_and_process_document(
@@ -395,15 +412,19 @@ async def extract_and_process_document(
             return results
 
         # --- Step 3 & 4: Process each extracted item ---
+        # Pre-load all preventive masters for this species once
+        # to avoid per-item DB queries (N+1 prevention).
+        species_masters = _load_species_masters(db, pet.species)
+
         for item in extracted_items:
             try:
                 item_name = item["item_name"]
                 last_done_date_str = item["last_done_date"]
                 last_done_date = parse_date(last_done_date_str)
 
-                # Match to a preventive_master record.
+                # Match to a preventive_master record using in-memory list.
                 # Recurrence days and all config are read from DB — never hardcoded.
-                master = _match_preventive_master(db, item_name, pet.species)
+                master = _match_preventive_master_from_list(species_masters, item_name)
 
                 if not master:
                     logger.warning(

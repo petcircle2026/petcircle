@@ -64,9 +64,13 @@ class PetUpdateRequest(BaseModel):
 
 
 @router.get("/users")
-def list_users(db: Session = Depends(get_db)):
-    """List all registered users with full details."""
-    users = db.query(User).all()
+def list_users(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """List registered users with pagination."""
+    users = db.query(User).offset(skip).limit(limit).all()
     # Decrypt PII fields and mask mobile numbers in admin response.
     return [
         {
@@ -85,9 +89,13 @@ def list_users(db: Session = Depends(get_db)):
 
 
 @router.get("/pets")
-def list_pets(db: Session = Depends(get_db)):
-    """List all registered pets with owner info."""
-    pets = db.query(Pet).all()
+def list_pets(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """List registered pets with pagination."""
+    pets = db.query(Pet).offset(skip).limit(limit).all()
     return [
         {
             "id": str(p.id),
@@ -167,13 +175,19 @@ def edit_pet(pet_id: UUID, body: PetUpdateRequest, db: Session = Depends(get_db)
 
 
 @router.get("/reminders")
-def list_reminders(db: Session = Depends(get_db)):
-    """List all reminders with pet and item details."""
+def list_reminders(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """List reminders with pet and item details (paginated)."""
     reminders = (
         db.query(Reminder, PreventiveRecord, PreventiveMaster, Pet)
         .join(PreventiveRecord, Reminder.preventive_record_id == PreventiveRecord.id)
         .join(PreventiveMaster, PreventiveRecord.preventive_master_id == PreventiveMaster.id)
         .join(Pet, PreventiveRecord.pet_id == Pet.id)
+        .offset(skip)
+        .limit(limit)
         .all()
     )
     return [
@@ -192,11 +206,17 @@ def list_reminders(db: Session = Depends(get_db)):
 
 
 @router.get("/documents")
-def list_documents(db: Session = Depends(get_db)):
-    """List all uploaded documents with pet info."""
+def list_documents(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """List uploaded documents with pet info (paginated)."""
     documents = (
         db.query(Document, Pet)
         .join(Pet, Document.pet_id == Pet.id)
+        .offset(skip)
+        .limit(limit)
         .all()
     )
     return [
