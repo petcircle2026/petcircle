@@ -65,6 +65,8 @@ EXTRACTION_SYSTEM_PROMPT = (
     '  - "document_name": string (a short descriptive name for this document, '
     "e.g., 'Blood Test Report', 'Vaccination Certificate', 'Deworming Record', "
     "'Vet Prescription', 'Health Checkup Report')\n"
+    '  - "pet_name": string or null (the name of the pet mentioned in the document, '
+    "if explicitly stated; null if no pet name is found)\n"
     '  - "items": array of objects, each with:\n'
     '    - "item_name": string (the preventive health item name, '
     "e.g., 'Rabies Vaccine', 'Deworming')\n"
@@ -74,7 +76,8 @@ EXTRACTION_SYSTEM_PROMPT = (
     "- Extract ONLY preventive health items (vaccines, deworming, checkups, etc.).\n"
     "- Do NOT provide medical advice or interpretation.\n"
     "- Do NOT infer dates — only extract what is explicitly stated.\n"
-    '- If no preventive items are found, return {"document_name": "...", "items": []}\n'
+    "- Extract the pet's name EXACTLY as written in the document (if present).\n"
+    '- If no preventive items are found, return {"document_name": "...", "pet_name": null, "items": []}\n'
     "- Return valid JSON only — no markdown, no explanation, no extra text."
 )
 
@@ -122,7 +125,7 @@ async def _call_openai_extraction(document_text: str) -> str:
     return await retry_openai_call(_make_call)
 
 
-def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None]:
+def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, str | None]:
     """
     Parse and validate the JSON response from GPT extraction.
 
@@ -136,7 +139,7 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None]:
         raw_json: Raw JSON string from GPT response.
 
     Returns:
-        Tuple of (validated items list, document_name or None).
+        Tuple of (validated items list, document_name or None, extracted_pet_name or None).
 
     Raises:
         ValueError: If JSON is invalid or missing required keys.
@@ -149,10 +152,12 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None]:
             f"GPT returned invalid JSON: {str(e)}"
         ) from e
 
-    # Extract document_name if present at top level.
+    # Extract document_name and pet_name if present at top level.
     document_name = None
+    extracted_pet_name = None
     if isinstance(parsed, dict):
         document_name = parsed.get("document_name")
+        extracted_pet_name = parsed.get("pet_name")
 
     # Handle both direct array and wrapper object formats.
     # GPT with json_object mode returns an object, not an array.
@@ -215,7 +220,7 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None]:
 
         validated.append(item)
 
-    return validated, document_name
+    return validated, document_name, extracted_pet_name
 
 
 def _match_preventive_master(
@@ -351,12 +356,34 @@ async def extract_and_process_document(
         raw_json = await _call_openai_extraction(document_text)
 
         # --- Step 2: Validate and normalize ---
-        extracted_items, document_name = _validate_extraction_json(raw_json)
+        extracted_items, document_name, extracted_pet_name = _validate_extraction_json(raw_json)
         results["items_extracted"] = len(extracted_items)
 
         # Save classified document name from GPT.
         if document_name:
             document.document_name = str(document_name)[:200]
+
+        # --- Pet name mismatch check ---
+        # If GPT extracted a pet name from the document, verify it matches
+        # the registered pet name. If not, flag the document and skip extraction.
+        if extracted_pet_name and pet.name:
+            if extracted_pet_name.strip().lower() != pet.name.strip().lower():
+                logger.warning(
+                    "Pet name mismatch: document says '%s', registered pet is '%s'. "
+                    "Flagging document %s — skipping extraction.",
+                    extracted_pet_name,
+                    pet.name,
+                    str(document_id),
+                )
+                document.extraction_status = "failed"
+                db.commit()
+                results["status"] = "failed"
+                results["errors"].append(
+                    f"Pet name mismatch: document mentions '{extracted_pet_name}' "
+                    f"but this upload is for '{pet.name}'. "
+                    f"Please upload documents that belong to {pet.name}."
+                )
+                return results
 
         if not extracted_items:
             logger.info(

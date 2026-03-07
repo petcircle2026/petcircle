@@ -22,6 +22,11 @@ MAX_UPLOAD_BYTES: int = MAX_UPLOAD_MB * 1024 * 1024
 # Prevents abuse and controls storage costs.
 MAX_UPLOADS_PER_PET_PER_DAY: int = 10
 
+# Maximum number of pending (unprocessed) documents allowed per pet at a time.
+# If a pet already has this many pending documents, new uploads are rejected
+# until existing ones finish extraction. Prevents queue flooding.
+MAX_PENDING_DOCS_PER_PET: int = 5
+
 # Allowed MIME types for uploaded documents.
 # Only images (JPEG, PNG) and PDF are accepted.
 ALLOWED_MIME_TYPES: set[str] = {

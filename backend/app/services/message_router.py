@@ -33,6 +33,7 @@ from app.core.constants import (
     CONFLICT_USE_NEW,
     CONFLICT_KEEP_EXISTING,
     MAX_PETS_PER_USER,
+    MAX_PENDING_DOCS_PER_PET,
 )
 from app.services.onboarding import (
     get_or_create_user,
@@ -44,6 +45,7 @@ from app.services.whatsapp_sender import (
     download_whatsapp_media,
 )
 from app.models.pet import Pet
+from app.models.document import Document
 from app.models.reminder import Reminder
 from app.models.conflict_flag import ConflictFlag
 
@@ -110,10 +112,28 @@ async def route_message(db: Session, message_data: dict) -> None:
         if user.onboarding_state and user.onboarding_state != "complete":
             text = (message_data.get("text") or "").strip()
             if not text:
-                await send_text_message(
-                    db, from_number,
-                    "Please send a text message to continue setup.",
+                # Only send the "please send text" prompt once per user.
+                # Check message_logs for whether we already sent it.
+                # If already sent, silently ignore non-text messages.
+                from sqlalchemy import cast, String
+                from app.models.message_log import MessageLog
+                already_sent = (
+                    db.query(MessageLog.id)
+                    .filter(
+                        MessageLog.mobile_number == from_number,
+                        MessageLog.direction == "outgoing",
+                        MessageLog.message_type == "text",
+                        cast(MessageLog.payload["text"]["body"], String).like(
+                            "%Please send a text%"
+                        ),
+                    )
+                    .first()
                 )
+                if not already_sent:
+                    await send_text_message(
+                        db, from_number,
+                        "Please send a text message to continue setup.",
+                    )
                 return
             await handle_onboarding_step(db, user, text, send_text_message)
             return
@@ -337,6 +357,25 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
         await send_text_message(db, from_number, "Please register a pet first.")
         return
 
+    # Check pending documents limit — max 5 at a time per pet.
+    # Prevents queue flooding when users send many documents at once.
+    pending_count = (
+        db.query(Document)
+        .filter(
+            Document.pet_id == pet.id,
+            Document.extraction_status == "pending",
+        )
+        .count()
+    )
+    if pending_count >= MAX_PENDING_DOCS_PER_PET:
+        await send_text_message(
+            db, from_number,
+            f"You already have {pending_count} documents being processed for {pet.name}. "
+            f"Please wait for them to finish before uploading more "
+            f"(max {MAX_PENDING_DOCS_PER_PET} at a time).",
+        )
+        return
+
     # Download media from WhatsApp
     media_result = await download_whatsapp_media(media_id)
     if not media_result:
@@ -551,6 +590,12 @@ async def _send_extraction_summary(
     status = result.get("status", "failed")
 
     if status == "failed":
+        # Check for pet name mismatch — show a specific, clear message.
+        pet_name_errors = [e for e in errors if "Pet name mismatch" in e]
+        if pet_name_errors:
+            await send_text_message(db, from_number, pet_name_errors[0])
+            return
+
         dashboard_link = _get_dashboard_link(db, pet)
         msg = (
             f"Document saved but extraction encountered an issue. "
