@@ -40,6 +40,7 @@ from app.core.constants import (
     MAX_PETS_PER_USER,
     DASHBOARD_TOKEN_BYTES,
     DASHBOARD_TOKEN_EXPIRY_DAYS,
+    GREETINGS,
 )
 from app.config import settings
 from app.core.encryption import encrypt_field, decrypt_field, hash_field
@@ -222,21 +223,20 @@ async def handle_onboarding_step(
         await _step_neutered(db, user, text_lower, send_fn)
 
     else:
-        logger.warning("Unknown onboarding state '%s' for user %s", state, mobile)
-
-
-# Greetings that should trigger a welcome-back message instead of being
-# treated as onboarding input. Kept lowercase for comparison.
-_GREETINGS = frozenset({
-    "hi", "hello", "hey", "hii", "hiii", "yo", "sup",
-    "hola", "namaste", "good morning", "good evening",
-    "good afternoon", "gm", "start", "restart",
-})
+        # Unknown state — recover by resetting to consent step.
+        logger.warning("Unknown onboarding state '%s' for user %s — resetting to awaiting_consent", state, mobile)
+        user.onboarding_state = "awaiting_consent"
+        db.commit()
+        await send_fn(
+            db, mobile,
+            "Something went wrong with your setup. Let's start over.\n\n"
+            "Reply *yes* to continue or *no* to opt out.",
+        )
 
 
 def _is_greeting(text_lower: str) -> bool:
     """Check if the message is a greeting rather than onboarding input."""
-    return text_lower in _GREETINGS
+    return text_lower in GREETINGS
 
 
 async def _send_onboarding_resume(db, user, state, send_fn):
@@ -510,13 +510,23 @@ async def _step_dob(db, user, text, send_fn):
     if text.strip().lower() != "skip":
         try:
             dob = parse_date(text.strip())
-            pet.dob = dob
         except ValueError:
             await send_fn(
                 db, user._plaintext_mobile,
                 "Invalid date format. Please use DD/MM/YYYY or DD-MM-YYYY, or type *skip*.",
             )
             return
+
+        # DOB cannot be in the future.
+        from datetime import date as date_type
+        if dob > date_type.today():
+            await send_fn(
+                db, user._plaintext_mobile,
+                "Date of birth cannot be in the future. Please try again.",
+            )
+            return
+
+        pet.dob = dob
 
     user.onboarding_state = "awaiting_weight"
     db.commit()

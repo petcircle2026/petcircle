@@ -85,6 +85,11 @@ OPENAI_EXTRACTION_TEMPERATURE: float = 0.0
 # Max tokens for extraction response.
 OPENAI_EXTRACTION_MAX_TOKENS: int = 1500
 
+# Query-specific OpenAI settings — separated from extraction to allow
+# independent tuning (e.g., slightly higher temperature for natural responses).
+OPENAI_QUERY_TEMPERATURE: float = 0.0
+OPENAI_QUERY_MAX_TOKENS: int = 1500
+
 # --- Retry Configuration ---
 # OpenAI retry backoff intervals in seconds.
 OPENAI_RETRY_BACKOFFS: list[float] = [1.0, 2.0]
@@ -112,6 +117,31 @@ HEALTH_SCORE_COMPLEMENTARY_WEIGHT: float = 0.1
 # Path template for uploaded files: {user_id}/{pet_id}/{filename}
 # Enforced in the upload service — never construct paths manually elsewhere.
 STORAGE_PATH_TEMPLATE: str = "{user_id}/{pet_id}/{filename}"
+
+# --- Greeting Detection ---
+# Shared set of greetings used by both onboarding and message router
+# to detect casual greetings and avoid routing them to GPT.
+GREETINGS: frozenset[str] = frozenset({
+    "hi", "hello", "hey", "hii", "hiii", "yo", "sup",
+    "hola", "namaste", "good morning", "good evening",
+    "good afternoon", "gm", "start", "restart",
+})
+
+# --- Common Acknowledgment / Farewell Messages ---
+# Messages that should get canned responses, not GPT calls.
+ACKNOWLEDGMENTS: frozenset[str] = frozenset({
+    "thanks", "thank you", "thankyou", "thx", "ty",
+    "ok", "okay", "got it", "cool", "great", "nice",
+    "awesome", "perfect", "sure", "alright",
+})
+
+FAREWELLS: frozenset[str] = frozenset({
+    "bye", "goodbye", "good bye", "see you", "cya", "later",
+})
+
+HELP_COMMANDS: frozenset[str] = frozenset({
+    "help", "menu", "commands", "what can you do",
+})
 
 # --- Date Formats ---
 # Accepted input date formats for parsing user-provided dates.

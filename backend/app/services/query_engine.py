@@ -47,8 +47,8 @@ from app.models.reminder import Reminder
 from app.models.document import Document
 from app.core.constants import (
     OPENAI_QUERY_MODEL,
-    OPENAI_EXTRACTION_TEMPERATURE,
-    OPENAI_EXTRACTION_MAX_TOKENS,
+    OPENAI_QUERY_TEMPERATURE,
+    OPENAI_QUERY_MAX_TOKENS,
     HEALTH_SCORE_ESSENTIAL_WEIGHT,
     HEALTH_SCORE_COMPLEMENTARY_WEIGHT,
 )
@@ -291,8 +291,8 @@ async def answer_pet_question(
             """Inner function wrapped by retry_openai_call."""
             response = await client.chat.completions.create(
                 model=OPENAI_QUERY_MODEL,
-                temperature=OPENAI_EXTRACTION_TEMPERATURE,
-                max_tokens=OPENAI_EXTRACTION_MAX_TOKENS,
+                temperature=OPENAI_QUERY_TEMPERATURE,
+                max_tokens=OPENAI_QUERY_MAX_TOKENS,
                 messages=[
                     {"role": "system", "content": QUERY_SYSTEM_PROMPT},
                     {"role": "user", "content": user_message},

@@ -37,6 +37,10 @@ from app.core.constants import (
     MAX_PETS_PER_USER,
     MAX_PENDING_DOCS_PER_PET,
     MAX_CONCURRENT_EXTRACTIONS,
+    GREETINGS,
+    ACKNOWLEDGMENTS,
+    FAREWELLS,
+    HELP_COMMANDS,
 )
 
 # Semaphore to limit concurrent background extraction tasks.
@@ -186,7 +190,13 @@ async def route_message(db: Session, message_data: dict) -> None:
             await _handle_text(db, user, message_data)
 
         else:
+            # Stickers, audio, video, location, contacts etc — inform the user.
             logger.info("Unhandled message type '%s' from %s", msg_type, mask_phone(from_number))
+            await send_text_message(
+                db, from_number,
+                "I can only process text messages and document/image uploads.\n"
+                "Please send a text message or upload a photo/PDF.",
+            )
 
     except Exception as e:
         logger.error("Error routing message from %s: %s", mask_phone(from_number), str(e))
@@ -208,14 +218,57 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
     """
     Handle a text message from a fully onboarded user.
 
-    Routing:
-        - "add pet" / "new pet" → start new pet onboarding
-        - "dashboard" / "link" → send dashboard links
-        - anything else → query engine
+    Routing (in order):
+        1. Empty text → ignore
+        2. Pending reschedule → apply_reschedule_date()
+        3. Greeting → canned menu
+        4. Acknowledgment (thanks, ok) → canned reply
+        5. Farewell (bye) → canned reply
+        6. Help/menu → show commands
+        7. "add pet" / "new pet" → start new pet onboarding
+        8. "dashboard" / "link" → send dashboard links
+        9. anything else → query engine
     """
     text = (message_data.get("text") or "").strip()
     text_lower = text.lower()
     from_number = _get_mobile(user)
+
+    # --- Guard: empty text should not trigger GPT ---
+    if not text:
+        return
+
+    # --- Check for pending reschedule before any other routing ---
+    # If user recently pressed "Reschedule" on a reminder, route the
+    # next text message as a date input to apply_reschedule_date().
+    reschedule_result = await _try_handle_reschedule_date(db, user, text, from_number)
+    if reschedule_result:
+        return
+
+    # --- Greeting — canned menu, no GPT call ---
+    if text_lower in GREETINGS:
+        await _send_help_menu(db, from_number)
+        return
+
+    # --- Acknowledgments (thanks, ok, got it) — canned reply ---
+    if text_lower in ACKNOWLEDGMENTS:
+        await send_text_message(
+            db, from_number,
+            "You're welcome! Let me know if you need anything else.",
+        )
+        return
+
+    # --- Farewells (bye, see you) — canned reply ---
+    if text_lower in FAREWELLS:
+        await send_text_message(
+            db, from_number,
+            "Bye! I'm always here when you need me. Take care! 🐾",
+        )
+        return
+
+    # --- Help / Menu — show available commands ---
+    if text_lower in HELP_COMMANDS:
+        await _send_help_menu(db, from_number)
+        return
 
     # "add pet" command — restart pet portion of onboarding
     if text_lower in ("add pet", "new pet", "add another pet"):
@@ -246,6 +299,102 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
 
     # General query — route to GPT query engine
     await _handle_query(db, user, text)
+
+
+async def _send_help_menu(db: Session, from_number: str) -> None:
+    """Send the help/commands menu to the user."""
+    await send_text_message(
+        db, from_number,
+        "Hi there! How can I help you today? 🐾\n\n"
+        "You can:\n"
+        "• Ask me anything about your pet's health\n"
+        "• Send *add pet* to register another pet\n"
+        "• Send *dashboard* to view your pet's records\n"
+        "• Send *help* to see this menu\n"
+        "• Upload a vet document for extraction",
+    )
+
+
+async def _try_handle_reschedule_date(
+    db: Session, user, text: str, from_number: str,
+) -> bool:
+    """
+    Check if user has a pending reschedule and route date input accordingly.
+
+    A reschedule is pending when a reminder is in 'sent' status and the
+    most recent outgoing message was the reschedule date prompt. This avoids
+    adding an extra DB column — we detect the state from existing data.
+
+    Returns True if the message was consumed as a reschedule date, False otherwise.
+    """
+    from app.services.reminder_response import apply_reschedule_date
+    from app.models.preventive_record import PreventiveRecord
+    from app.utils.date_utils import parse_date
+    from app.models.message_log import MessageLog
+    from sqlalchemy import cast, String
+
+    # Check if the last outgoing message was the reschedule date prompt.
+    last_outgoing = (
+        db.query(MessageLog)
+        .filter(
+            MessageLog.mobile_number == from_number,
+            MessageLog.direction == "outgoing",
+            MessageLog.message_type == "text",
+        )
+        .order_by(MessageLog.created_at.desc())
+        .first()
+    )
+
+    if not last_outgoing:
+        return False
+
+    # Check if the last outgoing message contains the reschedule prompt text.
+    payload_body = ""
+    try:
+        payload_body = last_outgoing.payload.get("text", {}).get("body", "")
+    except (AttributeError, TypeError):
+        return False
+
+    if "new date" not in payload_body.lower() or "DD/MM/YYYY" not in payload_body:
+        return False
+
+    # Find the sent reminder this reschedule is for.
+    reminder = (
+        db.query(Reminder)
+        .join(PreventiveRecord, Reminder.preventive_record_id == PreventiveRecord.id)
+        .join(Pet, PreventiveRecord.pet_id == Pet.id)
+        .filter(
+            Pet.user_id == user.id,
+            Pet.is_deleted == False,
+            Reminder.status == "sent",
+        )
+        .order_by(Reminder.sent_at.desc())
+        .first()
+    )
+
+    if not reminder:
+        return False
+
+    # Try to parse the user's text as a date.
+    try:
+        new_date = parse_date(text.strip())
+    except ValueError:
+        await send_text_message(
+            db, from_number,
+            "Invalid date format. Please use DD/MM/YYYY or DD-MM-YYYY.",
+        )
+        return True  # Consumed the message (even though it failed)
+
+    try:
+        result = apply_reschedule_date(db, reminder.id, new_date)
+        await send_text_message(
+            db, from_number,
+            f"Rescheduled! New due date: {result.get('new_due_date', 'N/A')}",
+        )
+    except ValueError as e:
+        await send_text_message(db, from_number, str(e))
+
+    return True
 
 
 async def _handle_button(db: Session, user, message_data: dict) -> None:
