@@ -438,6 +438,7 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             filename=filename,
             file_content=file_content,
             mime_type=detected_mime,
+            pet_name=pet.name,
         )
 
         await send_text_message(
@@ -539,6 +540,8 @@ async def _delayed_batch_extraction(
         last_result = None
         success_count = 0
         fail_count = 0
+        failed_doc_names = []
+        all_results = []
 
         # Extract each document sequentially under the semaphore.
         # Each extraction is given a 120s timeout to prevent one stuck GPT
@@ -546,28 +549,51 @@ async def _delayed_batch_extraction(
         for idx, doc in enumerate(pending_docs, 1):
             async with _extraction_semaphore:
                 try:
-                    document_text = (
-                        f"[Uploaded file: {doc.file_path}, type: {doc.mime_type}]"
-                    )
+                    # Download actual file content from Supabase for GPT processing.
+                    from app.services.document_upload import download_from_supabase
+                    file_bytes = await download_from_supabase(doc.file_path)
+
+                    if not file_bytes:
+                        fail_count += 1
+                        doc_label = doc.document_name or doc.file_path.split("/")[-1]
+                        failed_doc_names.append(f"{doc_label} (download failed)")
+                        doc.extraction_status = "failed"
+                        bg_db.commit()
+                        continue
+
                     result = await asyncio.wait_for(
                         extract_and_process_document(
-                            bg_db, doc.id, document_text,
+                            bg_db, doc.id,
+                            f"[file: {doc.file_path}]",
+                            file_bytes=file_bytes,
                         ),
                         timeout=120,
                     )
-                    last_result = result
-                    success_count += 1
+                    all_results.append(result)
+
+                    if result.get("status") == "failed":
+                        fail_count += 1
+                        doc_label = doc.document_name or doc.file_path.split("/")[-1]
+                        errors = result.get("errors", [])
+                        reason = errors[0] if errors else "extraction failed"
+                        failed_doc_names.append(f"{doc_label} ({reason})")
+                    else:
+                        last_result = result
+                        success_count += 1
+
                     logger.info(
-                        "Extracted doc %d/%d (id=%s) for pet %s",
+                        "Extracted doc %d/%d (id=%s) for pet %s: status=%s",
                         idx, total, str(doc.id), str(pet_id),
+                        result.get("status"),
                     )
                 except asyncio.TimeoutError:
                     fail_count += 1
+                    doc_label = doc.document_name or doc.file_path.split("/")[-1]
+                    failed_doc_names.append(f"{doc_label} (timed out)")
                     logger.error(
                         "Extraction timed out for doc %s (%d/%d) pet %s",
                         str(doc.id), idx, total, str(pet_id),
                     )
-                    # Mark document as failed so it doesn't stay pending forever.
                     try:
                         doc.extraction_status = "failed"
                         bg_db.commit()
@@ -578,6 +604,8 @@ async def _delayed_batch_extraction(
                             pass
                 except Exception as e:
                     fail_count += 1
+                    doc_label = doc.document_name or doc.file_path.split("/")[-1]
+                    failed_doc_names.append(f"{doc_label} (error)")
                     logger.error(
                         "Extraction failed for doc %s (%d/%d): %s",
                         str(doc.id), idx, total, str(e),
@@ -587,25 +615,17 @@ async def _delayed_batch_extraction(
                     except Exception:
                         pass
 
-        # Send a single summary after all extractions complete.
+        # --- Send ONE consolidated summary after all extractions complete ---
         pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
         from app.models.user import User
         user = bg_db.query(User).filter(User.id == user_id).first()
 
         if user and pet:
             user._plaintext_mobile = from_number
-            if last_result and success_count > 0:
-                await _send_extraction_summary(bg_db, user, pet, last_result)
-            else:
-                dashboard_link = _get_dashboard_link(bg_db, pet)
-                msg = (
-                    f"Extraction finished for *{pet_name}*.\n"
-                    f"{success_count} succeeded, {fail_count} failed.\n\n"
-                    f"You can review and update details via the dashboard."
-                )
-                if dashboard_link:
-                    msg += f"\n\n{dashboard_link}"
-                await send_text_message(bg_db, from_number, msg)
+            await _send_batch_summary(
+                bg_db, user, pet, from_number,
+                all_results, success_count, fail_count, failed_doc_names,
+            )
 
         # Clear the batch counter and rejection flag so user can upload again.
         _recent_uploads.pop(pet_key, None)
@@ -764,8 +784,82 @@ def _get_dashboard_link(db: Session, pet) -> str | None:
         return None
 
 
+async def _send_batch_summary(
+    db: Session, user, pet, from_number: str,
+    all_results: list[dict], success_count: int, fail_count: int,
+    failed_doc_names: list[str],
+) -> None:
+    """
+    Send ONE consolidated message summarizing the entire batch extraction.
+
+    Rules:
+        - If entire batch failed: one error message with dashboard link.
+        - If partial failure: list which docs failed by name.
+        - If all succeeded: show extraction summary with items found.
+    """
+    total = success_count + fail_count
+
+    if success_count == 0 and fail_count > 0:
+        # Entire batch failed — one error message.
+        dashboard_link = _get_dashboard_link(db, pet)
+        msg = (
+            f"Extraction could not process {fail_count} document(s) for *{pet.name}*.\n\n"
+            f"You can update records manually via the dashboard."
+        )
+        if failed_doc_names:
+            msg += "\n\nFailed documents:\n"
+            for name in failed_doc_names:
+                msg += f"  - {name}\n"
+        if dashboard_link:
+            msg += f"\n{dashboard_link}"
+        await send_text_message(db, from_number, msg)
+        return
+
+    # Aggregate results from all successful extractions.
+    total_extracted = sum(r.get("items_extracted", 0) for r in all_results)
+    total_processed = sum(r.get("items_processed", 0) for r in all_results)
+
+    if total_extracted == 0 and success_count > 0:
+        # All docs processed successfully but no preventive items found.
+        dashboard_link = _get_dashboard_link(db, pet)
+        msg = (
+            f"Processed {success_count} document(s) for *{pet.name}*, "
+            f"but no preventive health items were found.\n\n"
+            f"These may be lab reports or prescriptions without preventive items. "
+            f"You can update records manually from the dashboard."
+        )
+        if fail_count > 0 and failed_doc_names:
+            msg += f"\n\n{fail_count} document(s) failed:\n"
+            for name in failed_doc_names:
+                msg += f"  - {name}\n"
+        if dashboard_link:
+            msg += f"\n{dashboard_link}"
+        await send_text_message(db, from_number, msg)
+        return
+
+    # At least some items were found — show detailed summary.
+    # Pick the last successful result with items for the detailed view.
+    best_result = None
+    for r in reversed(all_results):
+        if r.get("items_processed", 0) > 0:
+            best_result = r
+            break
+
+    if best_result:
+        await _send_extraction_summary(db, user, pet, best_result,
+                                        total_processed, fail_count, failed_doc_names)
+    else:
+        dashboard_link = _get_dashboard_link(db, pet)
+        msg = f"Extraction complete for *{pet.name}*: {success_count} processed, {fail_count} failed."
+        if dashboard_link:
+            msg += f"\n\n{dashboard_link}"
+        await send_text_message(db, from_number, msg)
+
+
 async def _send_extraction_summary(
-    db: Session, user, pet, result: dict
+    db: Session, user, pet, result: dict,
+    batch_total_processed: int = 0, batch_fail_count: int = 0,
+    failed_doc_names: list[str] | None = None,
 ) -> None:
     """
     Send a WhatsApp summary after GPT extraction completes.
@@ -829,8 +923,11 @@ async def _send_extraction_summary(
         next_due = record.next_due_date.strftime("%d-%m-%Y") if record.next_due_date else "—"
         lines.append(f"  • {master.item_name}: done {done_date}, next due {next_due}")
 
+    # Use batch total if available, else single-doc count.
+    display_processed = batch_total_processed if batch_total_processed > 0 else processed
+
     msg = f"Extraction complete for *{pet.name}*!\n\n"
-    msg += f"*{processed} item(s)* updated from this document.\n"
+    msg += f"*{display_processed} item(s)* updated.\n"
 
     if lines:
         msg += f"\n*Health Records:*\n" + "\n".join(lines) + "\n"
@@ -839,6 +936,12 @@ async def _send_extraction_summary(
         unmatched = [e.replace("No match for item: ", "") for e in errors if "No match" in e]
         if unmatched:
             msg += f"\nItems not matched: {', '.join(unmatched)}\n"
+
+    # Include per-document failure details from the batch.
+    if batch_fail_count > 0 and failed_doc_names:
+        msg += f"\n{batch_fail_count} document(s) could not be processed:\n"
+        for name in failed_doc_names:
+            msg += f"  - {name}\n"
 
     dashboard_link = _get_dashboard_link(db, pet)
     if dashboard_link:

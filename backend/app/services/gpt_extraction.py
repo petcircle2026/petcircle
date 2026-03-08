@@ -68,12 +68,21 @@ EXTRACTION_SYSTEM_PROMPT = (
     '  - "pet_name": string or null (the name of the pet mentioned in the document, '
     "if explicitly stated; null if no pet name is found)\n"
     '  - "items": array of objects, each with:\n'
-    '    - "item_name": string (the preventive health item name, '
-    "e.g., 'Rabies Vaccine', 'Deworming')\n"
+    '    - "item_name": string (MUST be one of the tracked items listed below)\n'
     '    - "last_done_date": string (the date the item was done, '
     "in DD/MM/YYYY or DD-MM-YYYY or DD Month YYYY or YYYY-MM-DD format)\n\n"
+    "Tracked preventive items (use these EXACT names):\n"
+    "  - Rabies Vaccine\n"
+    "  - Core Vaccine (DHPP for dogs)\n"
+    "  - Feline Core (FVRCP for cats)\n"
+    "  - Deworming\n"
+    "  - Tick/Flea (tick/flea prevention treatment)\n"
+    "  - Annual Checkup (general health checkup)\n"
+    "  - Preventive Blood Test (routine blood work / CBC / health screening)\n"
+    "  - Dental Check\n\n"
     "Rules:\n"
-    "- Extract ONLY preventive health items (vaccines, deworming, checkups, etc.).\n"
+    "- Extract ONLY items that match the tracked preventive items above.\n"
+    "- A blood test report counts as 'Preventive Blood Test' — use the report date.\n"
     "- Do NOT provide medical advice or interpretation.\n"
     "- Do NOT infer dates — only extract what is explicitly stated.\n"
     "- Extract the pet's name EXACTLY as written in the document (if present).\n"
@@ -98,12 +107,7 @@ async def _call_openai_extraction(document_text: str) -> str:
     """
     Call OpenAI GPT to extract structured data from document text.
 
-    Model configuration is loaded from constants — never hardcoded:
-        - Model: OPENAI_EXTRACTION_MODEL (gpt-4.1)
-        - Temperature: OPENAI_EXTRACTION_TEMPERATURE (0)
-        - Max tokens: OPENAI_EXTRACTION_MAX_TOKENS (1500)
-
-    The API key is loaded from settings.OPENAI_API_KEY (env var).
+    Used for PDF text content. For images, use _call_openai_extraction_vision().
 
     Args:
         document_text: The text content of the uploaded document.
@@ -114,11 +118,9 @@ async def _call_openai_extraction(document_text: str) -> str:
     Raises:
         Exception: If all retry attempts fail (propagated from retry_openai_call).
     """
-    # Reuse cached client — avoids recreating on every extraction call.
     client = _get_openai_extraction_client()
 
     async def _make_call() -> str:
-        """Inner function wrapped by retry_openai_call."""
         response = await client.chat.completions.create(
             model=OPENAI_EXTRACTION_MODEL,
             temperature=OPENAI_EXTRACTION_TEMPERATURE,
@@ -131,7 +133,52 @@ async def _call_openai_extraction(document_text: str) -> str:
         )
         return response.choices[0].message.content
 
-    # Retry with backoff: 3 attempts (1s, 2s) — from constants via retry utility.
+    return await retry_openai_call(_make_call)
+
+
+async def _call_openai_extraction_vision(image_data_uri: str) -> str:
+    """
+    Call OpenAI GPT vision API to extract data from an image.
+
+    Sends the image as a base64 data URI to GPT-4.1's vision capability.
+    Used for JPEG/PNG uploads where text extraction is not possible.
+
+    Args:
+        image_data_uri: Base64 data URI (data:image/jpeg;base64,...).
+
+    Returns:
+        Raw JSON string response from GPT.
+
+    Raises:
+        Exception: If all retry attempts fail.
+    """
+    client = _get_openai_extraction_client()
+
+    async def _make_call() -> str:
+        response = await client.chat.completions.create(
+            model=OPENAI_EXTRACTION_MODEL,
+            temperature=OPENAI_EXTRACTION_TEMPERATURE,
+            max_tokens=OPENAI_EXTRACTION_MAX_TOKENS,
+            response_format={"type": "json_object"},
+            messages=[
+                {"role": "system", "content": EXTRACTION_SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Extract preventive health data from this veterinary document image.",
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_data_uri, "detail": "high"},
+                        },
+                    ],
+                },
+            ],
+        )
+        return response.choices[0].message.content
+
     return await retry_openai_call(_make_call)
 
 
@@ -292,6 +339,7 @@ async def extract_and_process_document(
     db: Session,
     document_id: UUID,
     document_text: str,
+    file_bytes: bytes | None = None,
 ) -> dict:
     """
     Run GPT extraction on a document and process the results.
@@ -364,13 +412,44 @@ async def extract_and_process_document(
 
     try:
         # --- Step 1: Call GPT extraction ---
+        # Route to vision API for images, text API for PDFs.
         logger.info(
-            "Starting GPT extraction: document_id=%s, pet_id=%s",
+            "Starting GPT extraction: document_id=%s, pet_id=%s, mime=%s",
             str(document_id),
             str(pet.id),
+            document.mime_type,
         )
 
-        raw_json = await _call_openai_extraction(document_text)
+        if file_bytes and document.mime_type in ("image/jpeg", "image/png"):
+            # Images: use GPT vision API with base64-encoded image.
+            from app.utils.file_reader import encode_image_base64
+            data_uri = encode_image_base64(file_bytes, document.mime_type)
+            raw_json = await _call_openai_extraction_vision(data_uri)
+        elif file_bytes and document.mime_type == "application/pdf":
+            # PDFs: extract text first, then send to GPT.
+            from app.utils.file_reader import extract_pdf_text
+            pdf_text = extract_pdf_text(file_bytes)
+            if pdf_text and len(pdf_text.strip()) > 20:
+                raw_json = await _call_openai_extraction(
+                    f"Veterinary document text:\n\n{pdf_text}"
+                )
+            else:
+                # Scanned PDF with no extractable text — mark and skip.
+                logger.warning(
+                    "PDF has no extractable text (scanned): document_id=%s",
+                    str(document_id),
+                )
+                document.extraction_status = "failed"
+                db.commit()
+                results["status"] = "failed"
+                results["errors"].append(
+                    "This PDF appears to be a scanned image. "
+                    "Please upload photos of the document instead."
+                )
+                return results
+        else:
+            # Fallback: use whatever text was passed (for backwards compatibility).
+            raw_json = await _call_openai_extraction(document_text)
 
         # --- Step 2: Validate and normalize ---
         extracted_items, document_name, extracted_pet_name = _validate_extraction_json(raw_json)

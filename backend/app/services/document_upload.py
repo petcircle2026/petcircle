@@ -101,6 +101,7 @@ def validate_file_upload(
 def check_daily_upload_limit(
     db: Session,
     pet_id: UUID,
+    pet_name: str | None = None,
 ) -> None:
     """
     Check if the pet has reached the daily upload limit.
@@ -138,8 +139,9 @@ def check_daily_upload_limit(
     )
 
     if today_count >= MAX_UPLOADS_PER_PET_PER_DAY:
+        display_name = pet_name or "your pet"
         raise ValueError(
-            f"Daily upload limit reached for pet {pet_id}. "
+            f"Daily upload limit reached for {display_name}. "
             f"Maximum {MAX_UPLOADS_PER_PET_PER_DAY} uploads per pet per day."
         )
 
@@ -152,8 +154,9 @@ def build_storage_path(
     """
     Build the Supabase storage path for a file.
 
-    Path format: {user_id}/{pet_id}/{filename}
-    Defined by STORAGE_PATH_TEMPLATE in constants — never hardcoded.
+    Path format: {user_id}/{pet_id}/{timestamp}_{filename}
+    A Unix timestamp prefix is added to prevent duplicate path conflicts
+    when the same file is uploaded multiple times.
 
     Args:
         user_id: UUID of the owning user.
@@ -163,10 +166,13 @@ def build_storage_path(
     Returns:
         Formatted storage path string.
     """
+    import time
+    # Prefix filename with timestamp to prevent Supabase duplicate path errors.
+    timestamped_filename = f"{int(time.time())}_{filename}"
     return STORAGE_PATH_TEMPLATE.format(
         user_id=str(user_id),
         pet_id=str(pet_id),
-        filename=filename,
+        filename=timestamped_filename,
     )
 
 
@@ -282,6 +288,49 @@ def create_document_record(
     return document
 
 
+async def download_from_supabase(storage_path: str) -> bytes | None:
+    """
+    Download a file from the private Supabase storage bucket.
+
+    Used by the extraction pipeline to retrieve uploaded files
+    for GPT processing (vision API for images, text extraction for PDFs).
+
+    The sync Supabase SDK call is run in a thread pool via asyncio
+    to avoid blocking the event loop.
+
+    Args:
+        storage_path: Path within the bucket ({user_id}/{pet_id}/{filename}).
+
+    Returns:
+        Raw file bytes on success, None on failure.
+    """
+    import asyncio
+
+    bucket_name = settings.SUPABASE_BUCKET_NAME
+
+    def _sync_download() -> bytes:
+        """Run the sync Supabase SDK download in a thread."""
+        supabase_client = _get_supabase_client()
+        return supabase_client.storage.from_(bucket_name).download(storage_path)
+
+    try:
+        loop = asyncio.get_event_loop()
+        data = await loop.run_in_executor(None, _sync_download)
+
+        logger.info(
+            "File downloaded from Supabase: path=%s, size=%d",
+            storage_path, len(data),
+        )
+        return data
+
+    except Exception as e:
+        logger.error(
+            "Supabase download failed: path=%s, error=%s",
+            storage_path, str(e),
+        )
+        return None
+
+
 async def process_document_upload(
     db: Session,
     pet_id: UUID,
@@ -289,6 +338,7 @@ async def process_document_upload(
     filename: str,
     file_content: bytes,
     mime_type: str,
+    pet_name: str | None = None,
 ) -> Document:
     """
     Full document upload pipeline: validate → store → create record.
@@ -324,7 +374,7 @@ async def process_document_upload(
     validate_file_upload(len(file_content), mime_type)
 
     # --- Step 3: Check daily upload limit ---
-    check_daily_upload_limit(db, pet_id)
+    check_daily_upload_limit(db, pet_id, pet_name=pet_name)
 
     # --- Step 4: Build storage path ---
     storage_path = build_storage_path(user_id, pet_id, filename)
