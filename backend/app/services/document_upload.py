@@ -128,12 +128,15 @@ def check_daily_upload_limit(
     ist_end_utc = (ist_midnight + timedelta(days=1)).astimezone(pytz.utc).replace(tzinfo=None)
 
     # Count documents uploaded within today's IST boundaries (converted to UTC).
+    # Only count pending or successful documents — failed extractions (e.g.,
+    # OpenAI quota exceeded) should not block the user from uploading again.
     today_count = (
         db.query(func.count(Document.id))
         .filter(
             Document.pet_id == pet_id,
             Document.created_at >= ist_midnight_utc,
             Document.created_at < ist_end_utc,
+            Document.extraction_status.in_(["pending", "success"]),
         )
         .scalar()
     )
@@ -249,18 +252,22 @@ def create_document_record(
     pet_id: UUID,
     file_path: str,
     mime_type: str,
+    original_filename: str | None = None,
 ) -> Document:
     """
     Insert a document record into the database.
 
     The document is created with extraction_status='pending',
     indicating it is ready for GPT extraction processing.
+    The original filename is stored as document_name so the dashboard
+    can display it even if extraction fails later.
 
     Args:
         db: SQLAlchemy database session.
         pet_id: UUID of the pet this document belongs to.
         file_path: Supabase storage path of the uploaded file.
         mime_type: MIME type of the uploaded file.
+        original_filename: Original filename from the upload (optional).
 
     Returns:
         The created Document model instance.
@@ -270,6 +277,7 @@ def create_document_record(
         file_path=file_path,
         mime_type=mime_type,
         extraction_status="pending",
+        document_name=original_filename[:200] if original_filename else None,
     )
 
     db.add(document)
@@ -383,6 +391,6 @@ async def process_document_upload(
     await upload_to_supabase(file_content, storage_path, mime_type)
 
     # --- Step 6: Create document record ---
-    document = create_document_record(db, pet_id, storage_path, mime_type)
+    document = create_document_record(db, pet_id, storage_path, mime_type, original_filename=filename)
 
     return document

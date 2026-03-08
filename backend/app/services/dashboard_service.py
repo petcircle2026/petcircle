@@ -218,9 +218,15 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         })
 
     # --- Load documents (metadata only — no storage URLs) ---
+    # Only show documents that were successfully processed or are still pending.
+    # Failed documents (e.g., OpenAI quota exceeded) are excluded to avoid
+    # confusing users who didn't successfully upload anything.
     documents = (
         db.query(Document)
-        .filter(Document.pet_id == pet_id)
+        .filter(
+            Document.pet_id == pet_id,
+            Document.extraction_status.in_(["pending", "success"]),
+        )
         .order_by(Document.created_at.desc())
         .all()
     )
