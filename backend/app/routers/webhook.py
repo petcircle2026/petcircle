@@ -139,33 +139,48 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
     # to handle partial payloads (e.g., status updates without messages).
     message_data = _extract_message_data(payload)
 
-    # --- Step 4: Log ALL incoming payloads ---
-    # Logging must not block the flow — wrapped in try/except.
-    # Payloads are sanitized before storage to strip PII.
-    try:
-        log_entry = MessageLog(
-            mobile_number=mask_phone(message_data.get("from_number")),
-            direction="incoming",
-            message_type=message_data.get("type"),
-            payload=sanitize_payload(payload),
-        )
-        db.add(log_entry)
-        db.commit()
-    except Exception as e:
-        # Logging failure must never block message processing.
-        logger.error("Failed to log incoming message: %s", str(e))
-        try:
-            db.rollback()
-        except Exception:
-            pass
-
-    # --- Step 5: Forward to service layer ---
+    # --- Step 4: Dedup + Log + Forward ---
     # Only process if we have an actual message (not a status update).
     if message_data.get("has_message"):
         # Deduplicate — Meta may deliver the same webhook multiple times.
         message_id = message_data.get("message_id")
+
+        # Fast path: in-memory cache catches most retries without a DB query.
         if _is_duplicate_message(message_id):
             return {"status": "ok"}
+
+        # Slow path: DB-backed dedup survives server restarts.
+        # Checks message_logs.wamid (unique index) for previously processed messages.
+        if message_id:
+            try:
+                existing = db.query(MessageLog.id).filter(
+                    MessageLog.wamid == message_id
+                ).first()
+                if existing:
+                    logger.info("DB dedup: message_id %s already processed — skipping.", message_id)
+                    return {"status": "ok"}
+            except Exception as e:
+                # DB check failure must not block processing — proceed without dedup.
+                logger.error("DB dedup check failed: %s", str(e))
+
+        # Log the incoming message AFTER dedup so duplicates aren't logged twice.
+        try:
+            log_entry = MessageLog(
+                mobile_number=mask_phone(message_data.get("from_number")),
+                direction="incoming",
+                message_type=message_data.get("type"),
+                payload=sanitize_payload(payload),
+                wamid=message_id,
+            )
+            db.add(log_entry)
+            db.commit()
+        except Exception as e:
+            # Logging failure must never block message processing.
+            logger.error("Failed to log incoming message: %s", str(e))
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
         from_number = message_data.get("from_number", "unknown")
 
@@ -226,6 +241,24 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
                     "Failed to send error message to %s after routing failure",
                     mask_phone(from_number),
                 )
+
+    else:
+        # Log non-message payloads (status updates, etc.) without dedup.
+        try:
+            log_entry = MessageLog(
+                mobile_number=mask_phone(message_data.get("from_number")),
+                direction="incoming",
+                message_type=message_data.get("type"),
+                payload=sanitize_payload(payload),
+            )
+            db.add(log_entry)
+            db.commit()
+        except Exception as e:
+            logger.error("Failed to log non-message payload: %s", str(e))
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
     # Return 200 OK immediately — Meta requires fast acknowledgment.
     return {"status": "ok"}

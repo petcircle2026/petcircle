@@ -48,6 +48,11 @@ class MessageLog(Base):
     # Includes all metadata, timestamps, and content from WhatsApp.
     payload = Column(JSONB, nullable=True)
 
+    # WhatsApp message ID (wamid) from Meta — used for persistent deduplication.
+    # Partial unique index ensures duplicates are rejected at the DB level
+    # while allowing NULL for old rows and outgoing messages.
+    wamid = Column(String(200), nullable=True, unique=True, index=True)
+
     # Timestamp when the log entry was created.
     # Indexed for admin panel queries that order by created_at desc.
     created_at = Column(DateTime, default=datetime.utcnow, index=True)
