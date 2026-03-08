@@ -119,6 +119,14 @@ async def route_message(db: Session, message_data: dict) -> None:
         logger.warning("Message has no from_number — skipping.")
         return
 
+    # Silently ignore non-actionable message types (reactions, stickers,
+    # location, contacts, etc.) — these should never trigger onboarding
+    # prompts or GPT calls.
+    _ACTIONABLE_TYPES = {"text", "image", "document", "button"}
+    if msg_type not in _ACTIONABLE_TYPES:
+        logger.info("Ignoring non-actionable message type '%s' from %s", msg_type, mask_phone(from_number))
+        return
+
     try:
         # --- Step 1: Look up or create user ---
         user, is_existing = get_or_create_user(db, from_number)
@@ -190,13 +198,9 @@ async def route_message(db: Session, message_data: dict) -> None:
             await _handle_text(db, user, message_data)
 
         else:
-            # Stickers, audio, video, location, contacts etc — inform the user.
+            # Safety net — non-actionable types are filtered at the top of
+            # route_message(), so this branch should be unreachable.
             logger.info("Unhandled message type '%s' from %s", msg_type, mask_phone(from_number))
-            await send_text_message(
-                db, from_number,
-                "I can only process text messages and document/image uploads.\n"
-                "Please send a text message or upload a photo/PDF.",
-            )
 
     except Exception as e:
         logger.error("Error routing message from %s: %s", mask_phone(from_number), str(e))

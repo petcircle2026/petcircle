@@ -17,6 +17,8 @@ no GPT calls. Just parsing, validation, and forwarding.
 
 import asyncio
 import logging
+import time
+from collections import OrderedDict
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
@@ -29,6 +31,46 @@ from app.models.message_log import MessageLog
 
 
 logger = logging.getLogger(__name__)
+
+# --- Message deduplication cache ---
+# Meta may deliver the same webhook multiple times (retries, network issues).
+# We track recently seen message IDs to avoid processing duplicates.
+# Using OrderedDict for efficient LRU eviction.
+_DEDUP_CACHE: OrderedDict[str, float] = OrderedDict()
+_DEDUP_MAX_SIZE = 1000
+_DEDUP_TTL_SECONDS = 300  # 5 minutes
+
+
+def _is_duplicate_message(message_id: str) -> bool:
+    """
+    Check if a message ID was already processed recently.
+
+    Returns True if duplicate (should skip), False if new (should process).
+    """
+    if not message_id:
+        return False
+
+    now = time.time()
+
+    # Evict expired entries from the front of the OrderedDict.
+    while _DEDUP_CACHE:
+        oldest_key, oldest_time = next(iter(_DEDUP_CACHE.items()))
+        if now - oldest_time > _DEDUP_TTL_SECONDS:
+            _DEDUP_CACHE.pop(oldest_key)
+        else:
+            break
+
+    if message_id in _DEDUP_CACHE:
+        logger.info("Duplicate message_id %s — skipping.", message_id)
+        return True
+
+    _DEDUP_CACHE[message_id] = now
+
+    # Cap cache size.
+    if len(_DEDUP_CACHE) > _DEDUP_MAX_SIZE:
+        _DEDUP_CACHE.popitem(last=False)
+
+    return False
 
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 
@@ -120,6 +162,11 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
     # --- Step 5: Forward to service layer ---
     # Only process if we have an actual message (not a status update).
     if message_data.get("has_message"):
+        # Deduplicate — Meta may deliver the same webhook multiple times.
+        message_id = message_data.get("message_id")
+        if _is_duplicate_message(message_id):
+            return {"status": "ok"}
+
         from_number = message_data.get("from_number", "unknown")
 
         # Rate limit check — reject if this phone exceeds the limit.
