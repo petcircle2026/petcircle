@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     # --- Admin ---
     # Secret key for admin API authentication via X-ADMIN-KEY header.
     ADMIN_SECRET_KEY: str
+    # Separate password for admin dashboard login (not the raw API key).
+    ADMIN_DASHBOARD_PASSWORD: str
 
     # --- Database ---
     DATABASE_URL: str

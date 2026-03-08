@@ -56,6 +56,8 @@ async def add_security_headers(request: Request, call_next):
 # --- Register Routers ---
 # Webhook router: /webhook/whatsapp (GET verify, POST messages)
 app.include_router(webhook.router)
+# Admin login router: /admin/login (password-based, no X-ADMIN-KEY required)
+app.include_router(admin.login_router)
 # Admin router: /admin/* (all routes require X-ADMIN-KEY header)
 app.include_router(admin.router)
 # Internal router: /internal/* (cron jobs, requires X-ADMIN-KEY header)

@@ -296,8 +296,15 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
             )
         return
 
-    # "dashboard" command
-    if text_lower in ("dashboard", "link", "my dashboard"):
+    # "dashboard" / "link" command — exact match or phrase detection.
+    # Handles: "dashboard", "link", "my dashboard", "send me the link",
+    # "send dashboard link", "show link for ahu", etc.
+    # Word-boundary check avoids false positives like "blinking".
+    _dashboard_exact = {"dashboard", "link", "my dashboard"}
+    _dashboard_phrases = ("dashboard", " link", "link ")
+    if text_lower in _dashboard_exact or text_lower.startswith("link") or any(
+        phrase in text_lower for phrase in _dashboard_phrases
+    ):
         await _send_dashboard_links(db, user)
         return
 
@@ -523,10 +530,19 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
     from_number = _get_mobile(user)
     media_id = message_data.get("media_id")
     original_filename = message_data.get("filename")
+    caption = message_data.get("caption")
 
     if not media_id:
         await send_text_message(db, from_number, "Couldn't process that file. Please try again.")
         return
+
+    # If the document/image was sent without any caption, that's fine —
+    # but log it so we can track standalone uploads vs. captioned ones.
+    if not caption:
+        logger.info(
+            "Document sent without caption from %s (media_id=%s)",
+            mask_phone(from_number), media_id,
+        )
 
     # Find user's most recent active pet.
     pet = (
@@ -716,7 +732,7 @@ async def _delayed_batch_extraction(
                     if not file_bytes:
                         fail_count += 1
                         doc_label = doc.document_name or doc.file_path.split("/")[-1]
-                        failed_doc_names.append(f"{doc_label} (download failed)")
+                        failed_doc_names.append(doc_label)
                         doc.extraction_status = "failed"
                         bg_db.commit()
                         continue
@@ -734,9 +750,8 @@ async def _delayed_batch_extraction(
                     if result.get("status") == "failed":
                         fail_count += 1
                         doc_label = doc.document_name or doc.file_path.split("/")[-1]
-                        errors = result.get("errors", [])
-                        reason = errors[0] if errors else "extraction failed"
-                        failed_doc_names.append(f"{doc_label} ({reason})")
+                        # Only show document name — no error details to the user.
+                        failed_doc_names.append(doc_label)
                     else:
                         last_result = result
                         success_count += 1
@@ -749,7 +764,7 @@ async def _delayed_batch_extraction(
                 except asyncio.TimeoutError:
                     fail_count += 1
                     doc_label = doc.document_name or doc.file_path.split("/")[-1]
-                    failed_doc_names.append(f"{doc_label} (timed out)")
+                    failed_doc_names.append(doc_label)
                     logger.error(
                         "Extraction timed out for doc %s (%d/%d) pet %s",
                         str(doc.id), idx, total, str(pet_id),
@@ -765,7 +780,7 @@ async def _delayed_batch_extraction(
                 except Exception as e:
                     fail_count += 1
                     doc_label = doc.document_name or doc.file_path.split("/")[-1]
-                    failed_doc_names.append(f"{doc_label} (error)")
+                    failed_doc_names.append(doc_label)
                     logger.error(
                         "Extraction failed for doc %s (%d/%d): %s",
                         str(doc.id), idx, total, str(e),

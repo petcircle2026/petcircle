@@ -22,6 +22,7 @@ Routes:
     POST   /admin/trigger-reminder/{pet_id}  — Trigger reminder for a pet
 """
 
+import hmac
 import logging
 from typing import Optional
 from uuid import UUID
@@ -29,6 +30,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.database import get_db
+from app.config import settings
 from app.core.security import validate_admin_key
 from app.core.rate_limiter import check_admin_rate_limit
 from app.core.encryption import decrypt_field
@@ -328,7 +330,7 @@ def trigger_reminder_for_pet(pet_id: UUID, db: Session = Depends(get_db)):
 
 
 @router.post("/verify-key")
-def verify_admin_key():
+def verify_admin_key_endpoint():
     """
     Verify admin key validity.
 
@@ -342,3 +344,47 @@ def verify_admin_key():
         {"valid": true} if the key is accepted (403 otherwise via dependency).
     """
     return {"valid": True}
+
+
+class AdminLoginRequest(BaseModel):
+    """Request body for admin dashboard login."""
+    password: str
+
+
+# Login endpoint is separate from the main router — no admin key required.
+# Rate limiting is applied to prevent brute-force password guessing.
+login_router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(check_admin_rate_limit)],
+)
+
+
+@login_router.post("/login")
+def admin_login(body: AdminLoginRequest):
+    """
+    Authenticate admin dashboard users with a password.
+
+    Validates the password against ADMIN_DASHBOARD_PASSWORD.
+    On success, returns the ADMIN_SECRET_KEY so the frontend can
+    make subsequent authenticated API calls.
+
+    This endpoint does NOT require the X-ADMIN-KEY header — the user
+    doesn't have the key yet; they're logging in to receive it.
+
+    Returns:
+        {"valid": true, "admin_key": "<ADMIN_SECRET_KEY>"} on success.
+
+    Raises:
+        HTTPException 403: If the password is incorrect.
+    """
+    # Constant-time comparison to prevent timing attacks.
+    if not hmac.compare_digest(body.password, settings.ADMIN_DASHBOARD_PASSWORD):
+        logger.warning("Admin dashboard login failed — invalid password.")
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid password.",
+        )
+
+    logger.info("Admin dashboard login successful.")
+    return {"valid": True, "admin_key": settings.ADMIN_SECRET_KEY}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import AdminDashboard from "@/components/admin/AdminDashboard";
-import { verifyAdminKey } from "@/lib/api";
+import { adminLogin } from "@/lib/api";
 
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState("");
@@ -13,22 +13,17 @@ export default function AdminPage() {
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    const key = input.trim();
-    if (!key) return;
+    if (!input.trim()) return;
 
     setError("");
     setLoading(true);
 
     try {
-      const valid = await verifyAdminKey(key);
-      if (valid) {
-        setAdminKey(key);
-        setAuthenticated(true);
-      } else {
-        setError("Invalid admin key. Please try again.");
-      }
-    } catch {
-      setError("Could not reach the server. Please try again.");
+      const key = await adminLogin(input.trim());
+      setAdminKey(key);
+      setAuthenticated(true);
+    } catch (err: any) {
+      setError(err.message || "Could not reach the server. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -58,13 +53,13 @@ export default function AdminPage() {
           PetCircle Admin
         </h1>
         <label className="mb-2 block text-sm font-medium text-gray-700">
-          Admin Key
+          Password
         </label>
         <input
           type="password"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Enter admin secret key"
+          placeholder="Enter admin password"
           className="mb-4 w-full rounded border px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
           autoFocus
           disabled={loading}

@@ -311,17 +311,19 @@ def _extract_message_data(payload: dict) -> dict:
         result["text"] = text_obj.get("body")
 
     elif msg_type == "image":
-        # Image attachment — extract media ID and MIME type.
+        # Image attachment — extract media ID, MIME type, and caption.
         image_obj = message.get("image", {})
         result["media_id"] = image_obj.get("id")
         result["mime_type"] = image_obj.get("mime_type")
+        result["caption"] = image_obj.get("caption")
 
     elif msg_type == "document":
-        # Document attachment — extract media ID, MIME type, and filename.
+        # Document attachment — extract media ID, MIME type, filename, and caption.
         doc_obj = message.get("document", {})
         result["media_id"] = doc_obj.get("id")
         result["mime_type"] = doc_obj.get("mime_type")
         result["filename"] = doc_obj.get("filename")
+        result["caption"] = doc_obj.get("caption")
 
     elif msg_type == "button":
         # Interactive button response — extract the payload ID.

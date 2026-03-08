@@ -281,24 +281,33 @@ export async function updatePreventiveDate(
 }
 
 /**
- * Verify an admin key against the backend before showing the admin UI.
- * Returns true if the key is valid, false otherwise.
+ * Authenticate to the admin dashboard with a password.
+ * On success, returns the admin API key for subsequent requests.
+ * Throws on invalid password or network error.
  */
-export async function verifyAdminKey(adminKey: string): Promise<boolean> {
+export async function adminLogin(password: string): Promise<string> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
   try {
-    const res = await fetch(`${API_BASE}/admin/verify-key`, {
+    const res = await fetch(`${API_BASE}/admin/login`, {
       method: "POST",
-      headers: {
-        "X-ADMIN-KEY": adminKey,
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
       signal: controller.signal,
     });
-    return res.ok;
-  } catch {
-    return false;
+    if (res.status === 403) {
+      throw new Error("Invalid password.");
+    }
+    if (!res.ok) {
+      throw new Error(`Request failed: ${res.status}`);
+    }
+    const data = await res.json();
+    return data.admin_key;
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
   } finally {
     clearTimeout(timeoutId);
   }
