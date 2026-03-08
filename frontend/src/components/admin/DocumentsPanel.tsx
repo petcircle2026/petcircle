@@ -47,9 +47,8 @@ export default function DocumentsPanel({ adminKey }: { adminKey: string }) {
         <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
           <tr>
             <th className="px-4 py-3">Pet</th>
-            <th className="px-4 py-3">MIME Type</th>
+            <th className="px-4 py-3">Document</th>
             <th className="px-4 py-3">Extraction</th>
-            <th className="px-4 py-3">File Path</th>
             <th className="px-4 py-3">Created</th>
           </tr>
         </thead>
@@ -57,16 +56,13 @@ export default function DocumentsPanel({ adminKey }: { adminKey: string }) {
           {docs.map((d) => (
             <tr key={d.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium">{d.pet_name}</td>
-              <td className="px-4 py-3">{d.mime_type}</td>
+              <td className="max-w-xs truncate px-4 py-3">{d.document_name}</td>
               <td className="px-4 py-3">
                 <span
                   className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${extractionBadge(d.extraction_status)}`}
                 >
                   {d.extraction_status}
                 </span>
-              </td>
-              <td className="max-w-xs truncate px-4 py-3 text-gray-500">
-                {d.file_path}
               </td>
               <td className="px-4 py-3 text-gray-500">
                 {d.created_at.slice(0, 10)}
@@ -75,7 +71,7 @@ export default function DocumentsPanel({ adminKey }: { adminKey: string }) {
           ))}
           {docs.length === 0 && (
             <tr>
-              <td colSpan={5} className="px-4 py-8 text-center text-gray-400">
+              <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
                 No documents found.
               </td>
             </tr>

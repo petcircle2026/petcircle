@@ -65,6 +65,94 @@ class PetUpdateRequest(BaseModel):
     neutered: Optional[bool] = None
 
 
+def _format_message_payload(message_type: str, payload) -> str:
+    """
+    Format a message payload for admin display.
+
+    For document/image messages, extracts the filename from the
+    webhook payload dict so the admin sees a readable label instead
+    of raw JSON.
+    """
+    if not isinstance(payload, dict):
+        return payload if payload else ""
+
+    if message_type == "document":
+        # Incoming document webhook payload has nested document.filename
+        filename = _extract_filename_from_payload(payload)
+        if filename:
+            return filename
+    elif message_type == "image":
+        filename = _extract_filename_from_payload(payload)
+        if filename:
+            return filename
+        # Images often lack a filename — show a label with caption if available.
+        caption = _extract_caption_from_payload(payload)
+        if caption:
+            return f"[Image] {caption}"
+        return "[Image]"
+
+    # For text messages, try to extract the body text.
+    if message_type == "text":
+        text = _extract_text_from_payload(payload)
+        if text:
+            return text
+
+    # Fallback: return the JSON as a string.
+    import json
+    try:
+        return json.dumps(payload, ensure_ascii=False, default=str)
+    except Exception:
+        return str(payload)
+
+
+def _extract_filename_from_payload(payload: dict) -> str | None:
+    """Extract filename from nested webhook payload structures."""
+    # Direct filename field (from extracted message_data).
+    if "filename" in payload:
+        return payload["filename"]
+    # Nested under document or image object (raw webhook format).
+    for key in ("document", "image"):
+        obj = payload.get(key)
+        if isinstance(obj, dict) and obj.get("filename"):
+            return obj["filename"]
+    # Check inside entry > changes > messages structure.
+    try:
+        entries = payload.get("entry", [])
+        for entry in entries:
+            for change in entry.get("changes", []):
+                for msg in change.get("value", {}).get("messages", []):
+                    for key in ("document", "image"):
+                        obj = msg.get(key)
+                        if isinstance(obj, dict) and obj.get("filename"):
+                            return obj["filename"]
+    except Exception:
+        pass
+    return None
+
+
+def _extract_caption_from_payload(payload: dict) -> str | None:
+    """Extract caption from image/document payload."""
+    if "caption" in payload:
+        return payload["caption"]
+    for key in ("image", "document"):
+        obj = payload.get(key)
+        if isinstance(obj, dict) and obj.get("caption"):
+            return obj["caption"]
+    return None
+
+
+def _extract_text_from_payload(payload: dict) -> str | None:
+    """Extract text body from a text message payload."""
+    if "body" in payload:
+        return payload["body"]
+    text_obj = payload.get("text")
+    if isinstance(text_obj, dict):
+        return text_obj.get("body")
+    if isinstance(text_obj, str):
+        return text_obj
+    return None
+
+
 @router.get("/users")
 def list_users(
     skip: int = Query(0, ge=0),
@@ -226,8 +314,7 @@ def list_documents(
             "id": str(d.id),
             "pet_id": str(d.pet_id),
             "pet_name": p.name,
-            "file_path": d.file_path,
-            "mime_type": d.mime_type,
+            "document_name": d.document_name or d.file_path.split("/")[-1],
             "extraction_status": d.extraction_status,
             "created_at": str(d.created_at),
         }
@@ -256,17 +343,21 @@ def list_messages(
     messages = query.limit(limit).all()
     # Mask mobile numbers and sanitize payloads in admin response
     # to prevent PII exposure through the admin API.
-    return [
-        {
+    results = []
+    for m in messages:
+        payload = sanitize_payload(m.payload) if isinstance(m.payload, dict) else m.payload
+        # For document/image messages, show a readable label with filename
+        # instead of raw webhook JSON.
+        display_payload = _format_message_payload(m.message_type, payload)
+        results.append({
             "id": str(m.id),
             "mobile_number": mask_phone(m.mobile_number),
             "direction": m.direction,
             "message_type": m.message_type,
-            "payload": sanitize_payload(m.payload) if isinstance(m.payload, dict) else m.payload,
+            "payload": display_payload,
             "created_at": str(m.created_at),
-        }
-        for m in messages
-    ]
+        })
+    return results
 
 
 @router.patch("/revoke-token/{pet_id}")

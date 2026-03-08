@@ -32,6 +32,7 @@ from app.services.dashboard_service import (
     get_dashboard_data,
     update_pet_weight,
     update_preventive_date,
+    retry_document_extraction,
 )
 from app.utils.date_utils import parse_date
 
@@ -252,4 +253,54 @@ def dashboard_update_preventive(
         raise HTTPException(
             status_code=503,
             detail="Update failed due to a temporary issue. Please try again.",
+        )
+
+
+@router.post("/{token}/retry-extraction/{document_id}")
+async def dashboard_retry_extraction(
+    token: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Retry GPT extraction for a failed document via dashboard token.
+
+    Downloads the file from Supabase, resets status to pending, and
+    re-runs the extraction pipeline. Only works for documents with
+    extraction_status='failed'.
+
+    Args:
+        token: Dashboard access token from URL path.
+        document_id: UUID of the document to retry.
+        db: SQLAlchemy database session (injected).
+
+    Returns:
+        Extraction result dictionary.
+
+    Raises:
+        HTTPException 404: If token invalid or document not found.
+        HTTPException 400: If document is not in failed state.
+        HTTPException 503: If extraction fails.
+    """
+    try:
+        result = await retry_document_extraction(db, token, document_id)
+        return result
+    except ValueError as e:
+        error_msg = str(e)
+        logger.warning(
+            "Dashboard retry extraction failed: token=%s..., doc=%s, error=%s",
+            token[:8] if len(token) >= 8 else token,
+            document_id,
+            error_msg,
+        )
+        if "only failed" in error_msg.lower():
+            raise HTTPException(status_code=400, detail=error_msg)
+        if "extraction failed" in error_msg.lower():
+            raise HTTPException(status_code=503, detail=error_msg)
+        raise HTTPException(status_code=404, detail="Document not found or link has expired.")
+    except Exception as e:
+        logger.error("Retry extraction error: %s", str(e), exc_info=True)
+        raise HTTPException(
+            status_code=503,
+            detail="Extraction retry failed. Please try again later.",
         )

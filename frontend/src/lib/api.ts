@@ -40,6 +40,7 @@ export interface ReminderItem {
 }
 
 export interface DocumentItem {
+  id: string;
   document_name: string | null;
   mime_type: string;
   extraction_status: string;
@@ -106,8 +107,7 @@ export interface AdminDocument {
   id: string;
   pet_id: string;
   pet_name: string;
-  file_path: string;
-  mime_type: string;
+  document_name: string;
   extraction_status: string;
   created_at: string;
 }
@@ -273,6 +273,35 @@ export async function updatePreventiveDate(
   } catch (e: any) {
     if (e.name === "AbortError") {
       throw new Error("Request timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function retryExtraction(
+  token: string,
+  documentId: string
+): Promise<{ status: string; document_id: string }> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000);
+  try {
+    const res = await fetch(
+      `${API_BASE}/dashboard/${token}/retry-extraction/${documentId}`,
+      {
+        method: "POST",
+        signal: controller.signal,
+      }
+    );
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      throw new Error(data?.detail || `Request failed: ${res.status}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("Extraction timed out. Please try again.");
     }
     throw e;
   } finally {

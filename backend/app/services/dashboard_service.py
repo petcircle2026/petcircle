@@ -218,14 +218,13 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         })
 
     # --- Load documents (metadata only — no storage URLs) ---
-    # Only show documents that were successfully processed or are still pending.
-    # Failed documents (e.g., OpenAI quota exceeded) are excluded to avoid
-    # confusing users who didn't successfully upload anything.
+    # Show documents with all statuses including failed — users can retry
+    # failed extractions from the dashboard.
     documents = (
         db.query(Document)
         .filter(
             Document.pet_id == pet_id,
-            Document.extraction_status.in_(["pending", "success"]),
+            Document.extraction_status.in_(["pending", "success", "failed"]),
         )
         .order_by(Document.created_at.desc())
         .all()
@@ -234,6 +233,7 @@ def get_dashboard_data(db: Session, token: str) -> dict:
     document_data = []
     for doc in documents:
         document_data.append({
+            "id": str(doc.id),
             "document_name": doc.document_name,
             "mime_type": doc.mime_type,
             "extraction_status": doc.extraction_status,
@@ -436,3 +436,91 @@ def update_preventive_date(
         "record_status": record.status,
         "reminders_invalidated": invalidated_count,
     }
+
+
+async def retry_document_extraction(
+    db: Session,
+    token: str,
+    document_id: str,
+) -> dict:
+    """
+    Retry GPT extraction for a failed document via dashboard token.
+
+    Validates token ownership, verifies the document belongs to the
+    token's pet and has extraction_status='failed', then re-downloads
+    the file from Supabase and runs the extraction pipeline again.
+
+    Args:
+        db: SQLAlchemy database session.
+        token: The dashboard access token string.
+        document_id: UUID string of the document to retry.
+
+    Returns:
+        Dictionary with extraction result status.
+
+    Raises:
+        ValueError: If token invalid, document not found, or not in failed state.
+    """
+    import asyncio
+    from app.services.document_upload import download_from_supabase
+    from app.services.gpt_extraction import extract_and_process_document
+
+    dashboard_token = validate_dashboard_token(db, token)
+    pet_id = dashboard_token.pet_id
+
+    # Verify document exists, belongs to this pet, and is in failed state.
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.id == document_id,
+            Document.pet_id == pet_id,
+        )
+        .first()
+    )
+
+    if not doc:
+        raise ValueError("Document not found.")
+
+    if doc.extraction_status != "failed":
+        raise ValueError("Only failed documents can be retried.")
+
+    # Download file from Supabase storage.
+    file_bytes = await download_from_supabase(doc.file_path)
+    if not file_bytes:
+        raise ValueError("Could not download document from storage. Please re-upload via WhatsApp.")
+
+    # Reset status to pending before retrying.
+    doc.extraction_status = "pending"
+    db.commit()
+
+    try:
+        result = await asyncio.wait_for(
+            extract_and_process_document(
+                db, doc.id,
+                f"[file: {doc.file_path}]",
+                file_bytes=file_bytes,
+            ),
+            timeout=120,
+        )
+
+        logger.info(
+            "Dashboard retry extraction succeeded: doc_id=%s, pet_id=%s",
+            document_id,
+            str(pet_id),
+        )
+
+        return {
+            "status": "success",
+            "document_id": document_id,
+            "extraction_result": result,
+        }
+    except Exception as e:
+        # Mark as failed again if extraction fails.
+        doc.extraction_status = "failed"
+        db.commit()
+        logger.error(
+            "Dashboard retry extraction failed: doc_id=%s, error=%s",
+            document_id,
+            str(e),
+        )
+        raise ValueError(f"Extraction failed: {str(e)}")

@@ -191,7 +191,7 @@ function DashboardInner({ token }: { token: string }) {
       {/* Documents */}
       <section>
         <h2 className="mb-3 text-lg font-semibold">Uploaded Documents</h2>
-        <DocumentsSection documents={data.documents} />
+        <DocumentsSection documents={data.documents} token={token} onRefresh={load} />
       </section>
 
       {/* Footer */}

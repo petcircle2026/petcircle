@@ -1,7 +1,8 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState } from "react";
 import type { DocumentItem } from "@/lib/api";
+import { retryExtraction } from "@/lib/api";
 
 function mimeIcon(mime: string) {
   if (mime === "application/pdf") return "\uD83D\uDCC4";
@@ -29,10 +30,58 @@ function formatDate(d: string | null): string {
   return d;
 }
 
+/** Retry button shown next to failed documents. */
+function RetryButton({
+  documentId,
+  token,
+  onRetried,
+}: {
+  documentId: string;
+  token: string;
+  onRetried: () => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleRetry() {
+    setLoading(true);
+    setError("");
+    try {
+      await retryExtraction(token, documentId);
+      onRetried();
+    } catch (e: any) {
+      setError(e.message || "Retry failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <button
+        onClick={handleRetry}
+        disabled={loading}
+        className="rounded bg-red-600 px-2 py-0.5 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+      >
+        {loading ? "Retrying..." : "Retry"}
+      </button>
+      {error && (
+        <span className="text-xs text-red-600" title={error}>
+          Failed
+        </span>
+      )}
+    </span>
+  );
+}
+
 export default memo(function DocumentsSection({
   documents,
+  token,
+  onRefresh,
 }: {
   documents: DocumentItem[];
+  token: string;
+  onRefresh: () => void;
 }) {
   if (documents.length === 0) {
     return (
@@ -53,8 +102,8 @@ export default memo(function DocumentsSection({
           </tr>
         </thead>
         <tbody className="divide-y">
-          {documents.map((d, i) => (
-            <tr key={i} className="hover:bg-gray-50">
+          {documents.map((d) => (
+            <tr key={d.id} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium">
                 <span className="mr-2">{mimeIcon(d.mime_type)}</span>
                 {d.document_name || "Uploaded Document"}
@@ -65,6 +114,15 @@ export default memo(function DocumentsSection({
                 >
                   {d.extraction_status}
                 </span>
+                {d.extraction_status === "failed" && (
+                  <span className="ml-2">
+                    <RetryButton
+                      documentId={d.id}
+                      token={token}
+                      onRetried={onRefresh}
+                    />
+                  </span>
+                )}
               </td>
               <td className="px-4 py-3 text-gray-500">
                 {formatDate(d.uploaded_at)}
@@ -75,4 +133,4 @@ export default memo(function DocumentsSection({
       </table>
     </div>
   );
-})
+});
