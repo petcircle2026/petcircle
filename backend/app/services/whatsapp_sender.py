@@ -122,7 +122,7 @@ def _log_outgoing_message(
     """
     try:
         log_entry = MessageLog(
-            mobile_number=mobile_number,
+            mobile_number=mask_phone(mobile_number),
             direction="outgoing",
             message_type=message_type,
             payload=sanitize_payload(payload),

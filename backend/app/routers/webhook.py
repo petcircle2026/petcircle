@@ -102,7 +102,7 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
     # Payloads are sanitized before storage to strip PII.
     try:
         log_entry = MessageLog(
-            mobile_number=message_data.get("from_number"),
+            mobile_number=mask_phone(message_data.get("from_number")),
             direction="incoming",
             message_type=message_data.get("type"),
             payload=sanitize_payload(payload),
