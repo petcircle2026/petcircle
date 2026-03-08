@@ -5,9 +5,7 @@ import UsersPanel from "./UsersPanel";
 import PetsPanel from "./PetsPanel";
 import RemindersPanel from "./RemindersPanel";
 import DocumentsPanel from "./DocumentsPanel";
-import MessagesPanel from "./MessagesPanel";
-
-const TABS = ["Users", "Pets", "Reminders", "Documents", "Messages"] as const;
+const TABS = ["Users", "Pets", "Reminders", "Documents"] as const;
 type Tab = (typeof TABS)[number];
 
 interface Props {
@@ -58,7 +56,6 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
         {tab === "Pets" && <PetsPanel adminKey={adminKey} />}
         {tab === "Reminders" && <RemindersPanel adminKey={adminKey} />}
         {tab === "Documents" && <DocumentsPanel adminKey={adminKey} />}
-        {tab === "Messages" && <MessagesPanel adminKey={adminKey} />}
       </main>
     </div>
   );
