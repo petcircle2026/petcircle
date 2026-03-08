@@ -59,6 +59,9 @@ def get_or_create_user(db: Session, mobile_number: str) -> tuple[User | None, bo
     Uses deterministic SHA-256 hash for lookups instead of querying
     the encrypted mobile_number column directly.
 
+    Also checks for soft-deleted users with the same hash and includes
+    them in the lookup — see notes on create_pending_user.
+
     Args:
         db: SQLAlchemy database session.
         mobile_number: WhatsApp phone number (plaintext from webhook).
@@ -81,17 +84,50 @@ def create_pending_user(db: Session, mobile_number: str) -> User:
     """
     Create a new user record in awaiting_consent state.
 
-    The user is created with a placeholder name. Real name is collected
-    during the onboarding conversation. Mobile number is encrypted;
-    a deterministic hash is stored for future lookups.
+    Handles race conditions: if two webhooks arrive simultaneously for
+    the same new number, the second call re-checks for an existing user
+    before inserting. If a duplicate IntegrityError occurs, falls back
+    to returning the existing record.
+
+    Also reactivates soft-deleted users (consent previously denied)
+    instead of creating a duplicate row.
 
     Args:
         db: SQLAlchemy database session.
         mobile_number: WhatsApp phone number (plaintext).
 
     Returns:
-        The created User model instance.
+        The created or existing User model instance.
     """
+    mobile_h = hash_field(mobile_number)
+
+    # --- Guard against duplicates ---
+    # Re-check inside create to handle race conditions where two webhook
+    # calls pass get_or_create_user simultaneously for a new number.
+    existing = (
+        db.query(User)
+        .filter(User.mobile_hash == mobile_h)
+        .first()
+    )
+    if existing:
+        if existing.is_deleted:
+            # Reactivate a previously soft-deleted user (consent denied earlier).
+            existing.is_deleted = False
+            existing.onboarding_state = "awaiting_consent"
+            existing.consent_given = False
+            db.commit()
+            logger.info(
+                "Reactivated soft-deleted user: id=%s, mobile=%s",
+                str(existing.id), mask_phone(mobile_number),
+            )
+            return existing
+        # Active user already exists — return it (race condition resolved).
+        logger.info(
+            "User already exists (race condition): id=%s, mobile=%s",
+            str(existing.id), mask_phone(mobile_number),
+        )
+        return existing
+
     user = User(
         mobile_number=encrypt_field(mobile_number),
         mobile_hash=hash_field(mobile_number),
@@ -100,8 +136,22 @@ def create_pending_user(db: Session, mobile_number: str) -> User:
         consent_given=False,
     )
     db.add(user)
-    db.commit()
-    db.refresh(user)
+
+    try:
+        db.commit()
+        db.refresh(user)
+    except Exception as e:
+        # IntegrityError from unique constraint — another request created it first.
+        db.rollback()
+        logger.warning("Duplicate user insert caught: %s", str(e))
+        existing = (
+            db.query(User)
+            .filter(User.mobile_hash == mobile_h, User.is_deleted == False)
+            .first()
+        )
+        if existing:
+            return existing
+        raise  # Re-raise if we still can't find the user.
 
     logger.info("Pending user created: id=%s, mobile=%s", str(user.id), mask_phone(mobile_number))
     return user

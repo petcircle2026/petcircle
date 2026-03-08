@@ -120,19 +120,26 @@ async def route_message(db: Session, message_data: dict) -> None:
         user, is_existing = get_or_create_user(db, from_number)
 
         if not is_existing:
-            # Brand new user — create pending record, send welcome
+            # Brand new user — create pending record, send welcome.
+            # create_pending_user handles race conditions: if another webhook
+            # already created this user, it returns the existing record.
             user = create_pending_user(db, from_number)
-            await send_text_message(
-                db, from_number,
-                "Hey there! Welcome to *PetCircle* 🐾\n\n"
-                "I'm your pet's personal health assistant. I help you stay on top of "
-                "vaccinations, deworming, tick treatments, and all the preventive care "
-                "your furry friend needs — right here on WhatsApp.\n\n"
-                "Before we begin, I need your consent to store your pet's health data "
-                "so I can send you timely reminders and keep everything organized.\n\n"
-                "Reply *yes* to get started or *no* to opt out.",
-            )
-            return
+
+            # Only send welcome if user is truly new (awaiting_consent).
+            # If race condition returned an existing user mid-onboarding, skip welcome.
+            if user.onboarding_state == "awaiting_consent":
+                await send_text_message(
+                    db, from_number,
+                    "Hey there! Welcome to *PetCircle* 🐾\n\n"
+                    "I'm your pet's personal health assistant. I help you stay on top of "
+                    "vaccinations, deworming, tick treatments, and all the preventive care "
+                    "your furry friend needs — right here on WhatsApp.\n\n"
+                    "Before we begin, I need your consent to store your pet's health data "
+                    "so I can send you timely reminders and keep everything organized.\n\n"
+                    "Reply *yes* to get started or *no* to opt out.",
+                )
+                return
+            # Otherwise fall through to handle user as existing.
 
         # Attach plaintext number for downstream sending.
         # user.mobile_number is encrypted in DB; from_number is plaintext from webhook.
