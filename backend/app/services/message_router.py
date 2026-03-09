@@ -590,9 +590,10 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
     # and processing has started, even before the download completes.
     _recent_uploads[pet_key].append(now)
     current_batch_count = len(_recent_uploads[pet_key])
+    display_name = original_filename or f"file {current_batch_count}"
     await send_text_message(
         db, from_number,
-        f"Got it! Received file {current_batch_count} for *{pet.name}*... hang tight.",
+        f"Got it! Received *{display_name}* for *{pet.name}*... hang tight.",
     )
 
     # --- Download media from WhatsApp ---
@@ -619,7 +620,7 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
 
         await send_text_message(
             db, from_number,
-            f"Document {current_batch_count} saved for *{pet.name}*. "
+            f"*{display_name}* saved for *{pet.name}*. "
             f"Will start extracting health data once all files are received.",
         )
 

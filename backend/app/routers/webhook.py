@@ -37,8 +37,8 @@ logger = logging.getLogger(__name__)
 # We track recently seen message IDs to avoid processing duplicates.
 # Using OrderedDict for efficient LRU eviction.
 _DEDUP_CACHE: OrderedDict[str, float] = OrderedDict()
-_DEDUP_MAX_SIZE = 1000
-_DEDUP_TTL_SECONDS = 300  # 5 minutes
+_DEDUP_MAX_SIZE = 2000
+_DEDUP_TTL_SECONDS = 3600  # 1 hour — Meta may retry webhooks for hours after failures
 
 
 def _is_duplicate_message(message_id: str) -> bool:
@@ -151,6 +151,9 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
 
         # Slow path: DB-backed dedup survives server restarts.
         # Checks message_logs.wamid (unique index) for previously processed messages.
+        # FAIL-CLOSED: If we can't verify a message is new, reject it.
+        # A false-negative (dropping a legitimate new message) is far less harmful
+        # than a false-positive (reprocessing an old message and sending phantom uploads).
         if message_id:
             try:
                 existing = db.query(MessageLog.id).filter(
@@ -160,10 +163,11 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
                     logger.info("DB dedup: message_id %s already processed — skipping.", message_id)
                     return {"status": "ok"}
             except Exception as e:
-                # DB check failure must not block processing — proceed without dedup.
-                logger.error("DB dedup check failed: %s", str(e))
+                logger.error("DB dedup check failed — rejecting message to prevent phantom reprocessing: %s", str(e))
+                return {"status": "ok"}
 
         # Log the incoming message AFTER dedup so duplicates aren't logged twice.
+        # The wamid unique constraint acts as a final dedup safety net.
         try:
             log_entry = MessageLog(
                 mobile_number=mask_phone(message_data.get("from_number")),
@@ -175,12 +179,17 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
             db.add(log_entry)
             db.commit()
         except Exception as e:
-            # Logging failure must never block message processing.
-            logger.error("Failed to log incoming message: %s", str(e))
+            # If insert fails due to unique constraint on wamid, it's a duplicate.
+            logger.error("Failed to log incoming message (possible duplicate wamid): %s", str(e))
             try:
                 db.rollback()
             except Exception:
                 pass
+            # If we have a message_id and the insert failed, treat as duplicate
+            # to prevent reprocessing on unique constraint violations.
+            if message_id:
+                logger.info("Treating message %s as duplicate after log insert failure.", message_id)
+                return {"status": "ok"}
 
         from_number = message_data.get("from_number", "unknown")
 
