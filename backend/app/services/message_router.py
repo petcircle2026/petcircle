@@ -708,10 +708,11 @@ async def _delayed_batch_extraction(
             str(pet_id), total,
         )
 
-        # Notify user that extraction is starting.
+        # Notify user that extraction is starting, listing filenames.
+        doc_names = "\n".join(f"  - {d.document_name or d.file_path.split('/')[-1]}" for d in pending_docs)
         await send_text_message(
             bg_db, from_number,
-            f"Starting extraction for {total} document(s) for *{pet_name}*...",
+            f"Starting extraction for *{pet_name}*:\n{doc_names}",
         )
 
         last_result = None
@@ -979,13 +980,13 @@ async def _send_batch_summary(
         # Entire batch failed — one error message.
         dashboard_link = _get_dashboard_link(db, pet)
         msg = (
-            f"Extraction could not process {fail_count} document(s) for *{pet.name}*.\n\n"
-            f"You can update records manually via the dashboard."
+            f"Extraction could not process the below documents for *{pet.name}*.\n\n"
         )
         if failed_doc_names:
-            msg += "\n\nFailed documents:\n"
             for name in failed_doc_names:
                 msg += f"  - {name}\n"
+            msg += "\n"
+        msg += "You can update records manually via the dashboard."
         if dashboard_link:
             msg += f"\n{dashboard_link}"
         await send_text_message(db, from_number, msg)
