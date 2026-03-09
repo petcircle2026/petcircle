@@ -37,7 +37,7 @@ from app.config import settings
 from app.core.security import validate_admin_key
 from app.core.rate_limiter import check_admin_rate_limit
 from app.core.encryption import decrypt_field
-from app.core.log_sanitizer import mask_phone, sanitize_payload
+from app.core.log_sanitizer import sanitize_payload
 from app.models.user import User
 from app.models.pet import Pet
 from app.models.reminder import Reminder
@@ -254,11 +254,11 @@ def list_users(
 ):
     """List registered users with pagination."""
     users = db.query(User).offset(skip).limit(limit).all()
-    # Decrypt PII fields and mask mobile numbers in admin response.
+    # Decrypt PII fields for admin response (full numbers, no masking).
     return [
         {
             "id": str(u.id),
-            "mobile_number": mask_phone(decrypt_field(u.mobile_number)),
+            "mobile_number": decrypt_field(u.mobile_number),
             "full_name": u.full_name,
             "pincode": decrypt_field(u.pincode) if u.pincode else None,
             "email": decrypt_field(u.email) if u.email else None,
@@ -434,8 +434,7 @@ def list_messages(
         query = query.filter(MessageLog.direction == direction)
 
     messages = query.limit(limit).all()
-    # Mask mobile numbers and sanitize payloads in admin response
-    # to prevent PII exposure through the admin API.
+    # Sanitize payloads in admin response — show full mobile numbers.
     results = []
     for m in messages:
         payload = sanitize_payload(m.payload) if isinstance(m.payload, dict) else m.payload
@@ -444,7 +443,7 @@ def list_messages(
         display_payload = _format_message_payload(m.message_type, payload)
         results.append({
             "id": str(m.id),
-            "mobile_number": mask_phone(m.mobile_number),
+            "mobile_number": m.mobile_number,
             "direction": m.direction,
             "message_type": m.message_type,
             "payload": display_payload,

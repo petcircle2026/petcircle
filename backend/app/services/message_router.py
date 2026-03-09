@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.encryption import decrypt_field
 from app.core.log_sanitizer import mask_phone
+from app.utils.breed_fun_facts import get_breed_fun_fact
 from app.core.constants import (
     REMINDER_DONE,
     REMINDER_SNOOZE_7,
@@ -650,9 +651,13 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
     _recent_uploads[pet_key].append(now)
     current_batch_count = len(_recent_uploads[pet_key])
     display_name = original_filename or f"file {current_batch_count}"
+    # Include a breed-specific fun fact in the acknowledgment message.
+    # Uses dedup tracking so the same user never sees the same fact twice.
+    fun_fact = await get_breed_fun_fact(db, user.id, pet.breed, pet.species)
     await send_text_message(
         db, from_number,
-        f"Got it! Received *{display_name}* for *{pet.name}*... hang tight.",
+        f"Got it! Received *{display_name}* for *{pet.name}*... hang tight.\n\n"
+        f"Fun fact: {fun_fact}",
     )
 
     # --- Download media from WhatsApp ---

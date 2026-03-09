@@ -15,6 +15,7 @@ from app.models.document import Document
 from app.models.message_log import MessageLog
 from app.models.dashboard_token import DashboardToken
 from app.models.conflict_flag import ConflictFlag
+from app.models.shown_fun_fact import ShownFunFact
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "MessageLog",
     "DashboardToken",
     "ConflictFlag",
+    "ShownFunFact",
 ]

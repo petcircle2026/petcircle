@@ -44,8 +44,8 @@ class User(Base):
     # Allows finding users by phone without decrypting all rows.
     mobile_hash = Column(String(64), unique=True, nullable=False, index=True)
 
-    # Masked phone number for debugging in Supabase UI (e.g., "91****5762").
-    # Not a security field — just readable enough to identify users at a glance.
+    # Full phone number for display in Supabase table UI and admin dashboard.
+    # Stored in plaintext — not a security field, used for quick identification.
     mobile_display = Column(String(20), nullable=True)
 
     # Full name collected during onboarding.

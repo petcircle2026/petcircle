@@ -147,7 +147,7 @@ def create_pending_user(db: Session, mobile_number: str) -> User:
     user = User(
         mobile_number=encrypt_field(mobile_number),
         mobile_hash=hash_field(mobile_number),
-        mobile_display=mask_phone(mobile_number),
+        mobile_display=mobile_number,
         full_name="_pending",
         onboarding_state="awaiting_consent",
         consent_given=False,
