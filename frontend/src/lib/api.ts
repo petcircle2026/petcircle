@@ -42,6 +42,7 @@ export interface ReminderItem {
 export interface DocumentItem {
   id: string;
   document_name: string | null;
+  document_category: string | null;
   mime_type: string;
   extraction_status: string;
   uploaded_at: string | null;
@@ -53,6 +54,39 @@ export interface HealthScore {
   essential_total: number;
   complementary_done: number;
   complementary_total: number;
+}
+
+export interface MonthlyCompletion {
+  month: string;
+  items_completed: number;
+}
+
+export interface ItemTimelineEntry {
+  item_name: string;
+  category: string;
+  last_done_date: string;
+  status: string;
+}
+
+export interface StatusSummary {
+  total: number;
+  up_to_date: number;
+  upcoming: number;
+  overdue: number;
+  incomplete: number;
+  cancelled: number;
+}
+
+export interface DiagnosticTrendEntry {
+  month: string;
+  count: number;
+}
+
+export interface HealthTrendsData {
+  monthly_completions: MonthlyCompletion[];
+  item_timeline: ItemTimelineEntry[];
+  status_summary: StatusSummary;
+  diagnostic_trends: DiagnosticTrendEntry[];
 }
 
 export interface DashboardData {
@@ -312,6 +346,28 @@ export async function retryExtraction(
   } catch (e: any) {
     if (e.name === "AbortError") {
       throw new Error("Extraction timed out. Please try again.");
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+export async function fetchHealthTrends(token: string): Promise<HealthTrendsData> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`${API_BASE}/dashboard/${token}/trends`, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Request failed: ${res.status}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === "AbortError") {
+      throw new Error("Request timed out. Please try again.");
     }
     throw e;
   } finally {

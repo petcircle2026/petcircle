@@ -1,8 +1,22 @@
 "use client";
 
-import { memo, useState } from "react";
+import { memo, useState, useMemo } from "react";
 import type { DocumentItem } from "@/lib/api";
 import { retryExtraction } from "@/lib/api";
+
+/** Category display order and labels. */
+const CATEGORY_ORDER = ["Vaccination", "Diagnostic", "Prescription", "Other"] as const;
+
+/** Category badge colors. */
+function categoryBadge(cat: string | null): string {
+  const map: Record<string, string> = {
+    Vaccination: "bg-blue-100 text-blue-800",
+    Diagnostic: "bg-purple-100 text-purple-800",
+    Prescription: "bg-amber-100 text-amber-800",
+    Other: "bg-gray-100 text-gray-600",
+  };
+  return map[cat || "Other"] || "bg-gray-100 text-gray-600";
+}
 
 function mimeIcon(mime: string) {
   if (mime === "application/pdf") return "\uD83D\uDCC4";
@@ -74,6 +88,58 @@ function RetryButton({
   );
 }
 
+/** Document table for a single category. */
+function CategoryTable({
+  docs,
+  token,
+  onRefresh,
+}: {
+  docs: DocumentItem[];
+  token: string;
+  onRefresh: () => void;
+}) {
+  return (
+    <table className="w-full text-left text-sm">
+      <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
+        <tr>
+          <th className="px-4 py-2">Document</th>
+          <th className="px-4 py-2">Extraction</th>
+          <th className="px-4 py-2">Uploaded</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y">
+        {docs.map((d) => (
+          <tr key={d.id} className="hover:bg-gray-50">
+            <td className="px-4 py-2.5 font-medium">
+              <span className="mr-2">{mimeIcon(d.mime_type)}</span>
+              {d.document_name || "Uploaded Document"}
+            </td>
+            <td className="px-4 py-2.5">
+              <span
+                className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize ${extractionBadge(d.extraction_status)}`}
+              >
+                {d.extraction_status}
+              </span>
+              {d.extraction_status === "failed" && (
+                <span className="ml-2">
+                  <RetryButton
+                    documentId={d.id}
+                    token={token}
+                    onRetried={onRefresh}
+                  />
+                </span>
+              )}
+            </td>
+            <td className="px-4 py-2.5 text-gray-500">
+              {formatDate(d.uploaded_at)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export default memo(function DocumentsSection({
   documents,
   token,
@@ -91,46 +157,52 @@ export default memo(function DocumentsSection({
     );
   }
 
+  // Group documents by category, sorted by uploaded_at (most recent first) within each.
+  const grouped = useMemo(() => {
+    const groups: Record<string, DocumentItem[]> = {};
+    for (const cat of CATEGORY_ORDER) {
+      groups[cat] = [];
+    }
+
+    for (const doc of documents) {
+      const cat = doc.document_category && CATEGORY_ORDER.includes(doc.document_category as any)
+        ? doc.document_category
+        : "Other";
+      groups[cat].push(doc);
+    }
+
+    // Sort each group by uploaded_at descending.
+    for (const cat of CATEGORY_ORDER) {
+      groups[cat].sort((a, b) => {
+        const ta = a.uploaded_at || "";
+        const tb = b.uploaded_at || "";
+        return tb.localeCompare(ta);
+      });
+    }
+
+    return groups;
+  }, [documents]);
+
+  // Only show categories that have documents.
+  const activeCategories = CATEGORY_ORDER.filter((cat) => grouped[cat].length > 0);
+
   return (
-    <div className="overflow-x-auto rounded-lg border bg-white shadow-sm">
-      <table className="w-full text-left text-sm">
-        <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
-          <tr>
-            <th className="px-4 py-3">Document</th>
-            <th className="px-4 py-3">Extraction</th>
-            <th className="px-4 py-3">Uploaded</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y">
-          {documents.map((d) => (
-            <tr key={d.id} className="hover:bg-gray-50">
-              <td className="px-4 py-3 font-medium">
-                <span className="mr-2">{mimeIcon(d.mime_type)}</span>
-                {d.document_name || "Uploaded Document"}
-              </td>
-              <td className="px-4 py-3">
-                <span
-                  className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize ${extractionBadge(d.extraction_status)}`}
-                >
-                  {d.extraction_status}
-                </span>
-                {d.extraction_status === "failed" && (
-                  <span className="ml-2">
-                    <RetryButton
-                      documentId={d.id}
-                      token={token}
-                      onRetried={onRefresh}
-                    />
-                  </span>
-                )}
-              </td>
-              <td className="px-4 py-3 text-gray-500">
-                {formatDate(d.uploaded_at)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="space-y-4">
+      {activeCategories.map((cat) => (
+        <div key={cat} className="overflow-x-auto rounded-lg border bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b bg-gray-50 px-4 py-3">
+            <span
+              className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${categoryBadge(cat)}`}
+            >
+              {cat}
+            </span>
+            <span className="text-xs text-gray-400">
+              {grouped[cat].length} document{grouped[cat].length !== 1 ? "s" : ""}
+            </span>
+          </div>
+          <CategoryTable docs={grouped[cat]} token={token} onRefresh={onRefresh} />
+        </div>
+      ))}
     </div>
   );
 });

@@ -235,6 +235,7 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         document_data.append({
             "id": str(doc.id),
             "document_name": doc.document_name,
+            "document_category": doc.document_category,
             "mime_type": doc.mime_type,
             "extraction_status": doc.extraction_status,
             "uploaded_at": str(doc.created_at) if doc.created_at else None,
@@ -524,3 +525,128 @@ async def retry_document_extraction(
             str(e),
         )
         raise ValueError(f"Extraction failed: {str(e)}")
+
+
+def get_health_trends(db: Session, token: str) -> dict:
+    """
+    Build health trend data from preventive record last_done_dates.
+
+    Groups completed preventive items by month to show activity over time.
+    Each month shows how many items were completed (last_done_date falls
+    in that month) and the status breakdown at that point.
+
+    Args:
+        db: SQLAlchemy database session.
+        token: The dashboard access token string.
+
+    Returns:
+        Dictionary with monthly trend data and per-item timeline.
+
+    Raises:
+        ValueError: If token is invalid or pet not found.
+    """
+    from collections import defaultdict
+    from app.core.constants import (
+        HEALTH_SCORE_ESSENTIAL_WEIGHT,
+        HEALTH_SCORE_COMPLEMENTARY_WEIGHT,
+    )
+
+    dashboard_token = validate_dashboard_token(db, token)
+    pet_id = dashboard_token.pet_id
+
+    pet = db.query(Pet).filter(Pet.id == pet_id).first()
+    if not pet or pet.is_deleted:
+        raise ValueError("Pet not found or has been removed.")
+
+    # Load all preventive records with master info.
+    preventive_data = (
+        db.query(PreventiveRecord, PreventiveMaster)
+        .join(
+            PreventiveMaster,
+            PreventiveRecord.preventive_master_id == PreventiveMaster.id,
+        )
+        .filter(PreventiveRecord.pet_id == pet_id)
+        .all()
+    )
+
+    # --- Build per-item timeline ---
+    # Each item shows its last_done_date for the timeline view.
+    item_timeline = []
+    for record, master in preventive_data:
+        if record.last_done_date:
+            item_timeline.append({
+                "item_name": master.item_name,
+                "category": master.category,
+                "last_done_date": str(record.last_done_date),
+                "status": record.status,
+            })
+
+    # --- Group completions by month ---
+    # Key: "YYYY-MM", Value: count of items completed that month.
+    monthly_completions: dict[str, int] = defaultdict(int)
+    for record, master in preventive_data:
+        if record.last_done_date:
+            month_key = record.last_done_date.strftime("%Y-%m")
+            monthly_completions[month_key] += 1
+
+    # Sort months chronologically.
+    sorted_months = sorted(monthly_completions.keys())
+
+    monthly_data = []
+    for month in sorted_months:
+        monthly_data.append({
+            "month": month,
+            "items_completed": monthly_completions[month],
+        })
+
+    # --- Current status summary ---
+    total = len(preventive_data)
+    status_counts = defaultdict(int)
+    for record, master in preventive_data:
+        if record.status != "cancelled" and not record.last_done_date and not record.next_due_date:
+            status_counts["incomplete"] += 1
+        else:
+            status_counts[record.status] += 1
+
+    # --- Diagnostic document frequency by month ---
+    # Counts documents categorized as "Diagnostic" per month.
+    diagnostic_docs = (
+        db.query(Document)
+        .filter(
+            Document.pet_id == pet_id,
+            Document.document_category == "Diagnostic",
+            Document.extraction_status == "success",
+        )
+        .all()
+    )
+
+    diagnostic_monthly: dict[str, int] = defaultdict(int)
+    for doc in diagnostic_docs:
+        if doc.created_at:
+            month_key = doc.created_at.strftime("%Y-%m")
+            diagnostic_monthly[month_key] += 1
+
+    diagnostic_trends = []
+    for month in sorted(diagnostic_monthly.keys()):
+        diagnostic_trends.append({
+            "month": month,
+            "count": diagnostic_monthly[month],
+        })
+
+    return {
+        "monthly_completions": monthly_data,
+        "item_timeline": sorted(
+            item_timeline,
+            key=lambda x: x["last_done_date"],
+            reverse=True,
+        ),
+        "status_summary": {
+            "total": total,
+            "up_to_date": status_counts.get("up_to_date", 0),
+            "upcoming": status_counts.get("upcoming", 0),
+            "overdue": status_counts.get("overdue", 0),
+            "incomplete": status_counts.get("incomplete", 0),
+            "cancelled": status_counts.get("cancelled", 0),
+        },
+        "diagnostic_trends": diagnostic_trends,
+    }

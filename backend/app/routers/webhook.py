@@ -72,6 +72,61 @@ def _is_duplicate_message(message_id: str) -> bool:
 
     return False
 
+async def _process_message_background(message_data: dict) -> None:
+    """
+    Process a WhatsApp message in a background task.
+
+    Uses its own DB session since the request-scoped session is closed
+    after the webhook returns 200. This ensures Meta never times out
+    waiting for processing to complete, eliminating phantom retries.
+    """
+    from app.database import get_fresh_session
+
+    from_number = message_data.get("from_number", "unknown")
+    bg_db = get_fresh_session()
+    try:
+        from app.services.message_router import route_message
+        # 120s timeout — generous since we're no longer blocking the webhook.
+        await asyncio.wait_for(route_message(bg_db, message_data), timeout=120)
+    except asyncio.TimeoutError:
+        logger.error(
+            "Background message routing timed out for %s",
+            mask_phone(from_number),
+        )
+        try:
+            from app.services.whatsapp_sender import send_text_message
+            await send_text_message(
+                bg_db, from_number,
+                "Your request is taking longer than expected. "
+                "Please try again in a moment.",
+            )
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(
+            "Background routing error for %s: %s",
+            mask_phone(from_number), str(e), exc_info=True,
+        )
+        try:
+            bg_db.rollback()
+        except Exception:
+            pass
+        try:
+            from app.services.whatsapp_sender import send_text_message
+            await send_text_message(
+                bg_db, from_number,
+                "We're experiencing a temporary issue. "
+                "Please try again in a few minutes.",
+            )
+        except Exception:
+            logger.error(
+                "Failed to send error message to %s after routing failure",
+                mask_phone(from_number),
+            )
+    finally:
+        bg_db.close()
+
+
 router = APIRouter(prefix="/webhook", tags=["webhook"])
 
 
@@ -204,52 +259,15 @@ async def handle_whatsapp_message(request: Request, db: Session = Depends(get_db
             mask_phone(from_number),
         )
 
-        # Reuse the request-scoped db session to avoid exhausting the
-        # connection pool (each get_fresh_session() held a second slot).
-        try:
-            from app.services.message_router import route_message
-            # 55s timeout ensures the webhook returns 200 before Meta's
-            # 60s timeout, preventing duplicate webhook deliveries under load.
-            await asyncio.wait_for(route_message(db, message_data), timeout=55)
-        except asyncio.TimeoutError:
-            logger.error(
-                "Message routing timed out for %s", mask_phone(from_number),
-            )
-            try:
-                from app.services.whatsapp_sender import send_text_message
-                await send_text_message(
-                    db, from_number,
-                    "Your request is taking longer than expected. "
-                    "Please try again in a moment.",
-                )
-            except Exception:
-                pass
-        except Exception as e:
-            # Service layer failure must never prevent 200 OK response.
-            logger.error(
-                "Error routing message from %s: %s",
-                mask_phone(from_number),
-                str(e),
-                exc_info=True,
-            )
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            # Always attempt to send an error message so the user is never
-            # left without a response when the backend crashes.
-            try:
-                from app.services.whatsapp_sender import send_text_message
-                await send_text_message(
-                    db, from_number,
-                    "We're experiencing a temporary issue. "
-                    "Please try again in a few minutes.",
-                )
-            except Exception:
-                logger.error(
-                    "Failed to send error message to %s after routing failure",
-                    mask_phone(from_number),
-                )
+        # CRITICAL: Process message in a background task and return 200
+        # immediately. Meta's webhook timeout is ~20 seconds. If we block
+        # here (media download, Supabase upload, WhatsApp API calls), Meta
+        # retries the webhook, causing phantom duplicate uploads.
+        # The background task uses its own DB session since the request-
+        # scoped session closes when we return.
+        asyncio.create_task(
+            _process_message_background(message_data)
+        )
 
     else:
         # Log non-message payloads (status updates, etc.) without dedup.
@@ -307,6 +325,7 @@ def _extract_message_data(payload: dict) -> dict:
     result = {
         "has_message": False,
         "from_number": None,
+        "profile_name": None,
         "message_id": None,
         "type": None,
         "text": None,
@@ -327,10 +346,12 @@ def _extract_message_data(payload: dict) -> dict:
 
     value = changes[0].get("value", {})
 
-    # Extract contact info (sender's number).
+    # Extract contact info (sender's number and WhatsApp profile name).
     contacts = value.get("contacts", [])
     if contacts:
         result["from_number"] = contacts[0].get("wa_id")
+        profile = contacts[0].get("profile", {})
+        result["profile_name"] = profile.get("name")
 
     # Extract message — may not exist for status updates.
     messages = value.get("messages", [])

@@ -38,6 +38,7 @@ from app.models.preventive_master import PreventiveMaster
 from app.models.preventive_record import PreventiveRecord
 from app.core.constants import (
     MAX_PETS_PER_USER,
+    MAX_PET_WEIGHT_KG,
     DASHBOARD_TOKEN_BYTES,
     DASHBOARD_TOKEN_EXPIRY_DAYS,
     GREETINGS,
@@ -45,12 +46,26 @@ from app.core.constants import (
 from app.config import settings
 from app.core.encryption import encrypt_field, decrypt_field, hash_field
 from app.core.log_sanitizer import mask_phone
-from app.utils.date_utils import parse_date
-from app.utils.breed_normalizer import normalize_breed
+from app.utils.date_utils import parse_date, parse_date_with_ai
+from app.utils.breed_normalizer import normalize_breed, normalize_breed_with_ai
 from app.services.preventive_seeder import seed_preventive_master
 
 
 logger = logging.getLogger(__name__)
+
+# --- Colloquial input sets ---
+# Accepted variations for yes/no across all onboarding steps.
+_YES_INPUTS = frozenset({
+    "yes", "y", "yeah", "yea", "yep", "yup", "ya", "yah",
+    "sure", "ok", "okay", "agree", "alright", "aight",
+    "absolutely", "definitely", "of course", "haan", "ha",
+})
+_NO_INPUTS = frozenset({
+    "no", "n", "nah", "nope", "nay", "na", "not really",
+    "disagree", "nahi",
+})
+# Accepted variations for skip across all onboarding steps.
+_SKIP_INPUTS = frozenset({"skip", "s"})
 
 
 def get_or_create_user(db: Session, mobile_number: str) -> tuple[User | None, bool]:
@@ -164,6 +179,7 @@ async def handle_onboarding_step(
     user: User,
     text: str,
     send_fn,
+    message_data: dict | None = None,
 ) -> None:
     """
     Process one step of the onboarding conversation.
@@ -178,6 +194,7 @@ async def handle_onboarding_step(
         text: The user's message text (stripped).
         send_fn: Async function to send WhatsApp text messages.
             Signature: send_fn(db, to_number, text) -> None
+        message_data: Optional dict from webhook with profile_name etc.
     """
     state = user.onboarding_state or "awaiting_consent"
     # Prefer cached plaintext mobile from the current request (set by message_router).
@@ -193,10 +210,10 @@ async def handle_onboarding_step(
         return
 
     if state == "awaiting_consent":
-        await _step_consent(db, user, text_lower, send_fn)
+        await _step_consent(db, user, text_lower, send_fn, message_data=message_data)
 
     elif state == "awaiting_name":
-        await _step_name(db, user, text, send_fn)
+        await _step_name(db, user, text, send_fn, message_data=message_data)
 
     elif state == "awaiting_pincode":
         await _step_pincode(db, user, text, send_fn)
@@ -302,26 +319,38 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_species": f"Is *{pet_name}* a *dog* or a *cat*?",
         "awaiting_breed": f"What *breed* is {pet_name}? (Type *skip* if you're not sure)",
         "awaiting_gender": f"What is {pet_name}'s *gender*? (*male* or *female*, or *skip*)",
-        "awaiting_dob": f"When was {pet_name} born?\n(DD/MM/YYYY, DD-MM-YYYY, or type *skip*)",
+        "awaiting_dob": f"When was {pet_name} born? (or type *skip*)",
         "awaiting_weight": f"What is {pet_name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
         "awaiting_neutered": f"Is {pet_name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
     }
     return prompts.get(state, "Let's continue setting up your profile.")
 
 
-async def _step_consent(db, user, text_lower, send_fn):
+async def _step_consent(db, user, text_lower, send_fn, message_data: dict | None = None):
     """Handle consent step."""
-    if text_lower in ("yes", "y", "agree", "ok", "okay"):
+    if text_lower in _YES_INPUTS:
         user.consent_given = True
         user.onboarding_state = "awaiting_name"
         db.commit()
 
-        await send_fn(
-            db, user._plaintext_mobile,
-            "Thank you for your consent! Let's get you set up.\n\n"
-            "What is your *full name*?",
-        )
-    elif text_lower in ("no", "n", "disagree"):
+        # Pull WhatsApp profile name and offer it as default.
+        profile_name = (message_data or {}).get("profile_name")
+        if profile_name:
+            # Store the profile name temporarily so _step_name can use it.
+            user._wa_profile_name = profile_name
+            await send_fn(
+                db, user._plaintext_mobile,
+                f"Thank you for your consent! Let's get you set up.\n\n"
+                f"Your WhatsApp name is *{profile_name}*. "
+                f"Should I use this as your name? Reply *yes* or enter a different name.",
+            )
+        else:
+            await send_fn(
+                db, user._plaintext_mobile,
+                "Thank you for your consent! Let's get you set up.\n\n"
+                "What is your *full name*?",
+            )
+    elif text_lower in _NO_INPUTS:
         await send_fn(
             db, user._plaintext_mobile,
             "No problem. Your data won't be stored. "
@@ -337,13 +366,24 @@ async def _step_consent(db, user, text_lower, send_fn):
         )
 
 
-async def _step_name(db, user, text, send_fn):
-    """Handle name collection."""
-    if len(text) < 2 or len(text) > 120:
-        await send_fn(db, user._plaintext_mobile, "Please enter a valid name (2-120 characters).")
-        return
+async def _step_name(db, user, text, send_fn, message_data: dict | None = None):
+    """Handle name collection. Accepts WhatsApp profile name via 'yes'/'y'."""
+    text_lower = text.strip().lower()
 
-    user.full_name = text.strip().title()
+    # If user confirms WhatsApp profile name with yes/y.
+    wa_name = getattr(user, "_wa_profile_name", None)
+    if not wa_name:
+        # Try to get it from message_data.
+        wa_name = (message_data or {}).get("profile_name")
+
+    if text_lower in _YES_INPUTS and wa_name:
+        user.full_name = wa_name.strip().title()
+    else:
+        if len(text) < 2 or len(text) > 120:
+            await send_fn(db, user._plaintext_mobile, "Please enter a valid name (2-120 characters).")
+            return
+        user.full_name = text.strip().title()
+
     user.onboarding_state = "awaiting_pincode"
     db.commit()
 
@@ -357,7 +397,7 @@ async def _step_name(db, user, text, send_fn):
 async def _step_pincode(db, user, text, send_fn):
     """Handle pincode collection."""
     text_stripped = text.strip()
-    if text_stripped.lower() == "skip":
+    if text_stripped.lower() in _SKIP_INPUTS:
         user.onboarding_state = "awaiting_pet_name"
         db.commit()
     else:
@@ -424,8 +464,12 @@ async def _step_pet_name(db, user, text, send_fn):
 
 
 async def _step_species(db, user, text_lower, send_fn):
-    """Handle species selection."""
-    if text_lower not in ("dog", "cat"):
+    """Handle species selection. Accepts 'd'/'c' shortcuts."""
+    # Map shortcuts to full species names.
+    species_map = {"d": "dog", "dog": "dog", "c": "cat", "cat": "cat"}
+    species = species_map.get(text_lower)
+
+    if not species:
         await send_fn(
             db, user._plaintext_mobile,
             "Please reply *dog* or *cat*.",
@@ -440,7 +484,7 @@ async def _step_species(db, user, text_lower, send_fn):
         db.commit()
         return
 
-    pet.species = text_lower
+    pet.species = species
     user.onboarding_state = "awaiting_breed"
     db.commit()
 
@@ -451,7 +495,7 @@ async def _step_species(db, user, text_lower, send_fn):
 
 
 async def _step_breed(db, user, text, send_fn):
-    """Handle breed collection."""
+    """Handle breed collection. Uses AI fallback if local normalizer fails."""
     pet = _get_pending_pet(db, user.id)
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
@@ -459,9 +503,18 @@ async def _step_breed(db, user, text, send_fn):
         await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
-    if text.strip().lower() != "skip":
-        # Normalize breed abbreviations (e.g., "lab" → "Labrador Retriever").
-        pet.breed = normalize_breed(text.strip(), species=pet.species)
+    if text.strip().lower() not in _SKIP_INPUTS:
+        # Try local normalizer first.
+        normalized = normalize_breed(text.strip(), species=pet.species)
+
+        # If normalizer just title-cased it (no match found), try AI.
+        if normalized == text.strip().title():
+            try:
+                normalized = await normalize_breed_with_ai(text.strip(), species=pet.species)
+            except Exception:
+                pass  # Keep the title-cased version if AI fails.
+
+        pet.breed = normalized
 
     user.onboarding_state = "awaiting_gender"
     db.commit()
@@ -474,7 +527,7 @@ async def _step_breed(db, user, text, send_fn):
 
 
 async def _step_gender(db, user, text_lower, send_fn):
-    """Handle gender collection."""
+    """Handle gender collection. Accepts 'm'/'f' shortcuts."""
     pet = _get_pending_pet(db, user.id)
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
@@ -482,9 +535,13 @@ async def _step_gender(db, user, text_lower, send_fn):
         await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
-    if text_lower in ("male", "female"):
-        pet.gender = text_lower
-    elif text_lower != "skip":
+    # Map shortcuts to full gender values.
+    gender_map = {"m": "male", "male": "male", "f": "female", "female": "female"}
+    gender = gender_map.get(text_lower)
+
+    if gender:
+        pet.gender = gender
+    elif text_lower not in _SKIP_INPUTS:
         await send_fn(db, user._plaintext_mobile, "Please reply *male*, *female*, or *skip*.")
         return
 
@@ -493,13 +550,12 @@ async def _step_gender(db, user, text_lower, send_fn):
 
     await send_fn(
         db, user._plaintext_mobile,
-        f"When was {pet.name} born?\n"
-        f"(DD/MM/YYYY, DD-MM-YYYY, or type *skip*)",
+        f"When was {pet.name} born? (or type *skip*)",
     )
 
 
 async def _step_dob(db, user, text, send_fn):
-    """Handle date of birth collection."""
+    """Handle date of birth collection. Accepts all formats, AI fallback."""
     pet = _get_pending_pet(db, user.id)
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
@@ -507,15 +563,26 @@ async def _step_dob(db, user, text, send_fn):
         await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
-    if text.strip().lower() != "skip":
+    if text.strip().lower() not in _SKIP_INPUTS:
+        dob = None
+
+        # Try standard format parsing first.
         try:
             dob = parse_date(text.strip())
         except ValueError:
-            await send_fn(
-                db, user._plaintext_mobile,
-                "Invalid date format. Please use DD/MM/YYYY or DD-MM-YYYY, or type *skip*.",
-            )
-            return
+            pass
+
+        # If standard parsing failed, try AI.
+        if dob is None:
+            try:
+                dob = await parse_date_with_ai(text.strip())
+            except ValueError:
+                await send_fn(
+                    db, user._plaintext_mobile,
+                    "I couldn't understand that date. Try something like 25/03/2024, "
+                    "March 2024, or 2022. Type *skip* to skip.",
+                )
+                return
 
         # DOB cannot be in the future.
         from datetime import date as date_type
@@ -538,7 +605,7 @@ async def _step_dob(db, user, text, send_fn):
 
 
 async def _step_weight(db, user, text, send_fn):
-    """Handle weight collection."""
+    """Handle weight collection. Max 100kg, breed-based range check."""
     pet = _get_pending_pet(db, user.id)
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
@@ -546,16 +613,38 @@ async def _step_weight(db, user, text, send_fn):
         await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
-    if text.strip().lower() != "skip":
+    if text.strip().lower() not in _SKIP_INPUTS:
         try:
             weight = float(text.strip())
-            if weight <= 0 or weight > 999.99:
-                raise ValueError("out of range")
+            if weight <= 0:
+                raise ValueError("must be positive")
+            if weight > MAX_PET_WEIGHT_KG:
+                await send_fn(
+                    db, user._plaintext_mobile,
+                    f"That seems too heavy. The maximum allowed weight is {int(MAX_PET_WEIGHT_KG)} kg. "
+                    f"Please enter a valid weight, or type *skip*.",
+                )
+                return
+            # Breed-based weight range check.
+            breed_range = _get_breed_weight_range(pet.breed, pet.species)
+            if breed_range:
+                min_w, max_w = breed_range
+                if weight < min_w or weight > max_w:
+                    await send_fn(
+                        db, user._plaintext_mobile,
+                        f"A typical {pet.breed} weighs between {min_w}-{max_w} kg. "
+                        f"You entered {weight} kg. If that's correct, send the weight again to confirm.",
+                    )
+                    # Allow re-entry — don't block. But flag for next attempt.
+                    # Store the "warned" flag so next time we accept it.
+                    if not getattr(user, "_weight_warned", False):
+                        user._weight_warned = True
+                        return
             pet.weight = weight
         except ValueError:
             await send_fn(
                 db, user._plaintext_mobile,
-                "Please enter a valid weight in kg (e.g., 12.5), or type *skip*.",
+                f"Please enter a valid weight in kg (e.g., 12.5). Max {int(MAX_PET_WEIGHT_KG)} kg. Or type *skip*.",
             )
             return
 
@@ -577,11 +666,11 @@ async def _step_neutered(db, user, text_lower, send_fn):
         await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
         return
 
-    if text_lower in ("yes", "y"):
+    if text_lower in _YES_INPUTS:
         pet.neutered = True
-    elif text_lower in ("no", "n"):
+    elif text_lower in _NO_INPUTS:
         pet.neutered = False
-    elif text_lower != "skip":
+    elif text_lower not in _SKIP_INPUTS:
         await send_fn(db, user._plaintext_mobile, "Please reply *yes*, *no*, or *skip*.")
         return
 
@@ -692,6 +781,57 @@ async def _complete_pet_onboarding(db, user, pet, send_fn):
     )
 
     await send_fn(db, mobile, msg)
+
+
+def _get_breed_weight_range(breed: str | None, species: str | None) -> tuple[float, float] | None:
+    """
+    Return typical (min, max) weight range in kg for a breed.
+
+    Used to warn users if their input seems off. Not exhaustive —
+    returns None for unknown breeds (no warning given).
+    """
+    if not breed:
+        return None
+
+    # Common breed weight ranges (kg). Covers popular breeds in India.
+    _BREED_WEIGHTS: dict[str, tuple[float, float]] = {
+        # Dogs
+        "Labrador Retriever": (25, 36),
+        "Golden Retriever": (25, 34),
+        "German Shepherd": (22, 40),
+        "Siberian Husky": (16, 27),
+        "Rottweiler": (35, 60),
+        "Doberman Pinscher": (27, 45),
+        "Dachshund": (5, 15),
+        "Shih Tzu": (4, 7),
+        "Pomeranian": (1.5, 3.5),
+        "Chihuahua": (1, 3),
+        "Yorkshire Terrier": (1.5, 3.2),
+        "Maltese": (1.5, 4),
+        "Border Collie": (12, 20),
+        "Jack Russell Terrier": (5, 8),
+        "Cane Corso": (40, 50),
+        "American Pit Bull Terrier": (14, 27),
+        "Indian Pariah Dog": (15, 30),
+        "Beagle": (9, 11),
+        "Pug": (6, 8),
+        "Cocker Spaniel": (12, 16),
+        "Boxer": (25, 32),
+        "Great Dane": (45, 90),
+        "Saint Bernard": (54, 82),
+        # Cats
+        "Persian": (3, 7),
+        "Siamese": (3, 5),
+        "Maine Coon": (5, 11),
+        "Ragdoll": (4, 9),
+        "British Shorthair": (4, 8),
+        "Bengal": (4, 7),
+        "Sphynx": (3, 5),
+        "Indian Domestic Cat": (3, 6),
+        "Domestic Shorthair": (3, 6),
+    }
+
+    return _BREED_WEIGHTS.get(breed)
 
 
 def _get_pending_pet(db: Session, user_id: UUID) -> Pet | None:

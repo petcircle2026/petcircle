@@ -41,6 +41,7 @@ from app.core.constants import (
     OPENAI_EXTRACTION_MODEL,
     OPENAI_EXTRACTION_TEMPERATURE,
     OPENAI_EXTRACTION_MAX_TOKENS,
+    DOCUMENT_CATEGORIES,
 )
 from app.config import settings
 from app.utils.retry import retry_openai_call
@@ -60,17 +61,26 @@ REQUIRED_EXTRACTION_KEYS = {"item_name", "last_done_date"}
 # No medical advice. No inference beyond the document content.
 EXTRACTION_SYSTEM_PROMPT = (
     "You are a veterinary document data extractor. "
-    "Extract preventive health items from the provided pet document. "
-    "Return a JSON object with these keys:\n"
+    "Analyze the provided document and return a JSON object with these keys:\n"
     '  - "document_name": string (a short descriptive name for this document, '
     "e.g., 'Blood Test Report', 'Vaccination Certificate', 'Deworming Record', "
     "'Vet Prescription', 'Health Checkup Report')\n"
+    '  - "document_type": "pet_medical" or "not_pet_related" '
+    "(set to 'not_pet_related' if the document is clearly NOT a pet/veterinary document, "
+    "e.g., a human medical report, invoice, random photo, etc.)\n"
+    '  - "document_category": one of "Vaccination", "Prescription", "Diagnostic", "Other" '
+    "(classify the document: Vaccination for vaccine certificates/records, "
+    "Prescription for vet prescriptions/medication records, "
+    "Diagnostic for blood tests/urine tests/lab reports/x-rays, "
+    "Other for anything else)\n"
+    '  - "diagnostic_summary": string or null (for Diagnostic documents only — '
+    "provide a 1-2 sentence plain-language summary of key findings; null otherwise)\n"
     '  - "pet_name": string or null (the name of the pet mentioned in the document, '
     "if explicitly stated; null if no pet name is found)\n"
     '  - "items": array of objects, each with:\n'
     '    - "item_name": string (MUST be one of the tracked items listed below)\n'
     '    - "last_done_date": string (the date the item was done, '
-    "in DD/MM/YYYY or DD-MM-YYYY or DD Month YYYY or YYYY-MM-DD format)\n\n"
+    "in DD/MM/YYYY or DD-MM-YYYY or DD-Mon-YYYY or DD Month YYYY or YYYY-MM-DD format)\n\n"
     "Tracked preventive items (use these EXACT names):\n"
     "  - Rabies Vaccine\n"
     "  - Core Vaccine (DHPP for dogs)\n"
@@ -86,7 +96,9 @@ EXTRACTION_SYSTEM_PROMPT = (
     "- Do NOT provide medical advice or interpretation.\n"
     "- Do NOT infer dates — only extract what is explicitly stated.\n"
     "- Extract the pet's name EXACTLY as written in the document (if present).\n"
-    '- If no preventive items are found, return {"document_name": "...", "pet_name": null, "items": []}\n'
+    "- If the document is not pet/veterinary related, set document_type to 'not_pet_related' and items to [].\n"
+    '- If no preventive items are found, return {"document_name": "...", "document_type": "pet_medical", '
+    '"document_category": "...", "diagnostic_summary": null, "pet_name": null, "items": []}\n'
     "- Return valid JSON only — no markdown, no explanation, no extra text."
 )
 
@@ -182,7 +194,7 @@ async def _call_openai_extraction_vision(image_data_uri: str) -> str:
     return await retry_openai_call(_make_call)
 
 
-def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, str | None]:
+def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, str | None, dict]:
     """
     Parse and validate the JSON response from GPT extraction.
 
@@ -196,7 +208,8 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
         raw_json: Raw JSON string from GPT response.
 
     Returns:
-        Tuple of (validated items list, document_name or None, extracted_pet_name or None).
+        Tuple of (validated items list, document_name or None, extracted_pet_name or None, metadata dict).
+        metadata contains: document_type, document_category, diagnostic_summary.
 
     Raises:
         ValueError: If JSON is invalid or missing required keys.
@@ -209,12 +222,23 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
             f"GPT returned invalid JSON: {str(e)}"
         ) from e
 
-    # Extract document_name and pet_name if present at top level.
+    # Extract document_name, pet_name, and new classification fields.
     document_name = None
     extracted_pet_name = None
+    metadata = {
+        "document_type": "pet_medical",
+        "document_category": None,
+        "diagnostic_summary": None,
+    }
     if isinstance(parsed, dict):
         document_name = parsed.get("document_name")
         extracted_pet_name = parsed.get("pet_name")
+        # Extract classification metadata.
+        metadata["document_type"] = parsed.get("document_type", "pet_medical")
+        raw_category = parsed.get("document_category")
+        if raw_category in DOCUMENT_CATEGORIES:
+            metadata["document_category"] = raw_category
+        metadata["diagnostic_summary"] = parsed.get("diagnostic_summary")
 
     # Handle both direct array and wrapper object formats.
     # GPT with json_object mode returns an object, not an array.
@@ -277,7 +301,7 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
 
         validated.append(item)
 
-    return validated, document_name, extracted_pet_name
+    return validated, document_name, extracted_pet_name, metadata
 
 
 def _load_species_masters(db: Session, species: str) -> list[PreventiveMaster]:
@@ -452,12 +476,34 @@ async def extract_and_process_document(
             raw_json = await _call_openai_extraction(document_text)
 
         # --- Step 2: Validate and normalize ---
-        extracted_items, document_name, extracted_pet_name = _validate_extraction_json(raw_json)
+        extracted_items, document_name, extracted_pet_name, metadata = _validate_extraction_json(raw_json)
         results["items_extracted"] = len(extracted_items)
+        results["document_type"] = metadata["document_type"]
+        results["document_category"] = metadata["document_category"]
+        results["diagnostic_summary"] = metadata["diagnostic_summary"]
 
-        # Save classified document name from GPT.
+        # Save classified document name and category from GPT.
         if document_name:
             document.document_name = str(document_name)[:200]
+        if metadata["document_category"]:
+            document.document_category = metadata["document_category"]
+
+        # --- Non-pet document check ---
+        # If GPT determined this is not a pet/veterinary document,
+        # mark as success (it was processed) but return early with message.
+        if metadata["document_type"] == "not_pet_related":
+            logger.info(
+                "Document classified as not pet-related: document_id=%s",
+                str(document_id),
+            )
+            document.extraction_status = "success"
+            db.commit()
+            results["errors"].append(
+                "This doesn't appear to be a pet/veterinary document. "
+                "Please upload veterinary records, vaccination certificates, "
+                "or prescription documents."
+            )
+            return results
 
         # --- Pet name mismatch check ---
         # If GPT extracted a pet name from the document, verify it matches
@@ -589,9 +635,6 @@ async def extract_and_process_document(
     except Exception as e:
         # Extraction-level failure — mark as failed, do not crash.
         # This catches GPT call failures, JSON parse failures, etc.
-        document.extraction_status = "failed"
-        db.commit()
-
         results["status"] = "failed"
         results["errors"].append(f"Extraction failed: {str(e)}")
 
@@ -600,5 +643,27 @@ async def extract_and_process_document(
             str(document_id),
             str(e),
         )
+
+        # Persist 'failed' status. If commit fails (broken session),
+        # rollback and retry with a fresh transaction. Without this,
+        # the document stays 'pending' and gets ghost-re-extracted
+        # in the next batch for this pet.
+        try:
+            document.extraction_status = "failed"
+            db.commit()
+        except Exception:
+            try:
+                db.rollback()
+                document.extraction_status = "failed"
+                db.commit()
+            except Exception as commit_err:
+                logger.error(
+                    "CRITICAL: Could not persist failed status for doc %s: %s",
+                    str(document_id), str(commit_err),
+                )
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
     return results

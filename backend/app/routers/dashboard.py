@@ -30,6 +30,7 @@ from app.database import get_db
 from app.core.rate_limiter import check_dashboard_rate_limit
 from app.services.dashboard_service import (
     get_dashboard_data,
+    get_health_trends,
     update_pet_weight,
     update_preventive_date,
     retry_document_extraction,
@@ -231,6 +232,14 @@ def dashboard_update_preventive(
             detail="Invalid date format. Use DD/MM/YYYY, DD-MM-YYYY, or YYYY-MM-DD.",
         )
 
+    # Last done date cannot be in the future.
+    from datetime import date as date_type
+    if new_date > date_type.today():
+        raise HTTPException(
+            status_code=400,
+            detail="Last done date cannot be in the future.",
+        )
+
     try:
         result = update_preventive_date(
             db, token, body.item_name, new_date
@@ -304,3 +313,31 @@ async def dashboard_retry_extraction(
             status_code=503,
             detail="Extraction retry failed. Please try again later.",
         )
+
+
+@router.get("/{token}/trends")
+def dashboard_health_trends(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get health trend data for the dashboard trends chart.
+
+    Returns monthly completion counts derived from preventive record
+    last_done_dates, a per-item timeline, and current status summary.
+
+    Args:
+        token: Dashboard access token from URL path.
+        db: SQLAlchemy database session (injected).
+
+    Returns:
+        Trend data dictionary with monthly_completions, item_timeline,
+        and status_summary.
+    """
+    try:
+        return get_health_trends(db, token)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail="Dashboard not found or link has expired.")
+    except Exception as e:
+        logger.error("Health trends error: %s", str(e), exc_info=True)
+        raise HTTPException(status_code=503, detail="Could not load trend data.")

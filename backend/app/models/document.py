@@ -53,11 +53,22 @@ class Document(Base):
     # Set to None initially, populated after extraction completes.
     document_name = Column(String(200), nullable=True)
 
+    # Document category assigned by GPT extraction.
+    # Values: "Vaccination", "Prescription", "Diagnostic", "Other".
+    # Used for grouping documents in the dashboard display.
+    document_category = Column(String(30), nullable=True)
+
     # GPT extraction pipeline status:
     # 'pending' — uploaded, awaiting extraction
     # 'success' — extraction completed, structured data saved
     # 'failed' — extraction failed after retries, user notified
     extraction_status = Column(String(20), nullable=False)
+
+    # WhatsApp message ID (wamid) that triggered this document upload.
+    # Used for document-level deduplication — prevents phantom uploads
+    # when Meta retries webhooks after server restarts or timeouts.
+    # Unique constraint ensures one Document per WhatsApp message.
+    source_wamid = Column(String(200), nullable=True, unique=True, index=True)
 
     # Timestamp when the document was uploaded.
     # Indexed for daily upload limit check queries.

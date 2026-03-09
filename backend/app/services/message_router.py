@@ -184,7 +184,7 @@ async def route_message(db: Session, message_data: dict) -> None:
                         "Please send a text message to continue setup.",
                     )
                 return
-            await handle_onboarding_step(db, user, text, send_text_message)
+            await handle_onboarding_step(db, user, text, send_text_message, message_data=message_data)
             return
 
         # --- Step 3: User is fully onboarded — route by message type ---
@@ -556,6 +556,65 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
         await send_text_message(db, from_number, "Please register a pet first.")
         return
 
+    # --- Ghost record prevention ---
+    # Primary dedup: check if a Document with this wamid already exists.
+    # This is the strongest dedup — one Document per WhatsApp message,
+    # regardless of filename, media_id, or server restarts.
+    message_id = message_data.get("message_id")
+
+    if message_id:
+        existing_by_wamid = (
+            db.query(Document.id)
+            .filter(Document.source_wamid == message_id)
+            .first()
+        )
+        if existing_by_wamid:
+            logger.info(
+                "Duplicate document detected (wamid dedup): wamid=%s, "
+                "pet_id=%s — skipping.",
+                message_id, str(pet.id),
+            )
+            return
+
+    # Secondary dedup: check by filename or media_id as fallback.
+    from datetime import datetime, timedelta
+    dedup_cutoff = datetime.utcnow() - timedelta(hours=24)
+
+    if original_filename:
+        existing_doc = (
+            db.query(Document.id)
+            .filter(
+                Document.pet_id == pet.id,
+                Document.document_name == original_filename,
+                Document.created_at >= dedup_cutoff,
+            )
+            .first()
+        )
+        if existing_doc:
+            logger.info(
+                "Duplicate document detected (filename dedup): filename=%s, "
+                "pet_id=%s, message_id=%s — skipping.",
+                original_filename, str(pet.id), message_id,
+            )
+            return
+    elif media_id:
+        existing_doc = (
+            db.query(Document.id)
+            .filter(
+                Document.pet_id == pet.id,
+                Document.file_path.like(f"%{media_id}%"),
+                Document.created_at >= dedup_cutoff,
+            )
+            .first()
+        )
+        if existing_doc:
+            logger.info(
+                "Duplicate image detected (media_id dedup): media_id=%s, "
+                "pet_id=%s, message_id=%s — skipping.",
+                media_id, str(pet.id), message_id,
+            )
+            return
+
     # --- Batch limit check (in-memory, race-safe) ---
     # Count recent uploads for this pet within the batch window.
     pet_key = str(pet.id)
@@ -616,6 +675,7 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             file_content=file_content,
             mime_type=detected_mime,
             pet_name=pet.name,
+            source_wamid=message_id,
         )
 
         await send_text_message(
@@ -688,12 +748,21 @@ async def _delayed_batch_extraction(
 
     bg_db = get_fresh_session()
     try:
-        # Fetch all pending documents for this pet.
+        # Fetch pending documents for this pet from the current batch only.
+        # Limit to documents created within the batch window to prevent
+        # old stuck-pending documents from being swept into new batches
+        # (ghost re-extraction). Old pending docs should be retried
+        # explicitly via the dashboard retry endpoint.
+        from datetime import datetime, timedelta
+        batch_cutoff = datetime.utcnow() - timedelta(
+            seconds=_UPLOAD_BATCH_WINDOW_SECONDS + _EXTRACTION_DELAY_SECONDS + 30
+        )
         pending_docs = (
             bg_db.query(Document)
             .filter(
                 Document.pet_id == pet_id,
                 Document.extraction_status == "pending",
+                Document.created_at >= batch_cutoff,
             )
             .order_by(Document.created_at.asc())
             .all()
@@ -791,6 +860,18 @@ async def _delayed_batch_extraction(
                         bg_db.rollback()
                     except Exception:
                         pass
+                    # Mark as failed so it doesn't get re-extracted in
+                    # future batches. Without this, the document stays
+                    # 'pending' and gets picked up by the next upload's
+                    # batch extraction — causing ghost re-processing.
+                    try:
+                        doc.extraction_status = "failed"
+                        bg_db.commit()
+                    except Exception:
+                        try:
+                            bg_db.rollback()
+                        except Exception:
+                            pass
 
         # --- Send ONE consolidated summary after all extractions complete ---
         pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
@@ -975,6 +1056,20 @@ async def _send_batch_summary(
         - If all succeeded: show extraction summary with items found.
     """
     total = success_count + fail_count
+
+    # --- Check for non-pet document results ---
+    # If any result indicates a non-pet document, send a specific message.
+    not_pet_results = [
+        r for r in all_results
+        if r.get("document_type") == "not_pet_related"
+    ]
+    if not_pet_results:
+        not_pet_errors = []
+        for r in not_pet_results:
+            errs = [e for e in r.get("errors", []) if "pet/veterinary" in e]
+            not_pet_errors.extend(errs)
+        if not_pet_errors:
+            await send_text_message(db, from_number, not_pet_errors[0])
 
     if success_count == 0 and fail_count > 0:
         # Entire batch failed — one error message.

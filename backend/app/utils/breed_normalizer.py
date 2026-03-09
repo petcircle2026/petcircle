@@ -267,4 +267,66 @@ def normalize_breed(breed: str, species: str | None = None) -> str:
 
         return canonical
 
+    # No match found — return title-cased original for now.
+    # Caller can use normalize_breed_with_ai() as async fallback.
     return original.strip().title()
+
+
+async def normalize_breed_with_ai(breed: str, species: str | None = None) -> str:
+    """
+    Use OpenAI to identify a breed when the local normalizer fails.
+
+    Called as an async fallback during onboarding when the user's input
+    doesn't match any known breed abbreviation or fuzzy match.
+
+    Args:
+        breed: The raw breed text from the user.
+        species: "dog" or "cat" for context.
+
+    Returns:
+        The standardized breed name, or "Mixed Breed" if unidentifiable.
+    """
+    import logging
+    from openai import AsyncOpenAI
+    from app.config import settings
+    from app.core.constants import OPENAI_QUERY_MODEL
+
+    logger = logging.getLogger(__name__)
+
+    animal = species or "pet"
+    client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+    try:
+        response = await client.chat.completions.create(
+            model=OPENAI_QUERY_MODEL,
+            temperature=0.0,
+            max_tokens=30,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        f"You are a {animal} breed identifier. The user will provide text "
+                        f"that may be a breed name, abbreviation, misspelling, or local name. "
+                        f"Identify the standardized {animal} breed name and return ONLY the "
+                        f"breed name. If it's clearly a mixed breed, return 'Mixed Breed'. "
+                        f"If you cannot identify any breed, return 'UNKNOWN'."
+                    ),
+                },
+                {"role": "user", "content": breed},
+            ],
+        )
+
+        result = response.choices[0].message.content.strip()
+
+        if result == "UNKNOWN":
+            return breed.strip().title()
+
+        # Learn the alias for future lookups.
+        key = breed.lower().strip()
+        _LEARNED_ALIASES[key] = result
+
+        return result
+
+    except Exception as e:
+        logger.error("AI breed identification failed for '%s': %s", breed, str(e))
+        return breed.strip().title()

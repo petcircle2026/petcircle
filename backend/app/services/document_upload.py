@@ -253,6 +253,7 @@ def create_document_record(
     file_path: str,
     mime_type: str,
     original_filename: str | None = None,
+    source_wamid: str | None = None,
 ) -> Document:
     """
     Insert a document record into the database.
@@ -268,6 +269,7 @@ def create_document_record(
         file_path: Supabase storage path of the uploaded file.
         mime_type: MIME type of the uploaded file.
         original_filename: Original filename from the upload (optional).
+        source_wamid: WhatsApp message ID that triggered this upload (optional).
 
     Returns:
         The created Document model instance.
@@ -278,6 +280,7 @@ def create_document_record(
         mime_type=mime_type,
         extraction_status="pending",
         document_name=original_filename[:200] if original_filename else None,
+        source_wamid=source_wamid,
     )
 
     db.add(document)
@@ -347,6 +350,7 @@ async def process_document_upload(
     file_content: bytes,
     mime_type: str,
     pet_name: str | None = None,
+    source_wamid: str | None = None,
 ) -> Document:
     """
     Full document upload pipeline: validate → store → create record.
@@ -391,6 +395,9 @@ async def process_document_upload(
     await upload_to_supabase(file_content, storage_path, mime_type)
 
     # --- Step 6: Create document record ---
-    document = create_document_record(db, pet_id, storage_path, mime_type, original_filename=filename)
+    document = create_document_record(
+        db, pet_id, storage_path, mime_type,
+        original_filename=filename, source_wamid=source_wamid,
+    )
 
     return document

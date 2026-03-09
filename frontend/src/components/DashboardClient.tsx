@@ -7,6 +7,7 @@ import ErrorBoundary from "./ErrorBoundary";
 import PetProfileCard from "./PetProfileCard";
 import HealthScoreRing from "./HealthScoreRing";
 import PreventiveRecordsTable from "./PreventiveRecordsTable";
+import HealthTrendsSection from "./HealthTrendsSection";
 import RemindersSection from "./RemindersSection";
 import DocumentsSection from "./DocumentsSection";
 
@@ -180,6 +181,12 @@ function DashboardInner({ token }: { token: string }) {
           token={token}
           onUpdated={load}
         />
+      </section>
+
+      {/* Health Trends */}
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Health Trends</h2>
+        <HealthTrendsSection token={token} />
       </section>
 
       {/* Reminders */}

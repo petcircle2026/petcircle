@@ -143,14 +143,44 @@ HELP_COMMANDS: frozenset[str] = frozenset({
     "help", "menu", "commands", "what can you do",
 })
 
+# --- Pet Weight ---
+# Maximum allowed pet weight in kg. Anything above is rejected.
+MAX_PET_WEIGHT_KG: float = 100.0
+
 # --- Date Formats ---
 # Accepted input date formats for parsing user-provided dates.
 ACCEPTED_DATE_FORMATS: list[str] = [
     "%d/%m/%Y",      # DD/MM/YYYY
     "%d-%m-%Y",      # DD-MM-YYYY
+    "%d.%m.%Y",      # DD.MM.YYYY
     "%d %B %Y",      # 12 March 2024
+    "%d %b %Y",      # 12 Mar 2024
+    "%d-%b-%Y",      # 29-Jan-2025
+    "%d-%b-%y",      # 29-Jan-25
+    "%B %d, %Y",     # March 12, 2024
+    "%b %d, %Y",     # Mar 12, 2024
     "%Y-%m-%d",      # ISO format
+    "%d/%m/%y",      # DD/MM/YY
+    "%d-%m-%y",      # DD-MM-YY
+]
+
+# Formats for month+year only (day defaults to 1).
+MONTH_YEAR_FORMATS: list[str] = [
+    "%B %Y",         # March 2024
+    "%b %Y",         # Mar 2024
+    "%m/%Y",         # 03/2024
+    "%m-%Y",         # 03-2024
 ]
 
 # Canonical storage format for all dates in the database.
 DB_DATE_FORMAT: str = "%Y-%m-%d"
+
+# --- Document Categories ---
+# Categories assigned by GPT extraction to classify uploaded documents.
+# Used for grouping in the dashboard and filtering.
+DOCUMENT_CATEGORIES: list[str] = [
+    "Vaccination",
+    "Prescription",
+    "Diagnostic",
+    "Other",
+]
