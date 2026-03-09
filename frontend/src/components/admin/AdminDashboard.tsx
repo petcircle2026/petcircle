@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import OverviewPanel from "./OverviewPanel";
 import UsersPanel from "./UsersPanel";
 import PetsPanel from "./PetsPanel";
 import RemindersPanel from "./RemindersPanel";
 import DocumentsPanel from "./DocumentsPanel";
-const TABS = ["Users", "Pets", "Reminders", "Documents"] as const;
+const TABS = ["Overview", "Users", "Pets", "Reminders", "Documents"] as const;
 type Tab = (typeof TABS)[number];
 
 interface Props {
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export default function AdminDashboard({ adminKey, onLogout }: Props) {
-  const [tab, setTab] = useState<Tab>("Users");
+  const [tab, setTab] = useState<Tab>("Overview");
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -33,12 +34,12 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
 
       {/* Tabs */}
       <div className="border-b bg-white">
-        <nav className="mx-auto flex max-w-7xl gap-1 px-6">
+        <nav className="mx-auto flex max-w-7xl gap-1 overflow-x-auto px-6">
           {TABS.map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
                 tab === t
                   ? "border-blue-600 text-blue-600"
                   : "border-transparent text-gray-500 hover:text-gray-700"
@@ -52,6 +53,7 @@ export default function AdminDashboard({ adminKey, onLogout }: Props) {
 
       {/* Content */}
       <main className="mx-auto max-w-7xl p-6">
+        {tab === "Overview" && <OverviewPanel adminKey={adminKey} />}
         {tab === "Users" && <UsersPanel adminKey={adminKey} />}
         {tab === "Pets" && <PetsPanel adminKey={adminKey} />}
         {tab === "Reminders" && <RemindersPanel adminKey={adminKey} />}

@@ -11,6 +11,7 @@ Security:
     - Rejected requests return 403 Forbidden.
 
 Routes:
+    GET    /admin/stats                      — Aggregated system stats
     GET    /admin/users                      — List all users
     GET    /admin/pets                       — List all pets
     PATCH  /admin/pets/{pet_id}              — Edit pet data
@@ -24,10 +25,12 @@ Routes:
 
 import hmac
 import logging
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.config import settings
@@ -43,6 +46,7 @@ from app.models.dashboard_token import DashboardToken
 from app.models.message_log import MessageLog
 from app.models.preventive_record import PreventiveRecord
 from app.models.preventive_master import PreventiveMaster
+from app.models.conflict_flag import ConflictFlag
 
 
 logger = logging.getLogger(__name__)
@@ -151,6 +155,95 @@ def _extract_text_from_payload(payload: dict) -> str | None:
     if isinstance(text_obj, str):
         return text_obj
     return None
+
+
+@router.get("/stats")
+def get_stats(db: Session = Depends(get_db)):
+    """
+    Return aggregated system stats for the admin overview dashboard.
+
+    All queries are simple COUNT + GROUP BY — no joins required.
+    This avoids N+1 frontend calls by returning everything in one response.
+    """
+    # --- Users ---
+    total_users = db.query(func.count(User.id)).scalar() or 0
+    active_users = db.query(func.count(User.id)).filter(User.is_deleted == False).scalar() or 0
+    onboarding_complete = (
+        db.query(func.count(User.id))
+        .filter(User.is_deleted == False, User.onboarding_state == "complete")
+        .scalar() or 0
+    )
+    deleted_users = db.query(func.count(User.id)).filter(User.is_deleted == True).scalar() or 0
+
+    # --- Pets ---
+    total_pets = db.query(func.count(Pet.id)).scalar() or 0
+    active_pets = db.query(func.count(Pet.id)).filter(Pet.is_deleted == False).scalar() or 0
+    dogs = db.query(func.count(Pet.id)).filter(Pet.species == "dog", Pet.is_deleted == False).scalar() or 0
+    cats = db.query(func.count(Pet.id)).filter(Pet.species == "cat", Pet.is_deleted == False).scalar() or 0
+
+    # --- Documents ---
+    total_docs = db.query(func.count(Document.id)).scalar() or 0
+    doc_success = db.query(func.count(Document.id)).filter(Document.extraction_status == "success").scalar() or 0
+    doc_pending = db.query(func.count(Document.id)).filter(Document.extraction_status == "pending").scalar() or 0
+    doc_failed = db.query(func.count(Document.id)).filter(Document.extraction_status == "failed").scalar() or 0
+
+    # --- Preventive Records ---
+    overdue = db.query(func.count(PreventiveRecord.id)).filter(PreventiveRecord.status == "overdue").scalar() or 0
+    upcoming = db.query(func.count(PreventiveRecord.id)).filter(PreventiveRecord.status == "upcoming").scalar() or 0
+    up_to_date = db.query(func.count(PreventiveRecord.id)).filter(PreventiveRecord.status == "up_to_date").scalar() or 0
+    cancelled = db.query(func.count(PreventiveRecord.id)).filter(PreventiveRecord.status == "cancelled").scalar() or 0
+
+    # --- Reminders ---
+    total_reminders = db.query(func.count(Reminder.id)).scalar() or 0
+    rem_pending = db.query(func.count(Reminder.id)).filter(Reminder.status == "pending").scalar() or 0
+    rem_sent = db.query(func.count(Reminder.id)).filter(Reminder.status == "sent").scalar() or 0
+    rem_completed = db.query(func.count(Reminder.id)).filter(Reminder.status == "completed").scalar() or 0
+    rem_snoozed = db.query(func.count(Reminder.id)).filter(Reminder.status == "snoozed").scalar() or 0
+
+    # --- Conflicts ---
+    pending_conflicts = db.query(func.count(ConflictFlag.id)).filter(ConflictFlag.status == "pending").scalar() or 0
+
+    # --- Messages in last 24h ---
+    cutoff = datetime.utcnow() - timedelta(hours=24)
+    messages_24h = db.query(func.count(MessageLog.id)).filter(MessageLog.created_at >= cutoff).scalar() or 0
+
+    return {
+        "users": {
+            "total": total_users,
+            "active": active_users,
+            "onboarding_complete": onboarding_complete,
+            "deleted": deleted_users,
+        },
+        "pets": {
+            "total": total_pets,
+            "active": active_pets,
+            "dogs": dogs,
+            "cats": cats,
+        },
+        "documents": {
+            "total": total_docs,
+            "success": doc_success,
+            "pending": doc_pending,
+            "failed": doc_failed,
+        },
+        "preventive_records": {
+            "overdue": overdue,
+            "upcoming": upcoming,
+            "up_to_date": up_to_date,
+            "cancelled": cancelled,
+        },
+        "reminders": {
+            "total": total_reminders,
+            "pending": rem_pending,
+            "sent": rem_sent,
+            "completed": rem_completed,
+            "snoozed": rem_snoozed,
+        },
+        "conflicts": {
+            "pending": pending_conflicts,
+        },
+        "messages_24h": messages_24h,
+    }
 
 
 @router.get("/users")

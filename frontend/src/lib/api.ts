@@ -121,6 +121,16 @@ export interface AdminMessage {
   created_at: string;
 }
 
+export interface AdminStats {
+  users: { total: number; active: number; onboarding_complete: number; deleted: number };
+  pets: { total: number; active: number; dogs: number; cats: number };
+  documents: { total: number; success: number; pending: number; failed: number };
+  preventive_records: { overdue: number; upcoming: number; up_to_date: number; cancelled: number };
+  reminders: { total: number; pending: number; sent: number; completed: number; snoozed: number };
+  conflicts: { pending: number };
+  messages_24h: number;
+}
+
 // --- Dashboard Cache (localStorage) ---
 // On success: cache the response so the dashboard can show last-known data
 // if the backend is temporarily unavailable. Cache is per-token.
@@ -401,6 +411,7 @@ async function adminMutate<T>(
 }
 
 export const adminApi = {
+  getStats: (key: string) => adminFetch<AdminStats>("/admin/stats", key),
   getUsers: (key: string) => adminFetch<AdminUser[]>("/admin/users", key),
   getPets: (key: string) => adminFetch<AdminPet[]>("/admin/pets", key),
   getReminders: (key: string) =>
