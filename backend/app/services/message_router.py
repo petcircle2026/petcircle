@@ -72,6 +72,12 @@ _UPLOAD_BATCH_WINDOW_SECONDS: int = 120
 # Key: str(pet_id), Value: asyncio.Task that waits then extracts.
 _extraction_timers: dict[str, asyncio.Task] = {}
 
+# Tracks document IDs uploaded in the active WhatsApp batch per pet.
+# Ensures the extractor only processes files from the current user upload burst,
+# and avoids including unrelated pending documents from other channels.
+# Key: str(pet_id), Value: list of Document.id values.
+_batch_document_ids: dict[str, list] = {}
+
 # Seconds to wait after the last upload before starting batch extraction.
 # Gives the user time to finish sending all files in a batch.
 _EXTRACTION_DELAY_SECONDS: int = 15
@@ -722,6 +728,10 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             f"Will start extracting health data once all files are received.",
         )
 
+        # Track this exact document in the current in-memory batch so the
+        # deferred extractor doesn't accidentally sweep unrelated pending docs.
+        _batch_document_ids.setdefault(pet_key, []).append(document.id)
+
         # Schedule (or reschedule) a deferred batch extraction.
         # The timer resets with each new upload so extraction only starts
         # after uploads have settled (_EXTRACTION_DELAY_SECONDS of silence).
@@ -786,21 +796,19 @@ async def _delayed_batch_extraction(
 
     bg_db = get_fresh_session()
     try:
-        # Fetch pending documents for this pet from the current batch only.
-        # Limit to documents created within the batch window to prevent
-        # old stuck-pending documents from being swept into new batches
-        # (ghost re-extraction). Old pending docs should be retried
-        # explicitly via the dashboard retry endpoint.
-        from datetime import datetime, timedelta
-        batch_cutoff = datetime.utcnow() - timedelta(
-            seconds=_UPLOAD_BATCH_WINDOW_SECONDS + _EXTRACTION_DELAY_SECONDS + 30
-        )
+        # Fetch only documents explicitly uploaded in this WhatsApp batch.
+        # This prevents unrelated pending documents (e.g. dashboard uploads)
+        # from being included in the current extraction summary.
+        batched_doc_ids = list(_batch_document_ids.get(pet_key, []))
+        if not batched_doc_ids:
+            return
+
         pending_docs = (
             bg_db.query(Document)
             .filter(
                 Document.pet_id == pet_id,
                 Document.extraction_status == "pending",
-                Document.created_at >= batch_cutoff,
+                Document.id.in_(batched_doc_ids),
             )
             .order_by(Document.created_at.asc())
             .all()
@@ -926,6 +934,7 @@ async def _delayed_batch_extraction(
         # Clear the batch counter and rejection flag so user can upload again.
         _recent_uploads.pop(pet_key, None)
         _rejection_sent.pop(pet_key, None)
+        _batch_document_ids.pop(pet_key, None)
 
     except Exception as e:
         logger.error(
@@ -945,6 +954,7 @@ async def _delayed_batch_extraction(
             pass
         # Clear batch counter even on failure so user isn't stuck.
         _recent_uploads.pop(pet_key, None)
+        _batch_document_ids.pop(pet_key, None)
     finally:
         bg_db.close()
 

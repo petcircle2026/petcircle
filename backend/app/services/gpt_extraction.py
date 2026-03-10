@@ -141,12 +141,12 @@ EXTRACTION_SYSTEM_PROMPT = (
     '    - "batch_number": string or null (vaccine lot/batch number, if present)\n\n'
     "Tracked preventive items (use these EXACT names):\n"
     "  - Rabies Vaccine\n"
-    "  - Core Vaccine (DHPP for dogs)\n"
-    "  - Feline Core (FVRCP for cats)\n"
+    "  - Core Vaccine\n"
+    "  - Feline Core\n"
     "  - Deworming\n"
-    "  - Tick/Flea (tick/flea prevention treatment)\n"
-    "  - Annual Checkup (general health checkup)\n"
-    "  - Preventive Blood Test (routine blood work / CBC / health screening)\n"
+    "  - Tick/Flea\n"
+    "  - Annual Checkup\n"
+    "  - Preventive Blood Test\n"
     "  - Dental Check\n\n"
     "Rules:\n"
     "- Extract ONLY items that match the tracked preventive items above.\n"
@@ -394,35 +394,43 @@ def _load_species_masters(db: Session, species: str) -> list[PreventiveMaster]:
     )
 
 
+def _normalize_preventive_item_name(name: str) -> str:
+    """Normalize extracted preventive item names for robust matching."""
+    value = (name or "").strip().lower()
+    value = re.sub(r"\s*\([^)]*\)", "", value)  # drop parenthetical clarifiers
+    value = re.sub(r"\s+", " ", value)
+    return value
+
+
 def _match_preventive_master_from_list(
     masters: list[PreventiveMaster],
     item_name: str,
 ) -> PreventiveMaster | None:
-    """
-    Match an extracted item name to a preventive_master record using
-    in-memory matching against a pre-loaded list.
+    """Match an extracted item name to a preventive_master record."""
+    item_normalized = _normalize_preventive_item_name(item_name)
 
-    Avoids per-item DB queries by matching against a cached list.
-    Uses case-insensitive exact match first, then partial match.
+    aliases = {
+        "core vaccine dhpp": "core vaccine",
+        "core vaccine dhppi": "core vaccine",
+        "dhpp": "core vaccine",
+        "dhppi": "core vaccine",
+        "feline core fvrcp": "feline core",
+        "fvrcp": "feline core",
+    }
+    item_normalized = aliases.get(item_normalized, item_normalized)
 
-    Args:
-        masters: Pre-loaded list of PreventiveMaster records for this species.
-        item_name: Extracted item name from GPT (e.g., 'Rabies Vaccine').
-
-    Returns:
-        Matching PreventiveMaster record, or None if no match found.
-    """
-    item_lower = item_name.lower()
-
-    # Try exact match first (case-insensitive).
+    # Try normalized exact match first.
     for master in masters:
-        if master.item_name.lower() == item_lower:
+        if _normalize_preventive_item_name(master.item_name) == item_normalized:
             return master
 
-    # Try partial match — GPT may abbreviate or rephrase.
-    # e.g., "Rabies" → "Rabies Vaccine"
+    # Try partial match in both directions — GPT may abbreviate or rephrase.
     for master in masters:
-        if item_lower in master.item_name.lower():
+        master_normalized = _normalize_preventive_item_name(master.item_name)
+        if (
+            item_normalized in master_normalized
+            or master_normalized in item_normalized
+        ):
             return master
 
     return None

@@ -149,6 +149,36 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         .all()
     )
 
+    vaccine_item_names = {"Rabies Vaccine", "Core Vaccine", "Feline Core"}
+
+    def _record_sort_key(r: PreventiveRecord) -> tuple:
+        # Prefer newest completion date; fallback to next due, then created_at.
+        return (
+            r.last_done_date or date.min,
+            r.next_due_date or date.min,
+            r.created_at.date() if getattr(r, "created_at", None) else date.min,
+        )
+
+    vaccine_latest_by_name: dict[str, tuple[PreventiveRecord, PreventiveMaster]] = {}
+    non_vaccine_records: list[tuple[PreventiveRecord, PreventiveMaster]] = []
+
+    for record, master in preventive_data:
+        if master.item_name in vaccine_item_names:
+            existing = vaccine_latest_by_name.get(master.item_name)
+            if not existing or _record_sort_key(record) >= _record_sort_key(existing[0]):
+                vaccine_latest_by_name[master.item_name] = (record, master)
+        else:
+            non_vaccine_records.append((record, master))
+
+    # Dashboard list: all non-vaccine records + only latest record per vaccine name.
+    selected_records = non_vaccine_records + list(vaccine_latest_by_name.values())
+    selected_records.sort(
+        key=lambda rm: (
+            rm[0].next_due_date is None,
+            rm[0].next_due_date or date.max,
+        )
+    )
+
     preventive_records = []
     # Compute health score inline — avoids the duplicate query in health_score.py.
     essential_done = 0
@@ -156,7 +186,7 @@ def get_dashboard_data(db: Session, token: str) -> dict:
     complementary_done = 0
     complementary_total = 0
 
-    for record, master in preventive_data:
+    for record, master in selected_records:
         preventive_records.append({
             "item_name": master.item_name,
             "category": master.category,
@@ -657,13 +687,24 @@ def get_health_trends(db: Session, token: str) -> dict:
                 "status": record.status,
             })
 
+    vaccine_item_names = {"Rabies Vaccine", "Core Vaccine", "Feline Core"}
+
     # --- Group completions by month ---
     # Key: "YYYY-MM", Value: count of items completed that month.
     monthly_completions: dict[str, int] = defaultdict(int)
+    vaccine_monthly: dict[str, int] = defaultdict(int)
+    vaccine_timeline = []
     for record, master in preventive_data:
         if record.last_done_date:
             month_key = record.last_done_date.strftime("%Y-%m")
             monthly_completions[month_key] += 1
+            if master.item_name in vaccine_item_names:
+                vaccine_monthly[month_key] += 1
+                vaccine_timeline.append({
+                    "vaccine_name": master.item_name,
+                    "last_done_date": str(record.last_done_date),
+                    "next_due_date": str(record.next_due_date) if record.next_due_date else None,
+                })
 
     # Sort months chronologically.
     sorted_months = sorted(monthly_completions.keys())
@@ -725,4 +766,15 @@ def get_health_trends(db: Session, token: str) -> dict:
             "cancelled": status_counts.get("cancelled", 0),
         },
         "diagnostic_trends": diagnostic_trends,
+        "vaccine_metrics": {
+            "monthly_vaccinations": [
+                {"month": month, "count": vaccine_monthly[month]}
+                for month in sorted(vaccine_monthly.keys())
+            ],
+            "vaccine_timeline": sorted(
+                vaccine_timeline,
+                key=lambda x: x["last_done_date"],
+                reverse=True,
+            ),
+        },
     }
