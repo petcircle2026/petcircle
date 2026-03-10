@@ -58,6 +58,12 @@ class Document(Base):
     # Used for grouping documents in the dashboard display.
     document_category = Column(String(30), nullable=True)
 
+    # Vet/doctor name extracted from medical documents when available.
+    doctor_name = Column(String(200), nullable=True)
+
+    # Hospital/clinic name extracted from medical documents when available.
+    hospital_name = Column(String(200), nullable=True)
+
     # GPT extraction pipeline status:
     # 'pending' — uploaded, awaiting extraction
     # 'success' — extraction completed, structured data saved

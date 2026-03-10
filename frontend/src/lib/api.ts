@@ -45,6 +45,8 @@ export interface DocumentItem {
   id: string;
   document_name: string | null;
   document_category: string | null;
+  doctor_name: string | null;
+  hospital_name: string | null;
   mime_type: string;
   extraction_status: string;
   uploaded_at: string | null;

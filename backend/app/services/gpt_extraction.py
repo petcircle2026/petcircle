@@ -126,10 +126,19 @@ EXTRACTION_SYSTEM_PROMPT = (
     '    - "observed_at": date string (same accepted formats) or null\n'
     '  - "pet_name": string or null (the name of the pet mentioned in the document, '
     "if explicitly stated; null if no pet name is found)\n"
+    '  - "doctor_name": string or null (veterinarian/doctor name if explicitly mentioned)\n'
+    '  - "clinic_name": string or null (hospital/clinic name if explicitly mentioned)\n'
+    '  - "vaccination_details": array of objects (for vaccine records; [] if none). '
+    "Each object may include: vaccine_name, vaccine_name_raw, dose, dose_unit, "
+    "route, manufacturer, batch_number, next_due_date, administered_by, notes\n"
     '  - "items": array of objects, each with:\n'
     '    - "item_name": string (MUST be one of the tracked items listed below)\n'
     '    - "last_done_date": string (the date the item was done, '
-    "in DD/MM/YYYY or DD-MM-YYYY or DD-Mon-YYYY or DD Month YYYY or YYYY-MM-DD format)\n\n"
+    "in DD/MM/YYYY or DD-MM-YYYY or DD-Mon-YYYY or DD Month YYYY or YYYY-MM-DD format)\n"
+    '    - "dose": string or null (dose amount, if present in the document)\n'
+    '    - "doctor_name": string or null (doctor name for that line item, if present)\n'
+    '    - "clinic_name": string or null (clinic name for that line item, if present)\n'
+    '    - "batch_number": string or null (vaccine lot/batch number, if present)\n\n'
     "Tracked preventive items (use these EXACT names):\n"
     "  - Rabies Vaccine\n"
     "  - Core Vaccine (DHPP for dogs)\n"
@@ -145,6 +154,8 @@ EXTRACTION_SYSTEM_PROMPT = (
     "- Do NOT provide medical advice or interpretation.\n"
     "- Do NOT infer dates — only extract what is explicitly stated.\n"
     "- Extract the pet's name EXACTLY as written in the document (if present).\n"
+    "- For vaccination records, extract all available vaccine details (dose, batch, doctor, clinic, next due date) without guessing.\n"
+    "- If any field is missing in the document, use null for that field.\n"
     "- If the document is not pet/veterinary related, set document_type to 'not_pet_related' and items to [].\n"
     '- If no preventive items are found, return {"document_name": "...", "document_type": "pet_medical", '
     '"document_category": "...", "diagnostic_summary": null, "pet_name": null, "items": []}\n'
@@ -258,7 +269,8 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
 
     Returns:
         Tuple of (validated items list, document_name or None, extracted_pet_name or None, metadata dict).
-        metadata contains: document_type, document_category, diagnostic_summary.
+        metadata contains: document_type, document_category, diagnostic_summary,
+        doctor_name, clinic_name, vaccination_details.
 
     Raises:
         ValueError: If JSON is invalid or missing required keys.
@@ -278,7 +290,9 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
         "document_type": "pet_medical",
         "document_category": None,
         "diagnostic_summary": None,
-        "diagnostic_values": [],
+        "doctor_name": None,
+        "clinic_name": None,
+        "vaccination_details": [],
     }
     if isinstance(parsed, dict):
         document_name = parsed.get("document_name")
@@ -289,9 +303,11 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
         if raw_category in DOCUMENT_CATEGORIES:
             metadata["document_category"] = raw_category
         metadata["diagnostic_summary"] = parsed.get("diagnostic_summary")
-        raw_diag = parsed.get("diagnostic_values")
-        if isinstance(raw_diag, list):
-            metadata["diagnostic_values"] = raw_diag
+        metadata["doctor_name"] = parsed.get("doctor_name")
+        metadata["clinic_name"] = parsed.get("clinic_name")
+        raw_vaccination_details = parsed.get("vaccination_details")
+        if isinstance(raw_vaccination_details, list):
+            metadata["vaccination_details"] = raw_vaccination_details
 
     # Handle both direct array and wrapper object formats.
     # GPT with json_object mode returns an object, not an array.
@@ -534,7 +550,9 @@ async def extract_and_process_document(
         results["document_type"] = metadata["document_type"]
         results["document_category"] = metadata["document_category"]
         results["diagnostic_summary"] = metadata["diagnostic_summary"]
-        results["diagnostic_values_extracted"] = len(metadata.get("diagnostic_values") or [])
+        results["doctor_name"] = metadata["doctor_name"]
+        results["clinic_name"] = metadata["clinic_name"]
+        results["vaccination_details"] = metadata["vaccination_details"]
 
         # Save classified document name with month/year suffix from GPT.
         # Format: documentname_mon_year (e.g., prescription_jan_2026).
@@ -543,6 +561,27 @@ async def extract_and_process_document(
             document.document_name = formatted_name[:200]
         if metadata["document_category"]:
             document.document_category = metadata["document_category"]
+        if metadata["doctor_name"]:
+            document.doctor_name = str(metadata["doctor_name"])[:200]
+        if metadata["clinic_name"]:
+            document.hospital_name = str(metadata["clinic_name"])[:200]
+
+        # Enrich top-level doctor/clinic from item-level values when missing.
+        if not results["doctor_name"]:
+            for item in extracted_items:
+                item_doctor = item.get("doctor_name")
+                if item_doctor:
+                    results["doctor_name"] = item_doctor
+                    document.doctor_name = str(item_doctor)[:200]
+                    break
+
+        if not results["clinic_name"]:
+            for item in extracted_items:
+                item_clinic = item.get("clinic_name")
+                if item_clinic:
+                    results["clinic_name"] = item_clinic
+                    document.hospital_name = str(item_clinic)[:200]
+                    break
 
         # Replace previously extracted diagnostic values for this document.
         db.query(DiagnosticTestResult).filter(
