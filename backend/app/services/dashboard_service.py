@@ -251,6 +251,7 @@ def get_dashboard_data(db: Session, token: str) -> dict:
             "gender": pet.gender,
             "dob": str(pet.dob) if pet.dob else None,
             "weight": float(pet.weight) if pet.weight else None,
+            "weight_flagged": bool(pet.weight_flagged),
             "neutered": pet.neutered,
         },
         "owner": {
@@ -292,6 +293,7 @@ def update_pet_weight(
 
     old_weight = pet.weight
     pet.weight = new_weight
+    pet.weight_flagged = False
     db.commit()
 
     logger.info(

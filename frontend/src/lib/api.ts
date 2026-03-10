@@ -16,6 +16,7 @@ export interface PetProfile {
   gender: string;
   dob: string | null;
   weight: number | null;
+  weight_flagged: boolean;
   neutered: boolean;
 }
 
