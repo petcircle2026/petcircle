@@ -375,7 +375,7 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_neutered": f"Is {pet_name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
         "awaiting_documents": (
             f"You can upload medical records for {pet_name} now, "
-            f"or type *skip* to continue without uploading."
+            f"up to *5 documents at a time*, or type *skip* to continue without uploading."
         ),
     }
     return prompts.get(state, "Let's continue setting up your profile.")
@@ -955,6 +955,7 @@ async def _step_neutered(db, user, text_lower, send_fn):
         f"✅ {pet.name}'s profile is ready!\n\n"
         f"Now upload vaccination records, prescriptions, or health reports "
         f"and I'll extract the details automatically.\n\n"
+        f"You can upload up to *5 documents at a time*.\n"
         f"You have *5 minutes* to upload. Type *skip* to continue without uploading.",
     )
 
@@ -981,7 +982,7 @@ async def _step_awaiting_documents(db, user, text_lower, send_fn):
     # Any other text — remind user to upload or skip.
     await send_fn(
         db, mobile,
-        "Please upload medical records or type *skip* to continue.",
+        "Please upload medical records (up to *5 documents at a time*) or type *skip* to continue.",
     )
 
 
