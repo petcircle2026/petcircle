@@ -24,6 +24,7 @@ Rules:
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import Response as FastAPIResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -34,6 +35,7 @@ from app.services.dashboard_service import (
     update_pet_weight,
     update_preventive_date,
     retry_document_extraction,
+    get_document_file_for_token,
 )
 from app.utils.date_utils import parse_date
 
@@ -264,6 +266,28 @@ def dashboard_update_preventive(
             detail="Update failed due to a temporary issue. Please try again.",
         )
 
+
+
+@router.get("/{token}/document/{document_id}")
+def dashboard_get_document(
+    token: str,
+    document_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Stream a document inline in the browser for dashboard viewing.
+    """
+    try:
+        file_bytes, mime_type, filename = get_document_file_for_token(db, token, document_id)
+        headers = {
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Cache-Control": "no-store, no-cache, must-revalidate",
+        }
+        return FastAPIResponse(content=file_bytes, media_type=mime_type, headers=headers)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Could not open document right now.")
 
 @router.post("/{token}/retry-extraction/{document_id}")
 async def dashboard_retry_extraction(
