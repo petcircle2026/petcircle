@@ -42,6 +42,7 @@ from app.models.preventive_record import PreventiveRecord
 from app.models.preventive_master import PreventiveMaster
 from app.models.reminder import Reminder
 from app.models.document import Document
+from app.models.diagnostic_test_result import DiagnosticTestResult
 from app.services.document_upload import download_from_supabase
 from app.services.preventive_calculator import (
     compute_next_due_date,
@@ -246,6 +247,29 @@ def get_dashboard_data(db: Session, token: str) -> dict:
             "uploaded_at": str(doc.created_at) if doc.created_at else None,
         })
 
+    # --- Diagnostic values (blood/urine) for dashboard ---
+    diagnostic_rows = (
+        db.query(DiagnosticTestResult)
+        .filter(DiagnosticTestResult.pet_id == pet_id)
+        .order_by(DiagnosticTestResult.observed_at.desc().nullslast(), DiagnosticTestResult.created_at.desc())
+        .all()
+    )
+
+    diagnostic_results = []
+    for row in diagnostic_rows:
+        diagnostic_results.append({
+            "test_type": row.test_type,
+            "parameter_name": row.parameter_name,
+            "value_numeric": float(row.value_numeric) if row.value_numeric is not None else None,
+            "value_text": row.value_text,
+            "unit": row.unit,
+            "reference_range": row.reference_range,
+            "status_flag": row.status_flag,
+            "observed_at": str(row.observed_at) if row.observed_at else None,
+            "document_id": str(row.document_id) if row.document_id else None,
+            "created_at": str(row.created_at) if row.created_at else None,
+        })
+
     # --- Build response (no internal IDs exposed) ---
     return {
         "pet": {
@@ -264,6 +288,7 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         "preventive_records": preventive_records,
         "reminders": reminder_data,
         "documents": document_data,
+        "diagnostic_results": diagnostic_results,
         "health_score": health_score,
     }
 

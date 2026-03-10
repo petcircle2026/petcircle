@@ -39,6 +39,7 @@ from sqlalchemy.orm import Session
 from app.models.document import Document
 from app.models.pet import Pet
 from app.models.preventive_master import PreventiveMaster
+from app.models.diagnostic_test_result import DiagnosticTestResult
 from app.core.constants import (
     OPENAI_EXTRACTION_MODEL,
     OPENAI_EXTRACTION_TEMPERATURE,
@@ -114,6 +115,15 @@ EXTRACTION_SYSTEM_PROMPT = (
     "Other for anything else)\n"
     '  - "diagnostic_summary": string or null (for Diagnostic documents only — '
     "provide a 1-2 sentence plain-language summary of key findings; null otherwise)\n"
+    '  - "diagnostic_values": array (for Diagnostic blood/urine reports), each with:\n'
+    '    - "test_type": "blood" or "urine"\n'
+    '    - "parameter_name": string (e.g., Hemoglobin, WBC, Creatinine, Urine pH)\n'
+    '    - "value_numeric": number or null\n'
+    '    - "value_text": string or null (use when numeric is not available)\n'
+    '    - "unit": string or null\n'
+    '    - "reference_range": string or null\n'
+    '    - "status_flag": "low" | "normal" | "high" | "abnormal" | null\n'
+    '    - "observed_at": date string (same accepted formats) or null\n'
     '  - "pet_name": string or null (the name of the pet mentioned in the document, '
     "if explicitly stated; null if no pet name is found)\n"
     '  - "doctor_name": string or null (veterinarian/doctor name if explicitly mentioned)\n'
@@ -572,6 +582,65 @@ async def extract_and_process_document(
                     results["clinic_name"] = item_clinic
                     document.hospital_name = str(item_clinic)[:200]
                     break
+
+        # Replace previously extracted diagnostic values for this document.
+        db.query(DiagnosticTestResult).filter(
+            DiagnosticTestResult.document_id == document.id
+        ).delete()
+
+        diagnostic_values = metadata.get("diagnostic_values") or []
+        for raw in diagnostic_values:
+            if not isinstance(raw, dict):
+                continue
+
+            test_type = str(raw.get("test_type") or "").strip().lower()
+            if test_type not in ("blood", "urine"):
+                continue
+
+            parameter_name = str(raw.get("parameter_name") or "").strip()
+            if not parameter_name:
+                continue
+
+            value_numeric = raw.get("value_numeric")
+            if value_numeric is not None:
+                try:
+                    value_numeric = float(value_numeric)
+                except (TypeError, ValueError):
+                    value_numeric = None
+
+            value_text = raw.get("value_text")
+            if value_numeric is None and (value_text is None or str(value_text).strip() == ""):
+                continue
+
+            observed_at = None
+            if raw.get("observed_at"):
+                try:
+                    observed_at = parse_date(str(raw.get("observed_at")))
+                except ValueError:
+                    observed_at = None
+
+            status_flag = raw.get("status_flag")
+            if status_flag is not None:
+                status_flag = str(status_flag).strip().lower()
+                if status_flag not in ("low", "normal", "high", "abnormal"):
+                    status_flag = None
+
+            db.add(DiagnosticTestResult(
+                pet_id=pet.id,
+                document_id=document.id,
+                test_type=test_type,
+                parameter_name=parameter_name[:120],
+                value_numeric=value_numeric,
+                value_text=(str(value_text).strip()[:200] if value_text is not None else None),
+                unit=(str(raw.get("unit")).strip()[:60] if raw.get("unit") is not None else None),
+                reference_range=(
+                    str(raw.get("reference_range")).strip()[:120]
+                    if raw.get("reference_range") is not None
+                    else None
+                ),
+                status_flag=status_flag,
+                observed_at=observed_at,
+            ))
 
         # --- Non-pet document check ---
         # If GPT determined this is not a pet/veterinary document,

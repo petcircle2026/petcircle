@@ -1068,16 +1068,43 @@ async def _ai_check_weight(
             "If uncertain, prefer conservative veterinary ranges and explain briefly."
         )
 
-        async def _make_call():
-            return await client.responses.create(
-                model="gpt-4.1-mini",
-                input=prompt,
-                temperature=0,
-                max_output_tokens=140,
-            )
+        responses_api = getattr(client, "responses", None)
+        if responses_api and hasattr(responses_api, "create"):
+            async def _make_call():
+                return await responses_api.create(
+                    model="gpt-4.1-mini",
+                    input=prompt,
+                    temperature=0,
+                    max_output_tokens=140,
+                )
 
-        response = await retry_openai_call(_make_call)
-        raw = (getattr(response, "output_text", "") or "").strip()
+            response = await retry_openai_call(_make_call)
+            raw = (getattr(response, "output_text", "") or "").strip()
+        else:
+            async def _make_call_chat():
+                return await client.chat.completions.create(
+                    model="gpt-4.1-mini",
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": (
+                                "You validate pet weights and return strict JSON only."
+                            ),
+                        },
+                        {"role": "user", "content": prompt},
+                    ],
+                    temperature=0,
+                    max_tokens=140,
+                )
+
+            response = await retry_openai_call(_make_call_chat)
+            raw = (
+                response.choices[0].message.content
+                if response and getattr(response, "choices", None)
+                else ""
+            )
+            raw = (raw or "").strip()
+
         data = json.loads(raw)
 
         reasonable = bool(data.get("reasonable", True))

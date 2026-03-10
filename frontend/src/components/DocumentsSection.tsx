@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, useMemo } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { DocumentItem } from "@/lib/api";
 import { retryExtraction } from "@/lib/api";
 
@@ -161,6 +161,20 @@ export default memo(function DocumentsSection({
 }) {
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
 
+  useEffect(() => {
+    if (!selectedDoc) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedDoc(null);
+    };
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      document.body.style.overflow = original;
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [selectedDoc]);
+
   if (documents.length === 0) {
     return (
       <div className="rounded-lg border bg-white p-6 text-center text-gray-400">
@@ -218,30 +232,42 @@ export default memo(function DocumentsSection({
     
 
       {selectedDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="relative h-[85vh] w-full max-w-4xl rounded-lg bg-white p-3">
-            <button
-              onClick={() => setSelectedDoc(null)}
-              className="absolute right-3 top-2 rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100"
-            >
-              Close
-            </button>
-            <div className="mb-2 pr-16 text-sm font-medium text-gray-700">
-              {selectedDoc.document_name || "Uploaded Document"}
+        <div
+          className="fixed inset-0 z-[100] bg-black/75 backdrop-blur-sm"
+          onClick={() => setSelectedDoc(null)}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="mx-auto flex h-full w-full max-w-6xl flex-col bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div className="truncate pr-4 text-sm font-medium text-gray-700">
+                {selectedDoc.document_name || "Uploaded Document"}
+              </div>
+              <button
+                onClick={() => setSelectedDoc(null)}
+                className="rounded border px-3 py-1 text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Close
+              </button>
             </div>
-            {selectedDoc.mime_type === "application/pdf" ? (
-              <iframe
-                src={`${API_BASE}/dashboard/${token}/document/${selectedDoc.id}`}
-                className="h-[calc(85vh-3rem)] w-full rounded border"
-                title={selectedDoc.document_name || "Document"}
-              />
-            ) : (
-              <img
-                src={`${API_BASE}/dashboard/${token}/document/${selectedDoc.id}`}
-                alt={selectedDoc.document_name || "Document"}
-                className="h-[calc(85vh-3rem)] w-full rounded border object-contain"
-              />
-            )}
+            <div className="min-h-0 flex-1 overflow-auto p-3">
+              {selectedDoc.mime_type === "application/pdf" ? (
+                <iframe
+                  src={`${API_BASE}/dashboard/${token}/document/${selectedDoc.id}`}
+                  className="h-full min-h-[75vh] w-full rounded border"
+                  title={selectedDoc.document_name || "Document"}
+                />
+              ) : (
+                <img
+                  src={`${API_BASE}/dashboard/${token}/document/${selectedDoc.id}`}
+                  alt={selectedDoc.document_name || "Document"}
+                  className="h-full max-h-[82vh] w-full rounded border object-contain"
+                />
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -1273,7 +1273,8 @@ async def _send_extraction_summary(
     if errors:
         unmatched = [e.replace("No match for item: ", "") for e in errors if "No match" in e]
         if unmatched:
-            msg += f"\nItems not matched: {', '.join(unmatched)}\n"
+            msg += f"\nCould not map these document terms to tracked preventive items: {', '.join(unmatched)}\n"
+            msg += "(Usually this means lab-only or non-preventive terms; no preventive record was updated for them.)\n"
 
     # Include per-document failure details from the batch.
     if batch_fail_count > 0 and failed_doc_names:
