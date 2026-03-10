@@ -59,6 +59,15 @@ from app.services.preventive_seeder import seed_preventive_master
 
 logger = logging.getLogger(__name__)
 
+_openai_onboarding_client = None
+
+def _get_openai_onboarding_client() -> AsyncOpenAI:
+    """Return a cached AsyncOpenAI client for onboarding checks."""
+    global _openai_onboarding_client
+    if _openai_onboarding_client is None:
+        _openai_onboarding_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    return _openai_onboarding_client
+
 def is_doc_upload_deadline_expired(deadline: datetime | None) -> bool:
     """
     Return True when the upload deadline has passed in UTC.
@@ -1073,6 +1082,108 @@ def _get_breed_weight_range(breed: str | None, species: str | None) -> tuple[flo
 
     return _BREED_WEIGHTS.get(breed)
 
+async def _ai_check_weight(
+    species: str | None,
+    breed: str | None,
+    dob,
+    weight_kg: float,
+) -> dict:
+    """
+    Check whether the entered weight looks reasonable for the pet profile.
+
+    Primary path: ask OpenAI for an expected range using species + breed + age,
+    then compare the user-entered weight against that range.
+    Falls back to a deterministic local range check if AI is unavailable.
+    """
+    species_norm = (species or "").strip().lower() or "unknown"
+    breed_norm = (breed or "").strip() or None
+
+    age_months = None
+    age_years = None
+    if dob:
+        today = datetime.utcnow().date()
+        age_months = max(0, (today.year - dob.year) * 12 + (today.month - dob.month))
+        age_years = round(age_months / 12, 2)
+
+    base_range = _get_breed_weight_range(breed_norm, species_norm)
+    if base_range is None:
+        if species_norm == "dog":
+            base_range = (3.0, 45.0)
+        elif species_norm == "cat":
+            base_range = (2.0, 8.0)
+        else:
+            base_range = (1.0, 60.0)
+
+    local_min, local_max = base_range
+    if age_months is not None and age_months < 12:
+        local_min *= 0.35
+        local_max *= 0.85
+
+    expected_range = f"{round(local_min, 1)}-{round(local_max, 1)} kg"
+    local_reasonable = max(0.3, local_min * 0.5) <= weight_kg <= (local_max * 1.5)
+
+    if not getattr(settings, "OPENAI_API_KEY", None):
+        return {
+            "reasonable": local_reasonable,
+            "expected_range": expected_range,
+            "reason": "local range check",
+        }
+
+    try:
+        client = _get_openai_onboarding_client()
+
+        prompt = (
+            "You are validating pet weights for onboarding. "
+            "Given species, breed, and age, return the expected healthy weight range in kg. "
+            "Respond in strict JSON only with keys: min_weight_kg (number), "
+            "max_weight_kg (number), reason (string).\n"
+            f"species={species_norm}\n"
+            f"breed={breed_norm or 'unknown'}\n"
+            f"age_months={age_months if age_months is not None else 'unknown'}\n"
+            f"age_years={age_years if age_years is not None else 'unknown'}\n"
+            f"entered_weight_kg={weight_kg}\n"
+            "Use practical veterinary ranges; if breed is unknown, use species-level ranges."
+        )
+
+        async def _make_call():
+            return await client.responses.create(
+                model="gpt-4.1-mini",
+                input=prompt,
+                temperature=0,
+                max_output_tokens=140,
+            )
+
+        response = await retry_openai_call(_make_call)
+        raw = (getattr(response, "output_text", "") or "").strip()
+        data = json.loads(raw)
+
+        ai_min = float(data.get("min_weight_kg"))
+        ai_max = float(data.get("max_weight_kg"))
+
+        if ai_min <= 0 or ai_max <= 0 or ai_min >= ai_max:
+            raise ValueError("Invalid AI range")
+
+        # Small tolerance to avoid false warnings at the edge.
+        tolerance = 0.1
+        lower_bound = ai_min * (1 - tolerance)
+        upper_bound = ai_max * (1 + tolerance)
+        reasonable = lower_bound <= weight_kg <= upper_bound
+
+        ai_expected = f"{round(ai_min, 1)}-{round(ai_max, 1)} kg"
+        reason = (data.get("reason") or "AI-derived range").strip()
+
+        return {
+            "reasonable": reasonable,
+            "expected_range": ai_expected,
+            "reason": reason,
+        }
+    except Exception as e:
+        logger.warning("Weight AI check failed, falling back to local check: %s", str(e))
+        return {
+            "reasonable": local_reasonable,
+            "expected_range": expected_range,
+            "reason": "local range check",
+        }
 
 def _get_pending_pet(db: Session, user_id: UUID) -> Pet | None:
     """Get the most recently created pet for a user (the one being onboarded)."""
