@@ -8,32 +8,11 @@ import type { PreventiveRecord } from "@/lib/api";
  * across three categories: Health, Nutrition, and Hygiene.
  *
  * Each ring represents the ratio of "up_to_date" items to total non-cancelled
- * items in that category. A full ring = all items are current.
+ * items in that circle. A full ring = all items are current.
  *
- * Category mapping (from preventive_master item_names):
- *   Health:    Rabies Vaccine, Core Vaccine, Feline Core, Deworming,
- *              Annual Checkup, Preventive Blood Test
- *   Hygiene:  Tick/Flea, Dental Check
- *   Nutrition: (reserved for future items)
+ * The `circle` field comes directly from the preventive_master table in the
+ * backend — no client-side mapping needed.
  */
-
-// --- Category mapping ---
-// Map each preventive item name to a ring category.
-// Items not listed here default to "health".
-const ITEM_CATEGORY_MAP: Record<string, "health" | "nutrition" | "hygiene"> = {
-  "Rabies Vaccine": "health",
-  "Core Vaccine": "health",
-  "Feline Core": "health",
-  "Deworming": "health",
-  "Annual Checkup": "health",
-  "Preventive Blood Test": "health",
-  "Tick/Flea": "hygiene",
-  "Dental Check": "hygiene",
-};
-
-function getCircleCategory(itemName: string): "health" | "nutrition" | "hygiene" {
-  return ITEM_CATEGORY_MAP[itemName] || "health";
-}
 
 interface CircleStats {
   done: number;
@@ -56,10 +35,11 @@ function computeRings(records: PreventiveRecord[]): RingsData {
 
   for (const r of records) {
     if (r.status === "cancelled") continue;
-    const cat = getCircleCategory(r.item_name);
-    buckets[cat].total += 1;
+    const circle = r.circle || "health";
+    if (!buckets[circle]) continue; // ignore unknown circles
+    buckets[circle].total += 1;
     if (r.status === "up_to_date") {
-      buckets[cat].done += 1;
+      buckets[circle].done += 1;
     }
   }
 

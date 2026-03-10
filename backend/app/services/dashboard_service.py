@@ -157,6 +157,7 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         preventive_records.append({
             "item_name": master.item_name,
             "category": master.category,
+            "circle": master.circle,
             "last_done_date": str(record.last_done_date) if record.last_done_date else None,
             "next_due_date": str(record.next_due_date) if record.next_due_date else None,
             "status": record.status,

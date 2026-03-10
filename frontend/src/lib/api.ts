@@ -26,6 +26,7 @@ export interface OwnerInfo {
 export interface PreventiveRecord {
   item_name: string;
   category: string;
+  circle: string;
   last_done_date: string | null;
   next_due_date: string | null;
   status: string;
