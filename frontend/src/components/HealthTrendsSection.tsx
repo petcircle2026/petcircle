@@ -289,9 +289,15 @@ export default function HealthTrendsSection({ token }: Props) {
   const hasCompletions = trends.monthly_completions.length > 0;
   const hasTimeline = trends.item_timeline.length > 0;
   const hasDiagnostics = (trends.diagnostic_trends || []).length > 0;
+  const hasVaccineMetrics = (trends.vaccine_metrics?.monthly_vaccinations || []).length > 0;
 
   // Transform diagnostic_trends into the shape BarChart expects.
   const diagnosticBarData = (trends.diagnostic_trends || []).map((d) => ({
+    month: d.month,
+    items_completed: d.count,
+  }));
+
+  const vaccineBarData = (trends.vaccine_metrics?.monthly_vaccinations || []).map((d) => ({
     month: d.month,
     items_completed: d.count,
   }));
@@ -334,6 +340,25 @@ export default function HealthTrendsSection({ token }: Props) {
             Diagnostic Reports by Month
           </h3>
           <BarChart data={diagnosticBarData} barColorClass="fill-purple-500" />
+        </div>
+      )}
+
+      {/* Vaccine trend metrics */}
+      {hasVaccineMetrics && (
+        <div className="rounded-lg border bg-white p-5 shadow-sm">
+          <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Vaccinations by Month
+          </h3>
+          <BarChart data={vaccineBarData} barColorClass="fill-emerald-500" />
+          <div className="mt-4 grid gap-2 text-xs text-gray-600 md:grid-cols-2">
+            {trends.vaccine_metrics.vaccine_timeline.slice(0, 6).map((v, idx) => (
+              <div key={`${v.vaccine_name}-${v.last_done_date}-${idx}`} className="rounded border bg-emerald-50/40 px-3 py-2">
+                <div className="font-medium text-gray-700">{v.vaccine_name}</div>
+                <div>Last done: {formatDate(v.last_done_date)}</div>
+                <div>Next due: {v.next_due_date ? formatDate(v.next_due_date) : "—"}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

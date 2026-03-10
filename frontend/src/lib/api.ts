@@ -99,11 +99,26 @@ export interface DiagnosticTrendEntry {
   count: number;
 }
 
+export interface VaccineMonthlyEntry {
+  month: string;
+  count: number;
+}
+
+export interface VaccineTimelineEntry {
+  vaccine_name: string;
+  last_done_date: string;
+  next_due_date: string | null;
+}
+
 export interface HealthTrendsData {
   monthly_completions: MonthlyCompletion[];
   item_timeline: ItemTimelineEntry[];
   status_summary: StatusSummary;
   diagnostic_trends: DiagnosticTrendEntry[];
+  vaccine_metrics: {
+    monthly_vaccinations: VaccineMonthlyEntry[];
+    vaccine_timeline: VaccineTimelineEntry[];
+  };
 }
 
 export interface DashboardData {

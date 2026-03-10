@@ -51,7 +51,7 @@ from app.core.constants import (
 from app.config import settings
 from app.core.encryption import encrypt_field, decrypt_field, hash_field
 from app.core.log_sanitizer import mask_phone
-from app.utils.date_utils import parse_date, parse_date_with_ai
+from app.utils.date_utils import is_ambiguous_date_input, parse_date, parse_date_with_ai
 from app.utils.breed_normalizer import normalize_breed, normalize_breed_with_ai
 from app.utils.retry import retry_openai_call
 from app.services.preventive_seeder import seed_preventive_master
@@ -267,6 +267,9 @@ async def handle_onboarding_step(
     elif state == "awaiting_dob":
         await _step_dob(db, user, text, send_fn)
 
+    elif state == "awaiting_dob_confirm":
+        await _step_dob_confirm(db, user, text, send_fn)
+
     elif state == "awaiting_weight":
         await _step_weight(db, user, text, send_fn)
 
@@ -360,6 +363,10 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_breed": f"What *breed* is {pet_name}? (Type *skip* if you're not sure)",
         "awaiting_gender": f"What is {pet_name}'s *gender*? (*male* or *female*, or *skip*)",
         "awaiting_dob": f"When was {pet_name} born? (or type *skip*)",
+        "awaiting_dob_confirm": (
+            f"I made a DOB assumption for {pet_name}. "
+            f"Reply *yes* if it's correct, *no* to re-enter, or *skip*."
+        ),
         "awaiting_weight": f"What is {pet_name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
         "awaiting_weight_confirm": (
             f"Please confirm the weight you entered for {pet_name}. "
@@ -368,7 +375,7 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_neutered": f"Is {pet_name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
         "awaiting_documents": (
             f"You can upload medical records for {pet_name} now, "
-            f"or type *skip* to continue without uploading."
+            f"up to *5 documents at a time*, or type *skip* to continue without uploading."
         ),
     }
     return prompts.get(state, "Let's continue setting up your profile.")
@@ -612,6 +619,28 @@ async def _step_dob(db, user, text, send_fn):
         return
 
     if text.strip().lower() not in _SKIP_INPUTS:
+        if is_ambiguous_date_input(text):
+            try:
+                assumed_dob = await parse_date_with_ai(text.strip())
+            except ValueError:
+                await send_fn(
+                    db, user._plaintext_mobile,
+                    "That date looks ambiguous and I couldn't infer it confidently. "
+                    "Please send DOB again, or type *skip*.",
+                )
+                return
+
+            pet.dob = assumed_dob
+            user.onboarding_state = "awaiting_dob_confirm"
+            db.commit()
+
+            await send_fn(
+                db, user._plaintext_mobile,
+                f"Just to confirm — I interpreted that DOB as *{assumed_dob.strftime('%d %b %Y')}*. "
+                "Is that correct? Reply *yes* to confirm, *no* to re-enter DOB, or *skip*.",
+            )
+            return
+
         dob = None
 
         # Try standard format parsing first.
@@ -650,6 +679,53 @@ async def _step_dob(db, user, text, send_fn):
         db, user._plaintext_mobile,
         f"What is {pet.name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
     )
+
+
+async def _step_dob_confirm(db, user, text, send_fn):
+    """Handle confirmation for AI-assumed ambiguous DOB input."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
+        return
+
+    text_lower = text.strip().lower()
+
+    if text_lower in _YES_INPUTS:
+        user.onboarding_state = "awaiting_weight"
+        db.commit()
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"What is {pet.name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
+        )
+        return
+
+    if text_lower in _SKIP_INPUTS:
+        pet.dob = None
+        user.onboarding_state = "awaiting_weight"
+        db.commit()
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"No problem, we'll skip DOB. What is {pet.name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
+        )
+        return
+
+    if text_lower in _NO_INPUTS:
+        pet.dob = None
+        user.onboarding_state = "awaiting_dob"
+        db.commit()
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"Got it — please share {pet.name}'s DOB again, or type *skip*.",
+        )
+        return
+
+    # Allow user to directly provide a corrected DOB instead of replying yes/no.
+    pet.dob = None
+    user.onboarding_state = "awaiting_dob"
+    db.commit()
+    await _step_dob(db, user, text, send_fn)
 
 
 async def _step_weight(db, user, text, send_fn):
@@ -879,6 +955,7 @@ async def _step_neutered(db, user, text_lower, send_fn):
         f"✅ {pet.name}'s profile is ready!\n\n"
         f"Now upload vaccination records, prescriptions, or health reports "
         f"and I'll extract the details automatically.\n\n"
+        f"You can upload up to *5 documents at a time*.\n"
         f"You have *5 minutes* to upload. Type *skip* to continue without uploading.",
     )
 
@@ -905,7 +982,7 @@ async def _step_awaiting_documents(db, user, text_lower, send_fn):
     # Any other text — remind user to upload or skip.
     await send_fn(
         db, mobile,
-        "Please upload medical records or type *skip* to continue.",
+        "Please upload medical records (up to *5 documents at a time*) or type *skip* to continue.",
     )
 
 
