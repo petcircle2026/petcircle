@@ -27,10 +27,12 @@ Rules:
     - "skip" accepted for optional fields.
 """
 
+import json
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
+from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.pet import Pet
@@ -51,10 +53,30 @@ from app.core.encryption import encrypt_field, decrypt_field, hash_field
 from app.core.log_sanitizer import mask_phone
 from app.utils.date_utils import parse_date, parse_date_with_ai
 from app.utils.breed_normalizer import normalize_breed, normalize_breed_with_ai
+from app.utils.retry import retry_openai_call
 from app.services.preventive_seeder import seed_preventive_master
 
 
 logger = logging.getLogger(__name__)
+
+def is_doc_upload_deadline_expired(deadline: datetime | None) -> bool:
+    """
+    Return True when the upload deadline has passed in UTC.
+
+    Handles both timezone-aware and timezone-naive values defensively:
+    - aware: compared directly with UTC-aware now
+    - naive: treated as UTC to avoid naive/aware comparison crashes
+
+    Naive timestamps can exist in legacy rows created before strict
+    timezone handling was enforced.
+    """
+    if not deadline:
+        return False
+
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+
+    return datetime.now(timezone.utc) > deadline
 
 # --- Colloquial input sets ---
 # Accepted variations for yes/no across all onboarding steps.
@@ -239,6 +261,9 @@ async def handle_onboarding_step(
     elif state == "awaiting_weight":
         await _step_weight(db, user, text, send_fn)
 
+    elif state == "awaiting_weight_confirm":
+        await _step_weight_confirm(db, user, text, send_fn)
+
     elif state == "awaiting_neutered":
         await _step_neutered(db, user, text_lower, send_fn)
 
@@ -327,6 +352,10 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_gender": f"What is {pet_name}'s *gender*? (*male* or *female*, or *skip*)",
         "awaiting_dob": f"When was {pet_name} born? (or type *skip*)",
         "awaiting_weight": f"What is {pet_name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
+        "awaiting_weight_confirm": (
+            f"Please confirm the weight you entered for {pet_name}. "
+            f"Reply *yes* to keep it, enter a new weight, or *skip*."
+        ),
         "awaiting_neutered": f"Is {pet_name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
         "awaiting_documents": (
             f"You can upload medical records for {pet_name} now, "
@@ -615,7 +644,7 @@ async def _step_dob(db, user, text, send_fn):
 
 
 async def _step_weight(db, user, text, send_fn):
-    """Handle weight collection. Max 100kg, breed-based range check."""
+    """Handle weight collection. Max 100kg, AI-based age/breed range check."""
     pet = _get_pending_pet(db, user.id)
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
@@ -635,22 +664,38 @@ async def _step_weight(db, user, text, send_fn):
                     f"Please enter a valid weight, or type *skip*.",
                 )
                 return
-            # Breed-based weight range check.
-            breed_range = _get_breed_weight_range(pet.breed, pet.species)
-            if breed_range:
-                min_w, max_w = breed_range
-                if weight < min_w or weight > max_w:
-                    await send_fn(
-                        db, user._plaintext_mobile,
-                        f"A typical {pet.breed} weighs between {min_w}-{max_w} kg. "
-                        f"You entered {weight} kg. If that's correct, send the weight again to confirm.",
-                    )
-                    # Allow re-entry — don't block. But flag for next attempt.
-                    # Store the "warned" flag so next time we accept it.
-                    if not getattr(user, "_weight_warned", False):
-                        user._weight_warned = True
-                        return
+
+            # AI-based weight reasonableness check (considers breed + age).
+            ai_result = await _ai_check_weight(
+                species=pet.species,
+                breed=pet.breed,
+                dob=pet.dob,
+                weight_kg=weight,
+            )
+
+            if ai_result and not ai_result.get("reasonable", True):
+                # Weight seems unusual — save it but flag, ask user to confirm.
+                pet.weight = weight
+                pet.weight_flagged = True
+                user.onboarding_state = "awaiting_weight_confirm"
+                db.commit()
+
+                expected = ai_result.get("expected_range", "unknown")
+                reason = ai_result.get("reason", "")
+                reason_suffix = f" ({reason})" if reason else ""
+
+                await send_fn(
+                    db, user._plaintext_mobile,
+                    f"Hmm, {weight} kg seems unusual for a {pet.breed or pet.species}"
+                    f"{reason_suffix}. "
+                    f"Expected range: {expected}.\n\n"
+                    f"Reply *yes* to keep this weight, enter a different weight, or *skip*.",
+                )
+                return
+
+            # Weight is reasonable — accept without flag.
             pet.weight = weight
+            pet.weight_flagged = False
         except ValueError:
             await send_fn(
                 db, user._plaintext_mobile,
@@ -665,6 +710,92 @@ async def _step_weight(db, user, text, send_fn):
         db, user._plaintext_mobile,
         f"Is {pet.name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
     )
+
+
+async def _step_weight_confirm(db, user, text, send_fn):
+    """Handle weight confirmation after AI flagged it as unusual."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
+        return
+
+    text_stripped = text.strip()
+    text_lower = text_stripped.lower()
+
+    if text_lower in _YES_INPUTS:
+        # User confirms the flagged weight — keep weight + flag.
+        user.onboarding_state = "awaiting_neutered"
+        db.commit()
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"Got it, keeping {pet.weight} kg.\n\n"
+            f"Is {pet.name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
+        )
+        return
+
+    if text_lower in _NO_INPUTS or text_lower in _SKIP_INPUTS:
+        # User rejects — clear weight and flag, move on.
+        pet.weight = None
+        pet.weight_flagged = False
+        user.onboarding_state = "awaiting_neutered"
+        db.commit()
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"No problem, skipping weight.\n\n"
+            f"Is {pet.name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
+        )
+        return
+
+    # User entered a new number — re-validate with AI.
+    try:
+        weight = float(text_stripped)
+        if weight <= 0:
+            raise ValueError("must be positive")
+        if weight > MAX_PET_WEIGHT_KG:
+            await send_fn(
+                db, user._plaintext_mobile,
+                f"That seems too heavy. Max {int(MAX_PET_WEIGHT_KG)} kg. "
+                f"Please enter a valid weight, reply *yes* to keep {pet.weight} kg, or *skip*.",
+            )
+            return
+
+        ai_result = await _ai_check_weight(
+            species=pet.species,
+            breed=pet.breed,
+            dob=pet.dob,
+            weight_kg=weight,
+        )
+
+        if ai_result and not ai_result.get("reasonable", True):
+            # Still unusual — update weight, keep flag, ask again.
+            pet.weight = weight
+            pet.weight_flagged = True
+            db.commit()
+
+            expected = ai_result.get("expected_range", "unknown")
+            await send_fn(
+                db, user._plaintext_mobile,
+                f"{weight} kg still seems unusual (expected: {expected}).\n\n"
+                f"Reply *yes* to keep it, enter a different weight, or *skip*.",
+            )
+            return
+
+        # New weight is reasonable — accept, clear flag.
+        pet.weight = weight
+        pet.weight_flagged = False
+        user.onboarding_state = "awaiting_neutered"
+        db.commit()
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"Is {pet.name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
+        )
+    except ValueError:
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"Please enter a valid weight in kg, reply *yes* to keep {pet.weight} kg, or *skip*.",
+        )
 
 
 async def _step_neutered(db, user, text_lower, send_fn):
@@ -723,7 +854,8 @@ async def _step_neutered(db, user, text_lower, send_fn):
 
     # --- Transition to awaiting_documents with 5-min deadline ---
     user.onboarding_state = "awaiting_documents"
-    user.doc_upload_deadline = datetime.utcnow() + timedelta(seconds=DOC_UPLOAD_WINDOW_SECONDS)
+    user.doc_upload_deadline = datetime.now(timezone.utc) + timedelta(seconds=DOC_UPLOAD_WINDOW_SECONDS)
+
     db.commit()
 
     logger.info(
@@ -752,7 +884,7 @@ async def _step_awaiting_documents(db, user, text_lower, send_fn):
     mobile = user._plaintext_mobile
 
     # Check if deadline has expired.
-    if user.doc_upload_deadline and datetime.utcnow() > user.doc_upload_deadline:
+    if user.doc_upload_deadline and datetime.now(timezone.utc) > user.doc_upload_deadline: 
         await _finalize_onboarding(db, user, send_fn)
         return
 

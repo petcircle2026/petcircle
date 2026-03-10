@@ -62,6 +62,10 @@ class Pet(Base):
     # Neutered status — relevant for certain health recommendations.
     neutered = Column(Boolean, nullable=True)
 
+    # Weight flagged — True when AI deems weight unusual for breed/age
+    # and user confirmed it anyway during onboarding. Shown in red on dashboard.
+    weight_flagged = Column(Boolean, default=False)
+
     # Soft delete flag — when True, pet is treated as deleted.
     is_deleted = Column(Boolean, default=False)
 

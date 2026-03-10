@@ -71,8 +71,8 @@ class User(Base):
     # Deadline for the post-onboarding document upload window.
     # Set when entering awaiting_documents state, cleared on exit.
     # Nullable — only populated during the upload window.
-    doc_upload_deadline = Column(DateTime, nullable=True)
-
+    doc_upload_deadline = Column(DateTime(timezone=True), nullable=True)
+    
     # Soft delete flag — when True, user is treated as deleted.
     # No physical delete is ever performed; this preserves audit trail.
     is_deleted = Column(Boolean, default=False)

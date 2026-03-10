@@ -74,6 +74,7 @@ from app.services.onboarding import (
     get_or_create_user,
     create_pending_user,
     handle_onboarding_step,
+    is_doc_upload_deadline_expired,
 )
 from app.services.whatsapp_sender import (
     send_text_message,
@@ -164,9 +165,10 @@ async def route_message(db: Session, message_data: dict) -> None:
             # --- Special handling for awaiting_documents state ---
             # During the upload window, allow image/document uploads alongside text.
             if user.onboarding_state == "awaiting_documents":
-                from datetime import datetime as _dt
+                
+
                 # Check deadline expiry on any incoming message.
-                if user.doc_upload_deadline and _dt.utcnow() > user.doc_upload_deadline:
+                if is_doc_upload_deadline_expired(user.doc_upload_deadline):    
                     from app.services.onboarding import _finalize_onboarding
                     await _finalize_onboarding(db, user, send_text_message)
                     return
