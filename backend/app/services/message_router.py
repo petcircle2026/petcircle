@@ -699,6 +699,7 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
 
     try:
         filename = original_filename or f"{media_id}.{_mime_to_ext(detected_mime)}"
+        display_name = original_filename or "Document"
         document = await process_document_upload(
             db=db,
             pet_id=pet.id,
