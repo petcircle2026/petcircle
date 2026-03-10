@@ -16,7 +16,8 @@ Conversation flow:
     9. DOB or "skip" → state=awaiting_weight → ask weight
    10. Weight or "skip" → state=awaiting_neutered → ask neutered
    11. Neutered or "skip" → seed preventive records, generate token,
-       state=complete → send dashboard link
+       state=awaiting_documents → prompt upload window (5 min)
+   12. Upload docs / "skip" / timeout → state=complete → send dashboard link
 
 Rules:
     - Max 5 pets per user (from constants).
@@ -36,11 +37,13 @@ from app.models.pet import Pet
 from app.models.dashboard_token import DashboardToken
 from app.models.preventive_master import PreventiveMaster
 from app.models.preventive_record import PreventiveRecord
+from app.models.document import Document
 from app.core.constants import (
     MAX_PETS_PER_USER,
     MAX_PET_WEIGHT_KG,
     DASHBOARD_TOKEN_BYTES,
     DASHBOARD_TOKEN_EXPIRY_DAYS,
+    DOC_UPLOAD_WINDOW_SECONDS,
     GREETINGS,
 )
 from app.config import settings
@@ -239,6 +242,9 @@ async def handle_onboarding_step(
     elif state == "awaiting_neutered":
         await _step_neutered(db, user, text_lower, send_fn)
 
+    elif state == "awaiting_documents":
+        await _step_awaiting_documents(db, user, text_lower, send_fn)
+
     else:
         # Unknown state — recover by resetting to consent step.
         logger.warning("Unknown onboarding state '%s' for user %s — resetting to awaiting_consent", state, mobile)
@@ -322,6 +328,10 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_dob": f"When was {pet_name} born? (or type *skip*)",
         "awaiting_weight": f"What is {pet_name}'s *weight* in kg? (e.g., 12.5, or *skip*)",
         "awaiting_neutered": f"Is {pet_name} *neutered/spayed*? (*yes*, *no*, or *skip*)",
+        "awaiting_documents": (
+            f"You can upload medical records for {pet_name} now, "
+            f"or type *skip* to continue without uploading."
+        ),
     }
     return prompts.get(state, "Let's continue setting up your profile.")
 
@@ -658,7 +668,7 @@ async def _step_weight(db, user, text, send_fn):
 
 
 async def _step_neutered(db, user, text_lower, send_fn):
-    """Handle neutered status and complete onboarding."""
+    """Handle neutered status, seed records, generate token, enter upload window."""
     pet = _get_pending_pet(db, user.id)
     if not pet:
         user.onboarding_state = "awaiting_pet_name"
@@ -675,22 +685,9 @@ async def _step_neutered(db, user, text_lower, send_fn):
         return
 
     db.commit()
-
-    # --- Complete onboarding ---
-    await _complete_pet_onboarding(db, user, pet, send_fn)
-
-
-async def _complete_pet_onboarding(db, user, pet, send_fn):
-    """
-    Finalize pet onboarding: seed records, generate token, send dashboard link.
-
-    Each step is wrapped independently so a failure in one (e.g., token
-    generation) doesn't block the others. The user always receives a
-    message explaining what happened.
-    """
     mobile = user._plaintext_mobile
 
-    # --- Step 1: Seed preventive records ---
+    # --- Seed preventive records (same as before, done here now) ---
     record_count = 0
     try:
         record_count = seed_preventive_records_for_pet(db, pet)
@@ -710,7 +707,7 @@ async def _complete_pet_onboarding(db, user, pet, send_fn):
             str(pet.id), pet.species,
         )
 
-    # --- Step 2: Generate dashboard token ---
+    # --- Generate dashboard token ---
     token = None
     try:
         token = generate_dashboard_token(db, pet.id)
@@ -724,9 +721,68 @@ async def _complete_pet_onboarding(db, user, pet, send_fn):
         except Exception:
             pass
 
-    # --- Step 3: Mark onboarding complete (must succeed) ---
+    # --- Transition to awaiting_documents with 5-min deadline ---
+    user.onboarding_state = "awaiting_documents"
+    user.doc_upload_deadline = datetime.utcnow() + timedelta(seconds=DOC_UPLOAD_WINDOW_SECONDS)
+    db.commit()
+
+    logger.info(
+        "Entering upload window: user_id=%s, pet=%s (%s), records=%d, token=%s",
+        str(user.id), pet.name, pet.species, record_count,
+        "generated" if token else "FAILED",
+    )
+
+    # --- Send upload prompt ---
+    await send_fn(
+        db, mobile,
+        f"✅ {pet.name}'s profile is ready!\n\n"
+        f"Now upload vaccination records, prescriptions, or health reports "
+        f"and I'll extract the details automatically.\n\n"
+        f"You have *5 minutes* to upload. Type *skip* to continue without uploading.",
+    )
+
+
+async def _step_awaiting_documents(db, user, text_lower, send_fn):
+    """
+    Handle messages during the post-onboarding document upload window.
+
+    Accepts "skip" to exit immediately. If the deadline has passed,
+    auto-transitions to complete. Otherwise prompts for uploads.
+    """
+    mobile = user._plaintext_mobile
+
+    # Check if deadline has expired.
+    if user.doc_upload_deadline and datetime.utcnow() > user.doc_upload_deadline:
+        await _finalize_onboarding(db, user, send_fn)
+        return
+
+    # "skip" exits the upload window immediately.
+    if text_lower in _SKIP_INPUTS:
+        await _finalize_onboarding(db, user, send_fn)
+        return
+
+    # Any other text — remind user to upload or skip.
+    await send_fn(
+        db, mobile,
+        "Please upload medical records or type *skip* to continue.",
+    )
+
+
+async def _finalize_onboarding(db, user, send_fn):
+    """
+    Finalize onboarding: mark complete, clear deadline, send appropriate message.
+
+    Record seeding and token generation already happened in _step_neutered().
+    This function checks whether documents were uploaded during the window
+    and tailors the completion message accordingly.
+    """
+    mobile = user._plaintext_mobile
+    pet = _get_pending_pet(db, user.id)
+
+    # --- Mark onboarding complete and clear deadline ---
     try:
         user.onboarding_state = "complete"
+        user.doc_upload_deadline = None
         db.commit()
     except Exception as e:
         logger.error("Failed to mark onboarding complete: %s", str(e), exc_info=True)
@@ -734,25 +790,77 @@ async def _complete_pet_onboarding(db, user, pet, send_fn):
             db.rollback()
         except Exception:
             pass
-        # Even if commit fails, don't leave user stuck — try to inform them.
         try:
             await send_fn(
                 db, mobile,
-                f"{pet.name}'s profile was created but we hit a temporary issue. "
+                f"{pet.name if pet else 'Your pet'}'s profile was created but we hit a temporary issue. "
                 f"Please send *hi* to retry.",
             )
         except Exception:
             pass
         return
 
+    if not pet:
+        logger.error("No pet found during finalize for user %s", str(user.id))
+        await send_fn(db, mobile, "All set! Type *add pet* to register your pet.")
+        return
+
     logger.info(
-        "Onboarding complete: user_id=%s, pet=%s (%s), records=%d, token=%s",
-        str(user.id), pet.name, pet.species, record_count,
-        "generated" if token else "FAILED",
+        "Onboarding complete: user_id=%s, pet=%s (%s)",
+        str(user.id), pet.name, pet.species,
     )
 
-    # --- Step 4: Send completion message ---
-    msg = f"All set! {pet.name}'s profile is ready.\n\n"
+    # --- Check if documents were uploaded during the window ---
+    docs_uploaded = (
+        db.query(Document)
+        .filter(Document.pet_id == pet.id)
+        .count()
+    )
+
+    # --- Look up existing dashboard token ---
+    token_row = (
+        db.query(DashboardToken)
+        .filter(DashboardToken.pet_id == pet.id, DashboardToken.revoked == False)
+        .order_by(DashboardToken.created_at.desc())
+        .first()
+    )
+    token = token_row.token if token_row else None
+
+    # --- Count preventive records ---
+    record_count = (
+        db.query(PreventiveRecord)
+        .filter(PreventiveRecord.pet_id == pet.id)
+        .count()
+    )
+
+    # --- Build completion message ---
+    if docs_uploaded > 0:
+        # Documents were uploaded — check extraction status.
+        pending_extractions = (
+            db.query(Document)
+            .filter(
+                Document.pet_id == pet.id,
+                Document.extraction_status == "pending",
+            )
+            .count()
+        )
+
+        if pending_extractions > 0:
+            # Extraction still in progress — basic "all set" + dashboard.
+            msg = (
+                f"All set! {pet.name}'s profile is ready and "
+                f"{docs_uploaded} document(s) are being processed.\n\n"
+                f"You'll receive extraction results shortly.\n\n"
+            )
+        else:
+            # All extractions done — include summary.
+            msg = (
+                f"All set! {pet.name}'s profile is ready and "
+                f"{docs_uploaded} document(s) have been processed.\n\n"
+            )
+    else:
+        # No documents uploaded — standard message.
+        msg = f"All set! {pet.name}'s profile is ready.\n\n"
 
     if record_count > 0:
         msg += f"Preventive health items: {record_count} items are now being tracked.\n\n"

@@ -160,6 +160,27 @@ async def route_message(db: Session, message_data: dict) -> None:
 
         # --- Step 2: Check if user is still onboarding ---
         if user.onboarding_state and user.onboarding_state != "complete":
+
+            # --- Special handling for awaiting_documents state ---
+            # During the upload window, allow image/document uploads alongside text.
+            if user.onboarding_state == "awaiting_documents":
+                from datetime import datetime as _dt
+                # Check deadline expiry on any incoming message.
+                if user.doc_upload_deadline and _dt.utcnow() > user.doc_upload_deadline:
+                    from app.services.onboarding import _finalize_onboarding
+                    await _finalize_onboarding(db, user, send_text_message)
+                    return
+                # Allow document/image uploads during this state.
+                if msg_type in ("image", "document"):
+                    await _handle_media(db, user, message_data)
+                    return
+                # Text input → route to onboarding handler (handles "skip" + rejection).
+                text = (message_data.get("text") or "").strip()
+                if text:
+                    await handle_onboarding_step(db, user, text, send_text_message, message_data=message_data)
+                return
+
+            # --- All other onboarding states: block non-text ---
             text = (message_data.get("text") or "").strip()
             if not text:
                 # Only send the "please send text" prompt once per user.

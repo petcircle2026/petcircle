@@ -65,8 +65,13 @@ class User(Base):
     # States: awaiting_consent, awaiting_name, awaiting_pincode,
     #         awaiting_pet_name, awaiting_species, awaiting_breed,
     #         awaiting_gender, awaiting_dob, awaiting_weight,
-    #         awaiting_neutered, complete
+    #         awaiting_neutered, awaiting_documents, complete
     onboarding_state = Column(String(30), default="awaiting_consent")
+
+    # Deadline for the post-onboarding document upload window.
+    # Set when entering awaiting_documents state, cleared on exit.
+    # Nullable — only populated during the upload window.
+    doc_upload_deadline = Column(DateTime, nullable=True)
 
     # Soft delete flag — when True, user is treated as deleted.
     # No physical delete is ever performed; this preserves audit trail.

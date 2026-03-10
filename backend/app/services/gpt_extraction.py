@@ -32,6 +32,8 @@ Rules:
 
 import json
 import logging
+import re
+from datetime import datetime
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.models.document import Document
@@ -49,6 +51,43 @@ from app.utils.date_utils import parse_date, format_date_for_db
 
 
 logger = logging.getLogger(__name__)
+
+
+def _format_document_name(document_name: str, extracted_items: list[dict]) -> str:
+    """
+    Format document name as lowercase_with_underscores + month + year.
+
+    Uses the earliest last_done_date from extracted items for the date suffix.
+    Falls back to the current month/year if no valid dates are found.
+
+    Example: "Blood Test Report" with date 2026-01-15 → "blood_test_report_jan_2026"
+    """
+    # Normalize name: lowercase, replace spaces/special chars with underscores.
+    name = document_name.strip().lower()
+    name = re.sub(r"[^a-z0-9]+", "_", name)
+    name = name.strip("_")
+
+    # Find the earliest date from extracted items (dates are already YYYY-MM-DD).
+    earliest_date = None
+    for item in extracted_items:
+        date_str = item.get("last_done_date")
+        if date_str:
+            try:
+                dt = datetime.strptime(str(date_str), "%Y-%m-%d")
+                if earliest_date is None or dt < earliest_date:
+                    earliest_date = dt
+            except ValueError:
+                continue
+
+    # Fall back to current date if no valid dates extracted.
+    if earliest_date is None:
+        earliest_date = datetime.utcnow()
+
+    # Format: name_mon_year (e.g., prescription_jan_2026).
+    month_abbr = earliest_date.strftime("%b").lower()
+    year = earliest_date.strftime("%Y")
+
+    return f"{name}_{month_abbr}_{year}"
 
 
 # --- Expected JSON keys from GPT extraction ---
@@ -482,9 +521,11 @@ async def extract_and_process_document(
         results["document_category"] = metadata["document_category"]
         results["diagnostic_summary"] = metadata["diagnostic_summary"]
 
-        # Save classified document name and category from GPT.
+        # Save classified document name with month/year suffix from GPT.
+        # Format: documentname_mon_year (e.g., prescription_jan_2026).
         if document_name:
-            document.document_name = str(document_name)[:200]
+            formatted_name = _format_document_name(str(document_name), extracted_items)
+            document.document_name = formatted_name[:200]
         if metadata["document_category"]:
             document.document_category = metadata["document_category"]
 

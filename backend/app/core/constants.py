@@ -11,6 +11,11 @@ Import from this module to ensure single source of truth.
 # Enforced at the service layer during onboarding.
 MAX_PETS_PER_USER: int = 5
 
+# --- Post-Onboarding Document Upload Window ---
+# Duration in seconds for the guided upload window after onboarding completes.
+# User is prompted to upload medical records during this window.
+DOC_UPLOAD_WINDOW_SECONDS: int = 300  # 5 minutes
+
 # --- File Upload Limits ---
 # Maximum file size in megabytes for document uploads.
 MAX_UPLOAD_MB: int = 10
