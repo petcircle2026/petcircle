@@ -678,20 +678,8 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             )
         return
 
-    # --- Immediate acknowledgment BEFORE downloading ---
-    # Send a quick message so the user knows the file was received
-    # and processing has started, even before the download completes.
+    # Track this upload in the in-memory batch window.
     _recent_uploads[pet_key].append(now)
-    current_batch_count = len(_recent_uploads[pet_key])
-    display_name = original_filename or f"file {current_batch_count}"
-    # Include a breed-specific fun fact in the acknowledgment message.
-    # Uses dedup tracking so the same user never sees the same fact twice.
-    fun_fact = await get_breed_fun_fact(db, user.id, pet.breed, pet.species)
-    await send_text_message(
-        db, from_number,
-        f"Got it! Received *{display_name}* for *{pet.name}*... hang tight.\n\n"
-        f"Fun fact: {fun_fact}",
-    )
 
     # --- Download media from WhatsApp ---
     media_result = await download_whatsapp_media(media_id)
@@ -714,12 +702,6 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             mime_type=detected_mime,
             pet_name=pet.name,
             source_wamid=message_id,
-        )
-
-        await send_text_message(
-            db, from_number,
-            f"*{display_name}* saved for *{pet.name}*. "
-            f"Will start extracting health data once all files are received.",
         )
 
         # Schedule (or reschedule) a deferred batch extraction.
@@ -815,11 +797,21 @@ async def _delayed_batch_extraction(
             str(pet_id), total,
         )
 
-        # Notify user that extraction is starting, listing filenames.
+        # Notify user once per batch with consolidated acknowledgements.
         doc_names = "\n".join(f"  - {d.document_name or d.file_path.split('/')[-1]}" for d in pending_docs)
+        pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
+        pet_species = pet.species if pet else "dog"
+        pet_breed = pet.breed if pet else None
+        fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
         await send_text_message(
             bg_db, from_number,
-            f"Starting extraction for *{pet_name}*:\n{doc_names}",
+            f"Got it — I received *{total}* document{'s' if total != 1 else ''} for *{pet_name}*:\n{doc_names}\n\n"
+            f"Fun fact: {fun_fact}",
+        )
+        await send_text_message(
+            bg_db, from_number,
+            f"I will now start extracting health data for *{pet_name}*:\n{doc_names}\n\n"
+            f"Fun fact: {fun_fact}",
         )
 
         last_result = None
