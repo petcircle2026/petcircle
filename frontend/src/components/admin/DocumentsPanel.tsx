@@ -104,26 +104,26 @@ export default function DocumentsPanel({ adminKey }: { adminKey: string }) {
 
             {/* Documents table — shown when expanded */}
             {!isCollapsed && (
-              <table className="w-full text-left text-sm">
+              <table className="w-full table-fixed text-left text-xs sm:text-sm">
                 <thead className="border-t bg-gray-50 text-xs uppercase text-gray-500">
                   <tr>
-                    <th className="px-4 py-2">Document</th>
-                    <th className="px-4 py-2">Extraction</th>
-                    <th className="px-4 py-2">Created</th>
+                    <th className="w-1/2 px-2 py-2 sm:px-4">Document</th>
+                    <th className="w-1/4 px-2 py-2 sm:px-4">Extraction</th>
+                    <th className="w-1/4 px-2 py-2 sm:px-4">Created</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {g.docs.map((d) => (
                     <tr key={d.id} className="hover:bg-gray-50">
-                      <td className="max-w-xs truncate px-4 py-2">{d.document_name}</td>
-                      <td className="px-4 py-2">
+                      <td className="break-words px-2 py-2 sm:px-4">{d.document_name}</td>
+                      <td className="px-2 py-2 sm:px-4">
                         <span
                           className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${extractionBadge(d.extraction_status)}`}
                         >
                           {d.extraction_status}
                         </span>
                       </td>
-                      <td className="px-4 py-2 text-gray-500">{d.created_at.slice(0, 10)}</td>
+                      <td className="px-2 py-2 text-gray-500 sm:px-4">{d.created_at.slice(0, 10)}</td>
                     </tr>
                   ))}
                 </tbody>
