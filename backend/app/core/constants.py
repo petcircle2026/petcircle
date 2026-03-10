@@ -160,6 +160,8 @@ ACCEPTED_DATE_FORMATS: list[str] = [
     "%d.%m.%Y",      # DD.MM.YYYY
     "%d %B %Y",      # 12 March 2024
     "%d %b %Y",      # 12 Mar 2024
+    "%d %B %y",      # 12 March 24
+    "%d %b %y",      # 12 Mar 24
     "%d-%b-%Y",      # 29-Jan-2025
     "%d-%b-%y",      # 29-Jan-25
     "%B %d, %Y",     # March 12, 2024
