@@ -5,7 +5,7 @@ import type { DashboardData } from "@/lib/api";
 import { fetchDashboard } from "@/lib/api";
 import ErrorBoundary from "./ErrorBoundary";
 import PetProfileCard from "./PetProfileCard";
-import HealthScoreRing from "./HealthScoreRing";
+import ActivityRings from "./ActivityRings";
 import PreventiveRecordsTable from "./PreventiveRecordsTable";
 import HealthTrendsSection from "./HealthTrendsSection";
 import RemindersSection from "./RemindersSection";
@@ -157,7 +157,7 @@ function DashboardInner({ token }: { token: string }) {
         )}
       </header>
 
-      {/* Top: Profile + Health Score */}
+      {/* Top: Profile + Activity Rings */}
       <div className="grid gap-6 md:grid-cols-2">
         <PetProfileCard
           pet={data.pet}
@@ -167,9 +167,9 @@ function DashboardInner({ token }: { token: string }) {
         />
         <div className="flex flex-col items-center justify-center rounded-lg border bg-white p-6 shadow-sm">
           <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
-            Health Score
+            Activity Rings
           </h3>
-          <HealthScoreRing data={data.health_score} />
+          <ActivityRings records={data.preventive_records} />
         </div>
       </div>
 
@@ -191,7 +191,7 @@ function DashboardInner({ token }: { token: string }) {
 
       {/* Reminders */}
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Active Reminders</h2>
+        <h2 className="mb-3 text-lg font-semibold">Upcoming Reminders</h2>
         <RemindersSection reminders={data.reminders} />
       </section>
 

@@ -1,0 +1,1 @@
+If all due items are completed than circle should be complete

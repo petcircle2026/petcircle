@@ -6,6 +6,7 @@ This table is seeded once and never modified at runtime.
 
 Constraints:
     - category: CHECK IN ('essential', 'complete')
+    - circle: CHECK IN ('health', 'nutrition', 'hygiene')
     - species: CHECK IN ('dog', 'cat', 'both')
     - UNIQUE(item_name, species) — prevents duplicate entries per species
     - recurrence_days: determines the interval for next_due_date calculation
@@ -43,6 +44,10 @@ class PreventiveMaster(Base):
     # 'essential' items have 0.9 weight, 'complete' items have 0.1 weight.
     # CHECK constraint enforces only 'essential' or 'complete'.
     category = Column(String(20), nullable=False)
+
+    # Dashboard ring grouping: 'health', 'nutrition', or 'hygiene'.
+    # Determines which concentric Activity Ring this item contributes to.
+    circle = Column(String(20), nullable=False, server_default="health")
 
     # Species this item applies to: 'dog', 'cat', or 'both'.
     # Used to filter applicable items when creating preventive records for a pet.
