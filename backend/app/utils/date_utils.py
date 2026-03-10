@@ -34,6 +34,30 @@ logger = logging.getLogger(__name__)
 # Timezone object for Asia/Kolkata — used for all date operations.
 IST = pytz.timezone(SYSTEM_TIMEZONE)
 
+# Matches short and long month names (jan/january ... dec/december).
+_MONTH_PATTERN = (
+    r"(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|"
+    r"jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|"
+    r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)"
+)
+
+
+def is_ambiguous_date_input(raw_date: str) -> bool:
+    """
+    Return True when a date-like input is inherently ambiguous.
+
+    Current rule: month + 1-2 digit token (e.g., ``jan 26`` or ``26 jan``),
+    because it could mean ``26 January`` (missing year) or ``January 2026``.
+    """
+    cleaned = (raw_date or "").strip().lower()
+    if not cleaned:
+        return False
+
+    return bool(
+        re.fullmatch(rf"{_MONTH_PATTERN}\s+\d{{1,2}}", cleaned)
+        or re.fullmatch(rf"\d{{1,2}}\s+{_MONTH_PATTERN}", cleaned)
+    )
+
 
 def parse_date(raw_date: str) -> date:
     """
