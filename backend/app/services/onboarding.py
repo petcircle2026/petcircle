@@ -1032,69 +1032,13 @@ async def _finalize_onboarding(db, user, send_fn):
     await send_fn(db, mobile, msg)
 
 
-def _get_breed_weight_range(breed: str | None, species: str | None) -> tuple[float, float] | None:
-    """
-    Return typical (min, max) weight range in kg for a breed.
-
-    Used to warn users if their input seems off. Not exhaustive —
-    returns None for unknown breeds (no warning given).
-    """
-    if not breed:
-        return None
-
-    # Common breed weight ranges (kg). Covers popular breeds in India.
-    _BREED_WEIGHTS: dict[str, tuple[float, float]] = {
-        # Dogs
-        "Labrador Retriever": (25, 36),
-        "Golden Retriever": (25, 34),
-        "German Shepherd": (22, 40),
-        "Siberian Husky": (16, 27),
-        "Rottweiler": (35, 60),
-        "Doberman Pinscher": (27, 45),
-        "Dachshund": (5, 15),
-        "Shih Tzu": (4, 7),
-        "Pomeranian": (1.5, 3.5),
-        "Chihuahua": (1, 3),
-        "Yorkshire Terrier": (1.5, 3.2),
-        "Maltese": (1.5, 4),
-        "Border Collie": (12, 20),
-        "Jack Russell Terrier": (5, 8),
-        "Cane Corso": (40, 50),
-        "American Pit Bull Terrier": (14, 27),
-        "Indian Pariah Dog": (15, 30),
-        "Beagle": (9, 11),
-        "Pug": (6, 8),
-        "Cocker Spaniel": (12, 16),
-        "Boxer": (25, 32),
-        "Great Dane": (45, 90),
-        "Saint Bernard": (54, 82),
-        # Cats
-        "Persian": (3, 7),
-        "Siamese": (3, 5),
-        "Maine Coon": (5, 11),
-        "Ragdoll": (4, 9),
-        "British Shorthair": (4, 8),
-        "Bengal": (4, 7),
-        "Sphynx": (3, 5),
-        "Indian Domestic Cat": (3, 6),
-        "Domestic Shorthair": (3, 6),
-    }
-
-    return _BREED_WEIGHTS.get(breed)
-
 async def _ai_check_weight(
     species: str | None,
     breed: str | None,
     dob,
     weight_kg: float,
-) -> dict:
-    """
-    Check whether the entered weight looks reasonable for the pet profile.
-
-    Primary path: ask OpenAI for an expected range using species + breed + age,
-    then compare the user-entered weight against that range.
-    Falls back to a deterministic local range check if AI is unavailable.
-    """
+) -> dict | None:
+    """Check weight reasonableness via AI. Return None when AI is unavailable."""
     species_norm = (species or "").strip().lower() or "unknown"
     breed_norm = (breed or "").strip() or None
 
@@ -1105,44 +1049,23 @@ async def _ai_check_weight(
         age_months = max(0, (today.year - dob.year) * 12 + (today.month - dob.month))
         age_years = round(age_months / 12, 2)
 
-    base_range = _get_breed_weight_range(breed_norm, species_norm)
-    if base_range is None:
-        if species_norm == "dog":
-            base_range = (3.0, 45.0)
-        elif species_norm == "cat":
-            base_range = (2.0, 8.0)
-        else:
-            base_range = (1.0, 60.0)
-
-    local_min, local_max = base_range
-    if age_months is not None and age_months < 12:
-        local_min *= 0.35
-        local_max *= 0.85
-
-    expected_range = f"{round(local_min, 1)}-{round(local_max, 1)} kg"
-    local_reasonable = max(0.3, local_min * 0.5) <= weight_kg <= (local_max * 1.5)
-
     if not getattr(settings, "OPENAI_API_KEY", None):
-        return {
-            "reasonable": local_reasonable,
-            "expected_range": expected_range,
-            "reason": "local range check",
-        }
+        return None
 
     try:
         client = _get_openai_onboarding_client()
 
         prompt = (
-            "You are validating pet weights for onboarding. "
-            "Given species, breed, and age, return the expected healthy weight range in kg. "
-            "Respond in strict JSON only with keys: min_weight_kg (number), "
-            "max_weight_kg (number), reason (string).\n"
+            "You are validating pet weights during pet onboarding. "
+            "Use species, breed (if known), age, and entered weight to decide reasonableness. "
+            "Respond with strict JSON and no markdown using this schema exactly: "
+            '{"reasonable": true/false, "expected_range": "X-Y kg", "reason": "..."}.\n'
             f"species={species_norm}\n"
             f"breed={breed_norm or 'unknown'}\n"
             f"age_months={age_months if age_months is not None else 'unknown'}\n"
             f"age_years={age_years if age_years is not None else 'unknown'}\n"
             f"entered_weight_kg={weight_kg}\n"
-            "Use practical veterinary ranges; if breed is unknown, use species-level ranges."
+            "If uncertain, prefer conservative veterinary ranges and explain briefly."
         )
 
         async def _make_call():
@@ -1157,20 +1080,9 @@ async def _ai_check_weight(
         raw = (getattr(response, "output_text", "") or "").strip()
         data = json.loads(raw)
 
-        ai_min = float(data.get("min_weight_kg"))
-        ai_max = float(data.get("max_weight_kg"))
-
-        if ai_min <= 0 or ai_max <= 0 or ai_min >= ai_max:
-            raise ValueError("Invalid AI range")
-
-        # Small tolerance to avoid false warnings at the edge.
-        tolerance = 0.1
-        lower_bound = ai_min * (1 - tolerance)
-        upper_bound = ai_max * (1 + tolerance)
-        reasonable = lower_bound <= weight_kg <= upper_bound
-
-        ai_expected = f"{round(ai_min, 1)}-{round(ai_max, 1)} kg"
-        reason = (data.get("reason") or "AI-derived range").strip()
+        reasonable = bool(data.get("reasonable", True))
+        ai_expected = str(data.get("expected_range") or "unknown")
+        reason = str(data.get("reason") or "AI-derived check").strip()
 
         return {
             "reasonable": reasonable,
@@ -1178,12 +1090,8 @@ async def _ai_check_weight(
             "reason": reason,
         }
     except Exception as e:
-        logger.warning("Weight AI check failed, falling back to local check: %s", str(e))
-        return {
-            "reasonable": local_reasonable,
-            "expected_range": expected_range,
-            "reason": "local range check",
-        }
+        logger.warning("Weight AI check failed; accepting weight without flagging: %s", str(e))
+        return None
 
 def _get_pending_pet(db: Session, user_id: UUID) -> Pet | None:
     """Get the most recently created pet for a user (the one being onboarded)."""

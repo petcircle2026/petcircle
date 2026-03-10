@@ -99,7 +99,7 @@ export default function PetProfileCard({ pet, owner, token, onUpdated }: Props) 
               </button>
             </div>
           ) : (
-            <span>
+            <span className={pet.weight_flagged ? "text-red-600" : ""}>
               {pet.weight ? `${pet.weight} kg` : "—"}{" "}
               <button
                 onClick={() => {
@@ -111,6 +111,11 @@ export default function PetProfileCard({ pet, owner, token, onUpdated }: Props) 
                 Edit
               </button>
             </span>
+          )}
+          {!editing && pet.weight_flagged && (
+            <p className="mt-1 text-xs text-red-600">
+              Weight seems unusual for age/breed.
+            </p>
           )}
         </dd>
       </dl>
