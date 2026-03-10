@@ -32,7 +32,6 @@ Rules:
 
 import json
 import logging
-import re
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -54,41 +53,44 @@ from app.utils.date_utils import parse_date, format_date_for_db
 logger = logging.getLogger(__name__)
 
 
-def _format_document_name(document_name: str, extracted_items: list[dict]) -> str:
+def _append_single_extracted_date_to_filename(
+    original_filename: str,
+    extracted_items: list[dict],
+) -> str:
     """
-    Format document name as lowercase_with_underscores + month + year.
+    Preserve original filename and append a date only when extraction has one unique date.
 
-    Uses the earliest last_done_date from extracted items for the date suffix.
-    Falls back to the current month/year if no valid dates are found.
-
-    Example: "Blood Test Report" with date 2026-01-15 → "blood_test_report_jan_2026"
+    Rules:
+      - If exactly one valid unique `last_done_date` exists, append it to the filename.
+      - If zero or multiple unique dates exist, return the original filename unchanged.
+      - If the filename already contains that date, return unchanged (idempotent).
     """
-    # Normalize name: lowercase, replace spaces/special chars with underscores.
-    name = document_name.strip().lower()
-    name = re.sub(r"[^a-z0-9]+", "_", name)
-    name = name.strip("_")
-
-    # Find the earliest date from extracted items (dates are already YYYY-MM-DD).
-    earliest_date = None
+    unique_dates: set[str] = set()
     for item in extracted_items:
         date_str = item.get("last_done_date")
-        if date_str:
-            try:
-                dt = datetime.strptime(str(date_str), "%Y-%m-%d")
-                if earliest_date is None or dt < earliest_date:
-                    earliest_date = dt
-            except ValueError:
-                continue
+        if not date_str:
+            continue
 
-    # Fall back to current date if no valid dates extracted.
-    if earliest_date is None:
-        earliest_date = datetime.utcnow()
+        # Keep only valid canonical dates.
+        try:
+            normalized = datetime.strptime(str(date_str), "%Y-%m-%d").strftime("%Y-%m-%d")
+        except ValueError:
+            continue
 
-    # Format: name_mon_year (e.g., prescription_jan_2026).
-    month_abbr = earliest_date.strftime("%b").lower()
-    year = earliest_date.strftime("%Y")
+        unique_dates.add(normalized)
 
-    return f"{name}_{month_abbr}_{year}"
+    if len(unique_dates) != 1:
+        return original_filename
+
+    only_date = next(iter(unique_dates))
+    if only_date in original_filename:
+        return original_filename
+
+    # Append date before extension when present.
+    dot = original_filename.rfind(".")
+    if dot > 0:
+        return f"{original_filename[:dot]}_{only_date}{original_filename[dot:]}"
+    return f"{original_filename}_{only_date}"
 
 
 # --- Expected JSON keys from GPT extraction ---
@@ -554,11 +556,11 @@ async def extract_and_process_document(
         results["clinic_name"] = metadata["clinic_name"]
         results["vaccination_details"] = metadata["vaccination_details"]
 
-        # Save classified document name with month/year suffix from GPT.
-        # Format: documentname_mon_year (e.g., prescription_jan_2026).
-        if document_name:
-            formatted_name = _format_document_name(str(document_name), extracted_items)
-            document.document_name = formatted_name[:200]
+        # Keep original filename; append a date only when exactly one date is present.
+        if document.document_name:
+            document.document_name = _append_single_extracted_date_to_filename(
+                str(document.document_name), extracted_items
+            )[:200]
         if metadata["document_category"]:
             document.document_category = metadata["document_category"]
         if metadata["doctor_name"]:
