@@ -50,6 +50,19 @@ export interface DocumentItem {
   uploaded_at: string | null;
 }
 
+export interface DiagnosticResultItem {
+  test_type: "blood" | "urine";
+  parameter_name: string;
+  value_numeric: number | null;
+  value_text: string | null;
+  unit: string | null;
+  reference_range: string | null;
+  status_flag: string | null;
+  observed_at: string | null;
+  document_id: string | null;
+  created_at: string | null;
+}
+
 export interface HealthScore {
   score: number;
   essential_done: number;
@@ -97,6 +110,7 @@ export interface DashboardData {
   preventive_records: PreventiveRecord[];
   reminders: ReminderItem[];
   documents: DocumentItem[];
+  diagnostic_results: DiagnosticResultItem[];
   health_score: HealthScore;
 }
 

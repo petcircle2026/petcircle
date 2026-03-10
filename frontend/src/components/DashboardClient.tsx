@@ -206,7 +206,7 @@ function DashboardInner({ token }: { token: string }) {
       {/* Diagnostics: blood & urine */}
       <section>
         <h2 className="mb-3 text-lg font-semibold">Blood & Urine Dashboard</h2>
-        <BloodUrineSection documents={data.documents} />
+        <BloodUrineSection diagnosticResults={data.diagnostic_results || []} />
       </section>
 
       {/* Medicines */}
