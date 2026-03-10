@@ -10,6 +10,8 @@ import PreventiveRecordsTable from "./PreventiveRecordsTable";
 import HealthTrendsSection from "./HealthTrendsSection";
 import RemindersSection from "./RemindersSection";
 import DocumentsSection from "./DocumentsSection";
+import MedicinesSection from "./MedicinesSection";
+import BloodUrineSection from "./BloodUrineSection";
 
 function DashboardInner({ token }: { token: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -199,6 +201,18 @@ function DashboardInner({ token }: { token: string }) {
       <section>
         <h2 className="mb-3 text-lg font-semibold">Uploaded Documents</h2>
         <DocumentsSection documents={data.documents} token={token} onRefresh={load} />
+      </section>
+
+      {/* Diagnostics: blood & urine */}
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Blood & Urine Dashboard</h2>
+        <BloodUrineSection documents={data.documents} />
+      </section>
+
+      {/* Medicines */}
+      <section>
+        <h2 className="mb-3 text-lg font-semibold">Medicines Tracker</h2>
+        <MedicinesSection token={token} />
       </section>
 
       {/* Footer */}

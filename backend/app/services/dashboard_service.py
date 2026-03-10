@@ -31,6 +31,7 @@ Rules:
 """
 
 import logging
+import asyncio
 from uuid import UUID
 from datetime import date, datetime
 from sqlalchemy.orm import Session
@@ -41,6 +42,7 @@ from app.models.preventive_record import PreventiveRecord
 from app.models.preventive_master import PreventiveMaster
 from app.models.reminder import Reminder
 from app.models.document import Document
+from app.services.document_upload import download_from_supabase
 from app.services.preventive_calculator import (
     compute_next_due_date,
     compute_status,
@@ -262,6 +264,50 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         "documents": document_data,
         "health_score": health_score,
     }
+
+
+def get_document_file_for_token(
+    db: Session,
+    token: str,
+    document_id: str,
+) -> tuple[bytes, str, str]:
+    """
+    Retrieve raw document bytes for a dashboard token and document id.
+
+    Security checks:
+      - token must be valid and not revoked/expired.
+      - document must belong to the token's pet.
+
+    Returns:
+      Tuple of (file_bytes, mime_type, filename).
+
+    Raises:
+      ValueError: token invalid, document missing, or file fetch failure.
+    """
+    dashboard_token = validate_dashboard_token(db, token)
+
+    try:
+        doc_uuid = UUID(document_id)
+    except ValueError as exc:
+        raise ValueError("Document not found.") from exc
+
+    doc = (
+        db.query(Document)
+        .filter(
+            Document.id == doc_uuid,
+            Document.pet_id == dashboard_token.pet_id,
+        )
+        .first()
+    )
+    if not doc:
+        raise ValueError("Document not found.")
+
+    file_bytes = asyncio.run(download_from_supabase(doc.file_path))
+    if not file_bytes:
+        raise ValueError("Could not load document from storage.")
+
+    filename = doc.file_path.split("/")[-1] if doc.file_path else "document"
+    return file_bytes, doc.mime_type, filename
 
 
 def update_pet_weight(
