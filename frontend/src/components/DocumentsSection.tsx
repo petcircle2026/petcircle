@@ -4,6 +4,8 @@ import { memo, useState, useMemo } from "react";
 import type { DocumentItem } from "@/lib/api";
 import { retryExtraction } from "@/lib/api";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 /** Category display order and labels. */
 const CATEGORY_ORDER = ["Vaccination", "Diagnostic", "Prescription", "Other"] as const;
 
@@ -93,10 +95,12 @@ function CategoryTable({
   docs,
   token,
   onRefresh,
+  onOpen,
 }: {
   docs: DocumentItem[];
   token: string;
   onRefresh: () => void;
+  onOpen: (doc: DocumentItem) => void;
 }) {
   return (
     <table className="w-full text-left text-sm">
@@ -111,8 +115,14 @@ function CategoryTable({
         {docs.map((d) => (
           <tr key={d.id} className="hover:bg-gray-50">
             <td className="px-4 py-2.5 font-medium">
-              <span className="mr-2">{mimeIcon(d.mime_type)}</span>
-              {d.document_name || "Uploaded Document"}
+              <button
+                onClick={() => onOpen(d)}
+                className="text-left text-blue-700 hover:underline"
+                title="Open document"
+              >
+                <span className="mr-2">{mimeIcon(d.mime_type)}</span>
+                {d.document_name || "Uploaded Document"}
+              </button>
             </td>
             <td className="px-4 py-2.5">
               <span
@@ -149,6 +159,8 @@ export default memo(function DocumentsSection({
   token: string;
   onRefresh: () => void;
 }) {
+  const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
+
   if (documents.length === 0) {
     return (
       <div className="rounded-lg border bg-white p-6 text-center text-gray-400">
@@ -200,9 +212,40 @@ export default memo(function DocumentsSection({
               {grouped[cat].length} document{grouped[cat].length !== 1 ? "s" : ""}
             </span>
           </div>
-          <CategoryTable docs={grouped[cat]} token={token} onRefresh={onRefresh} />
+          <CategoryTable docs={grouped[cat]} token={token} onRefresh={onRefresh} onOpen={setSelectedDoc} />
         </div>
       ))}
+    
+
+      {selectedDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="relative h-[85vh] w-full max-w-4xl rounded-lg bg-white p-3">
+            <button
+              onClick={() => setSelectedDoc(null)}
+              className="absolute right-3 top-2 rounded px-2 py-1 text-sm text-gray-600 hover:bg-gray-100"
+            >
+              Close
+            </button>
+            <div className="mb-2 pr-16 text-sm font-medium text-gray-700">
+              {selectedDoc.document_name || "Uploaded Document"}
+            </div>
+            {selectedDoc.mime_type === "application/pdf" ? (
+              <iframe
+                src={`${API_BASE}/dashboard/${token}/document/${selectedDoc.id}`}
+                className="h-[calc(85vh-3rem)] w-full rounded border"
+                title={selectedDoc.document_name || "Document"}
+              />
+            ) : (
+              <img
+                src={`${API_BASE}/dashboard/${token}/document/${selectedDoc.id}`}
+                alt={selectedDoc.document_name || "Document"}
+                className="h-[calc(85vh-3rem)] w-full rounded border object-contain"
+              />
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 });

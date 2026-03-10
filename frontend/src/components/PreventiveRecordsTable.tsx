@@ -240,7 +240,10 @@ export default function PreventiveRecordsTable({
                       }`}
                       title={r.displayStatus === "cancelled" ? undefined : "Click to update"}
                     >
-                      {formatDate(r.last_done_date)}
+                      <div>{formatDate(r.last_done_date)}</div>
+                      {r.displayStatus !== "cancelled" && (
+                        <div className="text-[11px] text-gray-400">Edit</div>
+                      )}
                     </button>
                   )}
                 </td>
