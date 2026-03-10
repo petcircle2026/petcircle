@@ -137,10 +137,10 @@ export default function PreventiveRecordsTable({ records, token, onUpdated }: Pr
             <table className="w-full text-left text-sm">
               <thead className="border-b bg-gray-50 text-xs uppercase text-gray-500">
                 <tr>
-                  <th className="px-4 py-3">Item</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Next Due / Last Done</th>
-                  <th className="hidden px-4 py-3 md:table-cell">Recurrence</th>
+                  <th className="px-3 py-2.5">Item</th>
+                  <th className="px-3 py-2.5">Status</th>
+                  <th className="px-3 py-2.5">Next Due</th>
+                  <th className="px-3 py-2.5">Last Done</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -149,19 +149,19 @@ export default function PreventiveRecordsTable({ records, token, onUpdated }: Pr
                   const isEditing = editingItem === r.item_name;
                   return (
                     <tr key={r.item_name} className="hover:bg-gray-50">
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2.5 align-top">
                         <div className="flex flex-col gap-1">
                           <span className="font-medium">{r.item_name}</span>
                           <span className={`inline-block w-fit rounded-full px-2 py-0.5 text-[10px] font-medium ${priority.className}`}>{priority.label}</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-3 py-2.5 align-top">
                         <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(r.displayStatus)}`}>{statusLabel(r.displayStatus)}</span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="text-sm text-gray-700">Next due - {formatDate(r.next_due_date)}</div>
+                      <td className="px-3 py-2.5 align-top text-sm text-gray-700">{formatDate(r.next_due_date)}</td>
+                      <td className="px-3 py-2.5 align-top">
                         {isEditing ? (
-                          <div className="mt-1.5 flex flex-col gap-1.5">
+                          <div className="flex flex-col gap-1.5">
                             <input type="date" value={dateInput} max={new Date().toISOString().split("T")[0]} onChange={(e) => setDateInput(e.target.value)} className="w-36 rounded border px-2 py-1 text-sm" disabled={saving} />
                             <div className="flex items-center gap-2">
                               <button onClick={() => handleSave(r.item_name)} disabled={saving} className="rounded bg-blue-600 px-2 py-1 text-xs text-white hover:bg-blue-700 disabled:opacity-50">{saving ? "..." : "Save"}</button>
@@ -178,14 +178,13 @@ export default function PreventiveRecordsTable({ records, token, onUpdated }: Pr
                               }
                             }}
                             disabled={r.displayStatus === "cancelled"}
-                            className={r.displayStatus === "cancelled" ? "mt-1 text-gray-400" : "mt-1 text-blue-600 hover:underline"}
+                            className={r.displayStatus === "cancelled" ? "text-gray-400" : "text-blue-600 hover:underline"}
                             title={r.displayStatus === "cancelled" ? undefined : "Click to update"}
                           >
-                            Last done - {formatDate(r.last_done_date)}
+                            {formatDate(r.last_done_date)} <span className="text-xs">Edit</span>
                           </button>
                         )}
                       </td>
-                      <td className="hidden px-4 py-3 text-gray-500 md:table-cell">{r.recurrence_days} days</td>
                     </tr>
                   );
                 })}
