@@ -59,6 +59,11 @@ _recent_uploads: dict[str, list[float]] = {}
 # Key: str(pet_id), Value: True if rejection was sent this batch.
 _rejection_sent: dict[str, bool] = {}
 
+# Tracks whether a generic error message was recently sent to a user.
+# Prevents spamming "Sorry, something went wrong" during webhook retries.
+# Key: from_number, Value: True if error was recently sent
+_error_sent: dict[str, bool] = {}
+
 # Window in seconds for counting a "batch" of uploads.
 # Files uploaded within this window are considered one batch.
 _UPLOAD_BATCH_WINDOW_SECONDS: int = 120
@@ -226,6 +231,9 @@ async def route_message(db: Session, message_data: dict) -> None:
             # route_message(), so this branch should be unreachable.
             logger.info("Unhandled message type '%s' from %s", msg_type, mask_phone(from_number))
 
+        # Clear error state on successful processing
+        _error_sent.pop(from_number, None)
+
     except Exception as e:
         logger.error("Error routing message from %s: %s", mask_phone(from_number), str(e))
         # Rollback any dirty transaction state before attempting to send error message.
@@ -234,10 +242,12 @@ async def route_message(db: Session, message_data: dict) -> None:
         except Exception:
             pass
         try:
-            await send_text_message(
-                db, from_number,
-                "Sorry, something went wrong. Please try again.",
-            )
+            if not _error_sent.get(from_number):
+                _error_sent[from_number] = True
+                await send_text_message(
+                    db, from_number,
+                    "Sorry, something went wrong. Please try again.",
+                )
         except Exception:
             pass
 
