@@ -239,6 +239,8 @@ def get_dashboard_data(db: Session, token: str) -> dict:
             "id": str(doc.id),
             "document_name": doc.document_name,
             "document_category": doc.document_category,
+            "doctor_name": doc.doctor_name,
+            "hospital_name": doc.hospital_name,
             "mime_type": doc.mime_type,
             "extraction_status": doc.extraction_status,
             "uploaded_at": str(doc.created_at) if doc.created_at else None,

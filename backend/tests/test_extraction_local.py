@@ -112,7 +112,7 @@ async def test_extraction():
 
         if raw_json:
             try:
-                items, doc_name, pet_name = _validate_extraction_json(raw_json)
+                items, doc_name, pet_name, _metadata = _validate_extraction_json(raw_json)
                 print(f"  Document name: {doc_name}")
                 print(f"  Pet name: {pet_name}")
                 print(f"  Items extracted: {len(items)}")

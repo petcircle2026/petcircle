@@ -375,19 +375,19 @@ def main():
 
         # Test JSON validation
         valid_json = '[{"item_name": "Rabies Vaccine", "last_done_date": "15/06/2024"}]'
-        items = _validate_extraction_json(valid_json)
+        items, _doc_name, _pet_name, _metadata = _validate_extraction_json(valid_json)
         test("Valid extraction JSON parsed", len(items) == 1)
         test("Item name extracted", items[0]["item_name"] == "Rabies Vaccine")
         test("Date normalized to DB format", items[0]["last_done_date"] == "2024-06-15")
 
         # Test wrapped format
         wrapped_json = '{"items": [{"item_name": "Deworming", "last_done_date": "2024-03-10"}]}'
-        items2 = _validate_extraction_json(wrapped_json)
+        items2, _, _, _ = _validate_extraction_json(wrapped_json)
         test("Wrapped JSON format accepted", len(items2) == 1)
 
         # Test empty extraction
         empty_json = '{"items": []}'
-        items3 = _validate_extraction_json(empty_json)
+        items3, _, _, _ = _validate_extraction_json(empty_json)
         test("Empty extraction returns empty list", len(items3) == 0)
 
         # Test preventive master matching
