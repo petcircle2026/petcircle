@@ -59,10 +59,11 @@ _recent_uploads: dict[str, list[float]] = {}
 # Key: str(pet_id), Value: True if rejection was sent this batch.
 _rejection_sent: dict[str, bool] = {}
 
-# Tracks whether a generic error message was recently sent to a user.
-# Prevents spamming "Sorry, something went wrong" during webhook retries.
-# Key: from_number, Value: True if error was recently sent
-_error_sent: dict[str, bool] = {}
+# Tracks the last inbound message token that already got a generic error reply.
+# Prevents duplicate "Sorry, something went wrong" during webhook retries for
+# the same inbound message, while still allowing one apology for a new message.
+# Key: from_number, Value: dedup token for the failed inbound message.
+_error_sent: dict[str, str] = {}
 
 # Window in seconds for counting a "batch" of uploads.
 # Files uploaded within this window are considered one batch.
@@ -108,6 +109,25 @@ def _get_mobile(user) -> str:
     Falls back to decrypting the stored encrypted mobile_number.
     """
     return getattr(user, "_plaintext_mobile", None) or decrypt_field(user.mobile_number)
+
+
+def _build_error_dedup_token(message_data: dict) -> str:
+    """Build a stable token to identify a specific inbound message retry."""
+    message_id = message_data.get("message_id")
+    if message_id:
+        return f"wamid:{message_id}"
+
+    msg_type = message_data.get("type") or "unknown"
+    if msg_type == "text":
+        return f"text:{(message_data.get('text') or '').strip().lower()}"
+    if msg_type in ("image", "document"):
+        media_id = message_data.get("media_id") or ""
+        filename = message_data.get("filename") or ""
+        return f"media:{msg_type}:{media_id}:{filename}"
+    if msg_type == "button":
+        return f"button:{message_data.get('button_payload') or ''}"
+
+    return f"type:{msg_type}"
 
 
 # All valid reminder payload IDs
@@ -248,8 +268,10 @@ async def route_message(db: Session, message_data: dict) -> None:
         except Exception:
             pass
         try:
-            if not _error_sent.get(from_number):
-                _error_sent[from_number] = True
+            dedup_token = _build_error_dedup_token(message_data)
+            should_send = _error_sent.get(from_number) != dedup_token
+            if should_send:
+                _error_sent[from_number] = dedup_token
                 await send_text_message(
                     db, from_number,
                     "Sorry, something went wrong. Please try again.",
