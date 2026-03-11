@@ -816,16 +816,17 @@ async def _delayed_batch_extraction(
         pet = bg_db.query(Pet).filter(Pet.id == pet_id).first()
         pet_species = pet.species if pet else "dog"
         pet_breed = pet.breed if pet else None
-        fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
+        received_fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
+        extracting_fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
         await send_text_message(
             bg_db, from_number,
             f"Got it — I received *{total}* document{'s' if total != 1 else ''} for *{pet_name}*:\n{doc_names}\n\n"
-            f"Fun fact: {fun_fact}",
+            f"Fun fact: {received_fun_fact}",
         )
         await send_text_message(
             bg_db, from_number,
             f"I will now start extracting health data for *{pet_name}*:\n{doc_names}\n\n"
-            f"Fun fact: {fun_fact}",
+            f"Fun fact: {extracting_fun_fact}",
         )
 
         last_result = None

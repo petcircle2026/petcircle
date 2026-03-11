@@ -305,7 +305,7 @@ export default function HealthTrendsSection({ token }: Props) {
   if (!hasCompletions && !hasTimeline) {
     return (
       <div className="rounded-lg border bg-white p-6 text-center text-gray-400">
-        No health activity recorded yet. Update your preventive records to see trends here.
+        No health activity recorded yet. Update your care records to see trends here.
       </div>
     );
   }

@@ -45,6 +45,19 @@ def _hash_fact(fact: str) -> str:
     """Return SHA-256 hex digest of a fact string."""
     return hashlib.sha256(fact.encode("utf-8")).hexdigest()
 
+
+def _dedupe_facts(facts: list[str]) -> list[str]:
+    """Return facts in original order with duplicates removed."""
+    seen: set[str] = set()
+    unique_facts: list[str] = []
+    for fact in facts:
+        normalized = fact.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        unique_facts.append(normalized)
+    return unique_facts
+
 # ----------------------------------
 # DOG BREED FUN FACTS
 # ----------------------------------
@@ -275,7 +288,7 @@ async def _generate_breed_facts_with_ai(breed: str, species: str) -> list[str]:
         raw = response.choices[0].message.content.strip()
         facts = json.loads(raw)
         if isinstance(facts, list) and len(facts) >= 1:
-            facts = [str(f) for f in facts[:3]]
+            facts = _dedupe_facts([str(f) for f in facts[:3]])
             _AI_GENERATED_FACTS[cache_key] = facts
             logger.info("Generated %d AI fun facts for breed=%s species=%s", len(facts), breed, species)
             return facts
@@ -285,13 +298,78 @@ async def _generate_breed_facts_with_ai(breed: str, species: str) -> list[str]:
     return []
 
 
+async def _generate_additional_fun_facts_with_ai(
+    breed: str | None,
+    species: str,
+    excluded_facts: list[str],
+    count: int = 5,
+) -> list[str]:
+    """
+    Generate additional unseen fun facts after the known pool is exhausted.
+
+    This bypasses the in-memory cache because the prompt depends on which facts
+    the user has already seen.
+    """
+    try:
+        client = _get_openai_client()
+        subject = f"the {breed} breed" if breed else f"{species}s"
+        excluded_list = "\n".join(f"- {fact}" for fact in excluded_facts)
+        response = await client.chat.completions.create(
+            model=OPENAI_QUERY_MODEL,
+            temperature=0.9,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You generate short, fun, surprising facts about pets. "
+                        f"Return a JSON array of exactly {count} unique strings. "
+                        "No markdown and no extra text. Do not repeat or closely paraphrase excluded facts."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"Generate {count} short, fun, surprising facts about {subject}.\n"
+                        "Avoid repeating any of these facts:\n"
+                        f"{excluded_list or '- None provided'}"
+                    ),
+                },
+            ],
+        )
+        raw = response.choices[0].message.content.strip()
+        facts = json.loads(raw)
+        if isinstance(facts, list) and facts:
+            excluded_set = {fact.strip() for fact in excluded_facts}
+            new_facts = [
+                fact for fact in _dedupe_facts([str(f) for f in facts])
+                if fact not in excluded_set
+            ]
+            logger.info(
+                "Generated %d additional AI fun facts for breed=%s species=%s",
+                len(new_facts),
+                breed,
+                species,
+            )
+            return new_facts
+    except Exception:
+        logger.warning(
+            "Failed to generate additional AI fun facts for breed=%s species=%s",
+            breed,
+            species,
+            exc_info=True,
+        )
+
+    return []
+
+
 async def get_breed_fun_fact(db: Session, user_id: UUID, breed: str | None, species: str) -> str:
     """
     Return a unique fun fact for the given breed and species.
 
     Tracks shown facts per user in the shown_fun_facts table so the same
-    user never sees the same fact twice. When all facts have been shown,
-    resets the tracking and starts fresh.
+    user does not see the same fact twice. When the built-in pool has been
+    exhausted, the function first tries to generate fresh facts before
+    falling back to a reset.
 
     If the breed is not in the local database, generates facts via OpenAI.
     Falls back to generic species facts if everything else fails.
@@ -337,7 +415,18 @@ async def get_breed_fun_fact(db: Session, user_id: UUID, breed: str | None, spec
     # Step 3: Filter to unseen facts.
     unseen = [f for f in candidates if _hash_fact(f) not in shown_hashes]
 
-    # Step 4: If all facts seen, reset and pick from full list.
+    # Step 4: If all built-in facts are exhausted, try generating fresh ones.
+    if not unseen:
+        extra_candidates = await _generate_additional_fun_facts_with_ai(
+            breed=breed,
+            species=species,
+            excluded_facts=candidates,
+        )
+        if extra_candidates:
+            candidates = _dedupe_facts(candidates + extra_candidates)
+            unseen = [f for f in candidates if _hash_fact(f) not in shown_hashes]
+
+    # Step 5: If still exhausted, reset and pick from full list as a last resort.
     if not unseen:
         try:
             candidate_hashes = {_hash_fact(f) for f in candidates}
@@ -352,7 +441,7 @@ async def get_breed_fun_fact(db: Session, user_id: UUID, breed: str | None, spec
             logger.warning("Failed to reset shown_fun_facts for user_id=%s", user_id, exc_info=True)
         unseen = candidates
 
-    # Step 5: Pick a random fact and record it.
+    # Step 6: Pick a random fact and record it.
     chosen = random.choice(unseen)
     try:
         db.add(ShownFunFact(user_id=user_id, fact_hash=_hash_fact(chosen)))

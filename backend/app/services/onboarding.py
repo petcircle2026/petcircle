@@ -955,7 +955,7 @@ async def _step_neutered(db, user, text_lower, send_fn):
         f"✅ {pet.name}'s profile is ready!\n\n"
         f"Now upload vaccination records, prescriptions, or health reports "
         f"and I'll extract the details automatically.\n\n"
-        f"You can upload up to *5 documents at a time*.\n"
+        f"You can upload up to *5 documents at a time*.\n\n"
         f"You have *5 minutes* to upload. Type *skip* to continue without uploading.",
     )
 

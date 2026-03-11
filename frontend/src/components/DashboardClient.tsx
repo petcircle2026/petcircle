@@ -175,9 +175,9 @@ function DashboardInner({ token }: { token: string }) {
         </div>
       </div>
 
-      {/* Preventive Records */}
+      {/* Care Records */}
       <section>
-        <h2 className="mb-3 text-lg font-semibold">Preventive Records</h2>
+        <h2 className="mb-3 text-lg font-semibold">Care Records</h2>
         <PreventiveRecordsTable
           records={data.preventive_records}
           token={token}

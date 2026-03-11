@@ -1,0 +1,66 @@
+[10/03/26, 11:44:39 PM] Pet conceirge Test Number Pet: ‎This business uses a secure service from Meta to manage this chat. Tap to learn more.
+[10/03/26, 11:44:39 PM] Sheryl: hi
+[10/03/26, 11:44:53 PM] Pet conceirge Test Number Pet: Hey there! Welcome to *PetCircle* 🐾
+
+I'm your pet's personal health assistant. I help you stay on top of vaccinations, deworming, tick treatments, and all the preventive care your furry friend needs — right here on WhatsApp.
+
+Before we begin, I need your consent to store your pet's health data so I can send you timely reminders and keep everything organized.
+
+Reply *yes* to get started or *no* to opt out.
+[10/03/26, 11:44:57 PM] Sheryl: y
+[10/03/26, 11:45:00 PM] Pet conceirge Test Number Pet: Thank you for your consent! Let's get you set up.
+
+Your WhatsApp name is *Sheryl*. Should I use this as your name? Reply *yes* or enter a different name.
+[10/03/26, 11:45:21 PM] Sheryl: y
+[10/03/26, 11:45:25 PM] Pet conceirge Test Number Pet: Nice to meet you, Sheryl!
+
+What is your *pincode*? (Type *skip* if you prefer not to share)
+[10/03/26, 11:45:57 PM] Sheryl: 123445
+[10/03/26, 11:46:01 PM] Pet conceirge Test Number Pet: Now let's add your pet!
+
+What is your *pet's name*?
+[10/03/26, 11:46:05 PM] Sheryl: zayn
+[10/03/26, 11:46:10 PM] Pet conceirge Test Number Pet: Great name! Is *Zayn* a *dog* or a *cat*?
+[10/03/26, 11:47:00 PM] Sheryl: d
+[10/03/26, 11:47:05 PM] Pet conceirge Test Number Pet: What *breed* is Zayn? (Type *skip* if you're not sure)
+[10/03/26, 11:47:09 PM] Sheryl: lab
+[10/03/26, 11:47:14 PM] Pet conceirge Test Number Pet: Got it Labrador Retriever! What is Zayn's *gender*? (*male* or *female*, or *skip*)
+[10/03/26, 11:47:25 PM] Sheryl: m
+[10/03/26, 11:47:29 PM] Pet conceirge Test Number Pet: When was Zayn born? (or type *skip*)
+[10/03/26, 11:47:36 PM] Sheryl: jan 2026
+[10/03/26, 11:47:40 PM] Pet conceirge Test Number Pet: What is Zayn's *weight* in kg? (e.g., 12.5, or *skip*)
+[10/03/26, 11:47:45 PM] Sheryl: 13
+[10/03/26, 11:47:51 PM] Pet conceirge Test Number Pet: Is Zayn *neutered/spayed*? (*yes*, *no*, or *skip*)
+[10/03/26, 11:47:55 PM] Sheryl: y
+[10/03/26, 11:48:10 PM] Pet conceirge Test Number Pet: ✅ Zayn's profile is ready!
+
+Now upload vaccination records, prescriptions, or health reports and I'll extract the details automatically.
+
+You can upload up to *5 documents at a time*.
+You have *5 minutes* to upload. Type *skip* to continue without uploading.
+‎[10/03/26, 11:49:02 PM] Sheryl: Zayn_Vaccination_Record_2.jpg ‎document omitted
+‎[10/03/26, 11:49:02 PM] Sheryl: Zayn_Vaccination_Record_1.jpg ‎document omitted
+‎[10/03/26, 11:49:02 PM] Sheryl: Blood_28_01_25.pdf • ‎2 pages ‎document omitted
+‎[10/03/26, 11:49:02 PM] Sheryl: CBC_12_02_25.pdf • ‎1 page ‎document omitted
+‎[10/03/26, 11:49:02 PM] Sheryl: Urine_12_02_25.pdf • ‎1 page ‎document omitted
+[10/03/26, 11:49:34 PM] Pet conceirge Test Number Pet: *Zayn_Vaccination_Record_2.jpg* saved for *Zayn*. Will start extracting health data once all files are received.
+[10/03/26, 11:49:34 PM] Pet conceirge Test Number Pet: *Urine_12_02_25.pdf* saved for *Zayn*. Will start extracting health data once all files are received.
+[10/03/26, 11:49:34 PM] Pet conceirge Test Number Pet: *Blood_28_01_25.pdf* saved for *Zayn*. Will start extracting health data once all files are received.
+[10/03/26, 11:49:35 PM] Pet conceirge Test Number Pet: *CBC_12_02_25.pdf* saved for *Zayn*. Will start extracting health data once all files are received.
+[10/03/26, 11:49:35 PM] Pet conceirge Test Number Pet: *Zayn_Vaccination_Record_1.jpg* saved for *Zayn*. Will start extracting health data once all files are received.
+[10/03/26, 11:49:57 PM] Pet conceirge Test Number Pet: Got it — I received *5* documents for *Zayn*:
+  - Urine_12_02_25.pdf
+  - CBC_12_02_25.pdf
+  - Blood_28_01_25.pdf
+  - Zayn_Vaccination_Record_2.jpg
+  - Zayn_Vaccination_Record_1.jpg
+
+Fun fact: Labs have a special waterproof double coat and webbed toes — born swimmers!
+[10/03/26, 11:49:59 PM] Pet conceirge Test Number Pet: I will now start extracting health data for *Zayn*:
+  - Urine_12_02_25.pdf
+  - CBC_12_02_25.pdf
+  - Blood_28_01_25.pdf
+  - Zayn_Vaccination_Record_2.jpg
+  - Zayn_Vaccination_Record_1.jpg
+
+Fun fact: Labs have a special waterproof double coat and webbed toes — born swimmers!

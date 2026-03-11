@@ -125,7 +125,7 @@ export default function PreventiveRecordsTable({ records, token, onUpdated }: Pr
     return Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, sortRecords(v)])) as Record<string, DisplayRecord[]>;
   }, [records]);
 
-  if (records.length === 0) return <div className="rounded-lg border bg-white p-6 text-center text-gray-400">No preventive records yet.</div>;
+  if (records.length === 0) return <div className="rounded-lg border bg-white p-6 text-center text-gray-400">No care records yet.</div>;
 
   return (
     <div className="space-y-4">

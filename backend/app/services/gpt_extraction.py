@@ -32,6 +32,8 @@ Rules:
 
 import json
 import logging
+import os
+import re
 from datetime import datetime
 from uuid import UUID
 from sqlalchemy.orm import Session
@@ -51,6 +53,91 @@ from app.utils.date_utils import parse_date, format_date_for_db
 
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_document_category(raw_category: str | None) -> str | None:
+    """Normalize GPT category output to one of the dashboard's canonical values."""
+    value = (raw_category or "").strip().lower()
+    if not value:
+        return None
+
+    aliases = {
+        "vaccination": "Vaccination",
+        "vaccinations": "Vaccination",
+        "vaccine": "Vaccination",
+        "vaccines": "Vaccination",
+        "prescription": "Prescription",
+        "prescriptions": "Prescription",
+        "rx": "Prescription",
+        "medication": "Prescription",
+        "diagnostic": "Diagnostic",
+        "diagnostics": "Diagnostic",
+        "lab": "Diagnostic",
+        "laboratory": "Diagnostic",
+        "other": "Other",
+        "misc": "Other",
+        "miscellaneous": "Other",
+    }
+    if value in aliases:
+        return aliases[value]
+
+    for category in DOCUMENT_CATEGORIES:
+        if value == category.lower():
+            return category
+
+    return None
+
+
+def _infer_document_category(
+    document_name: str | None,
+    file_path: str | None,
+    items: list[dict],
+    vaccination_details: list[dict],
+    diagnostic_values: list[dict],
+) -> str:
+    """Infer a document category when GPT omits or misformats it."""
+    name_text = (document_name or "").strip().lower()
+    file_text = os.path.basename(file_path or "").strip().lower()
+    combined_text = f"{name_text} {file_text}"
+
+    if any(keyword in combined_text for keyword in ("prescription", "rx", "medicine", "medication")):
+        return "Prescription"
+    if any(keyword in combined_text for keyword in ("vaccin", "rabies", "dhpp", "fvrcp", "booster")):
+        return "Vaccination"
+    if any(keyword in combined_text for keyword in (
+        "blood",
+        "urine",
+        "diagnostic",
+        "lab",
+        "laboratory",
+        "cbc",
+        "biochemistry",
+        "hematology",
+        "haematology",
+        "urinalysis",
+        "x-ray",
+        "xray",
+    )):
+        return "Diagnostic"
+
+    if vaccination_details:
+        return "Vaccination"
+    if diagnostic_values:
+        return "Diagnostic"
+
+    item_names = {
+        _normalize_preventive_item_name(str(item.get("item_name") or ""))
+        for item in items
+        if item.get("item_name")
+    }
+    if item_names & {"rabies vaccine", "core vaccine", "feline core"}:
+        return "Vaccination"
+    if "preventive blood test" in item_names:
+        return "Diagnostic"
+    if any(item_name in item_names for item_name in ("annual checkup", "dental check", "deworming", "tick/flea")):
+        return "Prescription"
+
+    return "Other"
 
 
 def _append_single_extracted_date_to_filename(
@@ -292,6 +379,7 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
         "document_type": "pet_medical",
         "document_category": None,
         "diagnostic_summary": None,
+        "diagnostic_values": [],
         "doctor_name": None,
         "clinic_name": None,
         "vaccination_details": [],
@@ -301,10 +389,11 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
         extracted_pet_name = parsed.get("pet_name")
         # Extract classification metadata.
         metadata["document_type"] = parsed.get("document_type", "pet_medical")
-        raw_category = parsed.get("document_category")
-        if raw_category in DOCUMENT_CATEGORIES:
-            metadata["document_category"] = raw_category
+        metadata["document_category"] = _normalize_document_category(parsed.get("document_category"))
         metadata["diagnostic_summary"] = parsed.get("diagnostic_summary")
+        raw_diagnostic_values = parsed.get("diagnostic_values")
+        if isinstance(raw_diagnostic_values, list):
+            metadata["diagnostic_values"] = raw_diagnostic_values
         metadata["doctor_name"] = parsed.get("doctor_name")
         metadata["clinic_name"] = parsed.get("clinic_name")
         raw_vaccination_details = parsed.get("vaccination_details")
@@ -560,17 +649,27 @@ async def extract_and_process_document(
         results["document_type"] = metadata["document_type"]
         results["document_category"] = metadata["document_category"]
         results["diagnostic_summary"] = metadata["diagnostic_summary"]
+        results["diagnostic_values"] = metadata.get("diagnostic_values", [])
         results["doctor_name"] = metadata["doctor_name"]
         results["clinic_name"] = metadata["clinic_name"]
         results["vaccination_details"] = metadata["vaccination_details"]
+
+        document_category = metadata["document_category"] or _infer_document_category(
+            document_name=document_name or document.document_name,
+            file_path=document.file_path,
+            items=extracted_items,
+            vaccination_details=metadata.get("vaccination_details", []),
+            diagnostic_values=metadata.get("diagnostic_values", []),
+        )
+        results["document_category"] = document_category
 
         # Keep original filename; append a date only when exactly one date is present.
         if document.document_name:
             document.document_name = _append_single_extracted_date_to_filename(
                 str(document.document_name), extracted_items
             )[:200]
-        if metadata["document_category"]:
-            document.document_category = metadata["document_category"]
+        if document_category:
+            document.document_category = document_category
         if metadata["doctor_name"]:
             document.doctor_name = str(metadata["doctor_name"])[:200]
         if metadata["clinic_name"]:

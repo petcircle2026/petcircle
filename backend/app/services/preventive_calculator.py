@@ -219,9 +219,51 @@ def create_preventive_record(
     next_due = compute_next_due_date(last_done_date, master.recurrence_days)
     status = compute_status(next_due, master.reminder_before_days)
 
-    # Create the preventive record.
-    # The UNIQUE constraint ensures idempotency — duplicate inserts will
-    # raise IntegrityError, which the caller must handle.
+    # Idempotency: return the existing record when the same event was already saved.
+    existing_record = (
+        db.query(PreventiveRecord)
+        .filter(
+            PreventiveRecord.pet_id == pet_id,
+            PreventiveRecord.preventive_master_id == preventive_master_id,
+            PreventiveRecord.last_done_date == last_done_date,
+        )
+        .first()
+    )
+    if existing_record:
+        existing_record.next_due_date = next_due
+        existing_record.status = status
+        db.commit()
+        return existing_record
+
+    # When pets are pre-seeded with an incomplete placeholder row for this item,
+    # fill that row instead of creating a second entry that leaves the dashboard stale.
+    placeholder_record = (
+        db.query(PreventiveRecord)
+        .filter(
+            PreventiveRecord.pet_id == pet_id,
+            PreventiveRecord.preventive_master_id == preventive_master_id,
+            PreventiveRecord.last_done_date.is_(None),
+            PreventiveRecord.status != "cancelled",
+        )
+        .order_by(PreventiveRecord.created_at.asc())
+        .first()
+    )
+    if placeholder_record:
+        placeholder_record.last_done_date = last_done_date
+        placeholder_record.next_due_date = next_due
+        placeholder_record.status = status
+        db.commit()
+        logger.info(
+            "Preventive placeholder filled: pet_id=%s, item=%s, last_done=%s, next_due=%s, status=%s",
+            str(pet_id),
+            master.item_name,
+            str(last_done_date),
+            str(next_due),
+            status,
+        )
+        return placeholder_record
+
+    # Create a new preventive record when there is no existing exact or placeholder row.
     record = PreventiveRecord(
         pet_id=pet_id,
         preventive_master_id=preventive_master_id,
