@@ -9,6 +9,25 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 /** Category display order and labels. */
 const CATEGORY_ORDER = ["Vaccination", "Diagnostic", "Prescription", "Other"] as const;
 
+function inferCategory(doc: DocumentItem): (typeof CATEGORY_ORDER)[number] {
+  const rawCategory = (doc.document_category || "").trim();
+  if (CATEGORY_ORDER.includes(rawCategory as (typeof CATEGORY_ORDER)[number])) {
+    if (rawCategory !== "Other") return rawCategory as (typeof CATEGORY_ORDER)[number];
+  }
+
+  const name = `${doc.document_name || ""} ${doc.hospital_name || ""}`.toLowerCase();
+  if (/(blood|cbc|urine|urinalysis|hematology|haematology|lab|diagnostic)/.test(name)) {
+    return "Diagnostic";
+  }
+  if (/(prescription|rx|medicine|medication)/.test(name)) {
+    return "Prescription";
+  }
+  if (/(vaccin|rabies|booster|dhpp|fvrcp)/.test(name)) {
+    return "Vaccination";
+  }
+  return "Other";
+}
+
 /** Category badge colors. */
 function categoryBadge(cat: string | null): string {
   const map: Record<string, string> = {
@@ -191,9 +210,7 @@ export default memo(function DocumentsSection({
     }
 
     for (const doc of documents) {
-      const cat = doc.document_category && CATEGORY_ORDER.includes(doc.document_category as any)
-        ? doc.document_category
-        : "Other";
+      const cat = inferCategory(doc);
       groups[cat].push(doc);
     }
 
