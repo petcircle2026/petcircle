@@ -11,7 +11,7 @@ Handles the WhatsApp order conversation flow:
 
 Flow states:
     - awaiting_order_category: after user types "order"
-    - awaiting_recommendation_selection: after user selects category (if recommendations available)
+    - awaiting_reco_sel: after user selects category (if recommendations available)
     - awaiting_order_items: if no recommendations or after cancel recommendation
     - awaiting_order_pet: multi-pet selection
     - awaiting_order_confirm: confirmation
@@ -118,7 +118,7 @@ async def handle_order_category(db: Session, user, payload: str) -> None:
     recommendations = []
 
     if len(pets) > 1:
-        user.order_state = "awaiting_order_pet_for_recommendation"
+        user.order_state = "awaiting_pet_reco"
         db.commit()
         pet_list = "\n".join(f"{i+1}. {p.name}" for i, p in enumerate(pets))
         await send_text_message(
@@ -142,7 +142,7 @@ async def handle_order_category(db: Session, user, payload: str) -> None:
                 # Store pet_id for preference tracking later
                 order.pet_id = pet.id
                 db.commit()
-                user.order_state = "awaiting_recommendation_selection"
+                user.order_state = "awaiting_reco_sel"
                 db.commit()
                 await _send_recommendation_list(db, from_number, label, pet.name, recommendations)
                 logger.info(
@@ -338,7 +338,7 @@ async def handle_order_pet_for_recommendation(db: Session, user, text: str) -> N
     )
 
     if recommendations:
-        user.order_state = "awaiting_recommendation_selection"
+        user.order_state = "awaiting_reco_sel"
         db.commit()
         await _send_recommendation_list(db, from_number, label, matched_pet.name, recommendations)
         return

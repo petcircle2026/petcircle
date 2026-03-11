@@ -326,8 +326,8 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
 
     # --- Active order flow — intercept text for items or pet selection ---
     if user.order_state in (
-        "awaiting_order_pet_for_recommendation",
-        "awaiting_recommendation_selection",
+        "awaiting_pet_reco",
+        "awaiting_reco_sel",
         "awaiting_order_items",
         "awaiting_order_pet",
         "awaiting_order_confirm",
@@ -338,11 +338,11 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
             await cancel_order_flow(db, user)
             return
 
-        if user.order_state == "awaiting_order_pet_for_recommendation":
+        if user.order_state == "awaiting_pet_reco":
             from app.services.order_service import handle_order_pet_for_recommendation
             await handle_order_pet_for_recommendation(db, user, text)
             return
-        elif user.order_state == "awaiting_recommendation_selection":
+        elif user.order_state == "awaiting_reco_sel":
             from app.services.order_service import handle_recommendation_selection
             await handle_recommendation_selection(db, user, text)
             return

@@ -1,9 +1,14 @@
 """
-Local GPT Extraction Test — runs against fixtures/sample_reports.
+Local GPT Extraction Test — runs against Sample_Reports.
 
-Tests both:
+Tests:
     - Image files (JPEG/PNG) → GPT vision API
     - PDF files → PyPDF2 text extraction → GPT text API
+    - Scanned PDFs → PyMuPDF render → GPT vision fallback
+    - Diagnostic values extraction (CBC, urine parameters)
+    - Vaccination detail extraction (doses, batch numbers, next due dates)
+    - Prescription extraction
+    - Query engine scenarios against extracted data
 
 Usage:
     cd backend
@@ -30,9 +35,261 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 os.environ.setdefault("APP_ENV", "production")
 
 
+# --- Expected extraction outcomes per file ---
+# Used to validate that GPT extraction produces the right structure.
+EXPECTED_OUTCOMES = {
+    # Blood reports: should extract Preventive Blood Test + diagnostic values
+    "Blood_28_01_25.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-01-28",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood_29_01_25.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-01-29",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood_29_01_25_2.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-01-29",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood _29_01_25_3.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-01-29",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood_12_02_25_2.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-02-12",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood_12_02_25_3.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-02-12",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood_22_02_25_1.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-02-22",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood_22_02_25_2.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-02-22",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "Blood_22_02_25_3.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-02-22",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    "CBC_12_02_25.pdf": {
+        "category": "Diagnostic",
+        "expected_items": ["Preventive Blood Test"],
+        "expected_date_prefix": "2025-02-12",
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "blood",
+    },
+    # Urine reports: should extract diagnostic values but no tracked preventive item
+    "Urine_28_11_24.pdf": {
+        "category": "Diagnostic",
+        "expected_items": [],
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "urine",
+    },
+    "Urine_culture_29_11_24.pdf": {
+        "category": "Diagnostic",
+        "expected_items": [],
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "urine",
+    },
+    "Urine_1_02_25.pdf": {
+        "category": "Diagnostic",
+        "expected_items": [],
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "urine",
+    },
+    "Urine_12_02_25.pdf": {
+        "category": "Diagnostic",
+        "expected_items": [],
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "urine",
+    },
+    "Urine_26_02_25.pdf": {
+        "category": "Diagnostic",
+        "expected_items": [],
+        "must_have_diagnostic_values": True,
+        "expected_test_type": "urine",
+    },
+    # Prescription
+    "Prescription_Chavan_12_02_25.jpg": {
+        "category": "Prescription",
+        "expected_items": [],  # Prescriptions may or may not have tracked items
+        "must_have_diagnostic_values": False,
+    },
+    # Vaccination records
+    "Zayn_Vaccination_Record.jpg": {
+        "category": "Vaccination",
+        "expected_items": ["Rabies Vaccine", "Core Vaccine"],
+        "must_have_vaccination_details": True,
+        "must_have_diagnostic_values": False,
+    },
+    "Zayn_Vaccination_Record_1.jpg": {
+        "category": "Vaccination",
+        "expected_items": ["Rabies Vaccine", "Core Vaccine"],
+        "must_have_vaccination_details": True,
+        "must_have_diagnostic_values": False,
+    },
+    "Zayn_Vaccination_Record_2.jpg": {
+        "category": "Vaccination",
+        "expected_items": ["Rabies Vaccine", "Core Vaccine"],
+        "must_have_vaccination_details": True,
+        "must_have_diagnostic_values": False,
+    },
+}
+
+
+def _print_diagnostic_values(diagnostic_values: list[dict], indent: str = "    ") -> None:
+    """Pretty-print diagnostic test values."""
+    if not diagnostic_values:
+        print(f"{indent}(none)")
+        return
+
+    # Group by test_type.
+    by_type: dict[str, list[dict]] = {}
+    for val in diagnostic_values:
+        if not isinstance(val, dict):
+            continue
+        tt = str(val.get("test_type", "unknown")).strip().lower()
+        by_type.setdefault(tt, []).append(val)
+
+    for test_type, values in sorted(by_type.items()):
+        print(f"{indent}[{test_type.upper()}] — {len(values)} parameters:")
+        for val in values:
+            name = val.get("parameter_name", "?")
+            numeric = val.get("value_numeric")
+            text = val.get("value_text")
+            unit = val.get("unit", "")
+            ref = val.get("reference_range", "")
+            flag = val.get("status_flag", "")
+            obs = val.get("observed_at", "")
+
+            value_str = str(numeric) if numeric is not None else (str(text) if text else "N/A")
+            parts = [f"{name}: {value_str}"]
+            if unit:
+                parts.append(f"{unit}")
+            if ref:
+                parts.append(f"ref={ref}")
+            if flag:
+                parts.append(f"[{flag.upper()}]")
+            if obs:
+                parts.append(f"on {obs}")
+            print(f"{indent}  - {' '.join(parts)}")
+
+
+def _print_vaccination_details(vaccination_details: list[dict], indent: str = "    ") -> None:
+    """Pretty-print vaccination detail rows."""
+    if not vaccination_details:
+        print(f"{indent}(none)")
+        return
+
+    for detail in vaccination_details:
+        if not isinstance(detail, dict):
+            continue
+        name = detail.get("vaccine_name") or detail.get("vaccine_name_raw") or "?"
+        batch = detail.get("batch_number", "")
+        next_due = detail.get("next_due_date", "")
+        admin_by = detail.get("administered_by", "")
+        dose = detail.get("dose", "")
+        route = detail.get("route", "")
+        mfr = detail.get("manufacturer", "")
+
+        parts = [name]
+        if batch:
+            parts.append(f"batch={batch}")
+        if next_due:
+            parts.append(f"next_due={next_due}")
+        if admin_by:
+            parts.append(f"by={admin_by}")
+        if dose:
+            parts.append(f"dose={dose}")
+        if route:
+            parts.append(f"route={route}")
+        if mfr:
+            parts.append(f"mfr={mfr}")
+        print(f"{indent}  - {' | '.join(parts)}")
+
+
+def _validate_result(filename: str, result: dict) -> list[str]:
+    """Validate extraction result against expected outcomes. Returns list of issues."""
+    issues = []
+    expected = EXPECTED_OUTCOMES.get(filename)
+    if not expected:
+        return issues  # No expectations defined.
+
+    if result.get("status") != "success":
+        issues.append(f"FAIL: Expected success but got {result.get('status')}: {result.get('error', '')}")
+        return issues
+
+    # Category check.
+    actual_category = result.get("document_category", "")
+    if expected.get("category") and actual_category != expected["category"]:
+        issues.append(f"CATEGORY: expected '{expected['category']}' got '{actual_category}'")
+
+    # Items check.
+    actual_item_names = [i.get("item_name", "") for i in result.get("items", [])]
+    for expected_item in expected.get("expected_items", []):
+        if not any(expected_item.lower() in name.lower() for name in actual_item_names):
+            issues.append(f"MISSING ITEM: expected '{expected_item}' in items")
+
+    # Date prefix check.
+    if expected.get("expected_date_prefix"):
+        dates = [i.get("last_done_date", "") for i in result.get("items", [])]
+        if dates and not any(d.startswith(expected["expected_date_prefix"]) for d in dates):
+            issues.append(f"DATE: expected date starting with '{expected['expected_date_prefix']}', got {dates}")
+
+    # Diagnostic values check.
+    diag_values = result.get("diagnostic_values", [])
+    if expected.get("must_have_diagnostic_values"):
+        if not diag_values:
+            issues.append("MISSING: No diagnostic_values extracted (expected blood/urine parameters)")
+        else:
+            expected_type = expected.get("expected_test_type")
+            if expected_type:
+                actual_types = {str(v.get("test_type", "")).lower() for v in diag_values if isinstance(v, dict)}
+                if expected_type not in actual_types:
+                    issues.append(f"TEST_TYPE: expected '{expected_type}' in diagnostic_values, got {actual_types}")
+
+    # Vaccination details check.
+    vacc_details = result.get("vaccination_details", [])
+    if expected.get("must_have_vaccination_details") and not vacc_details:
+        issues.append("MISSING: No vaccination_details extracted (expected vaccine rows)")
+
+    return issues
+
+
 async def test_extraction():
     """Run GPT extraction on all fixture files and report results."""
-    from app.utils.file_reader import encode_image_base64, extract_pdf_text
+    from app.utils.file_reader import encode_image_base64, extract_pdf_text, render_pdf_pages_as_images
     from app.services.gpt_extraction import (
         _call_openai_extraction,
         _call_openai_extraction_vision,
@@ -56,6 +313,7 @@ async def test_extraction():
     print(f"{'='*80}\n")
 
     results = []
+    all_issues = []
 
     for filename in files:
         filepath = os.path.join(fixtures_dir, filename)
@@ -93,15 +351,22 @@ async def test_extraction():
                         f"Veterinary document text:\n\n{pdf_text}"
                     )
                 else:
-                    print(f"  SKIP: Scanned PDF with no extractable text")
-                    results.append({
-                        "file": filename,
-                        "status": "skipped",
-                        "reason": "scanned PDF (no text)",
-                        "time_s": 0,
-                    })
-                    print()
-                    continue
+                    # Scanned PDF — try vision fallback.
+                    print(f"  Scanned PDF — trying vision fallback...")
+                    page_images = render_pdf_pages_as_images(file_bytes, max_pages=3)
+                    if page_images:
+                        print(f"  Rendered {len(page_images)} page(s) as images")
+                        raw_json = await _call_openai_extraction_vision(page_images[0])
+                    else:
+                        print(f"  SKIP: Cannot render scanned PDF (PyMuPDF not available?)")
+                        results.append({
+                            "file": filename,
+                            "status": "skipped",
+                            "reason": "scanned PDF (no text, no vision fallback)",
+                            "time_s": 0,
+                        })
+                        print()
+                        continue
             else:
                 print(f"  SKIP: Unsupported file type")
                 continue
@@ -115,38 +380,89 @@ async def test_extraction():
         if raw_json:
             try:
                 items, doc_name, pet_name, metadata = _validate_extraction_json(raw_json)
-                print(f"  Document name: {doc_name}")
-                print(f"  Pet name: {pet_name}")
-                print(f"  Items extracted: {len(items)}")
-                for item in items:
-                    print(f"    - {item.get('item_name')}: {item.get('last_done_date')}")
+                diagnostic_values = metadata.get("diagnostic_values", [])
                 vaccination_details = metadata.get("vaccination_details", [])
+                document_category = metadata.get("document_category")
+
+                print(f"  Document name: {doc_name}")
+                print(f"  Document category: {document_category}")
+                print(f"  Document type: {metadata.get('document_type')}")
+                print(f"  Pet name: {pet_name}")
+                print(f"  Doctor: {metadata.get('doctor_name')}")
+                print(f"  Clinic: {metadata.get('clinic_name')}")
+
+                # Preventive items.
+                print(f"  Preventive items: {len(items)}")
+                for item in items:
+                    parts = [f"{item.get('item_name')}: {item.get('last_done_date')}"]
+                    if item.get("dose"):
+                        parts.append(f"dose={item['dose']}")
+                    if item.get("batch_number"):
+                        parts.append(f"batch={item['batch_number']}")
+                    if item.get("doctor_name"):
+                        parts.append(f"dr={item['doctor_name']}")
+                    print(f"    - {' | '.join(parts)}")
+
+                # Diagnostic values.
+                if diagnostic_values:
+                    print(f"  Diagnostic values: {len(diagnostic_values)} parameters")
+                    _print_diagnostic_values(diagnostic_values)
+
+                # Diagnostic summary.
+                diag_summary = metadata.get("diagnostic_summary")
+                if diag_summary:
+                    print(f"  Diagnostic summary: {diag_summary[:150]}...")
+
+                # Vaccination details.
                 if vaccination_details:
-                    print(f"  Vaccination detail rows: {len(vaccination_details)}")
+                    print(f"  Vaccination details: {len(vaccination_details)} rows")
+                    _print_vaccination_details(vaccination_details)
+
                 print(f"  Time: {elapsed:.1f}s")
 
-                results.append({
+                result_entry = {
                     "file": filename,
                     "status": "success",
                     "document_name": doc_name,
+                    "document_category": document_category,
+                    "document_type": metadata.get("document_type"),
                     "pet_name": pet_name,
                     "items_count": len(items),
                     "items": items,
                     "doctor_name": metadata.get("doctor_name"),
                     "clinic_name": metadata.get("clinic_name"),
+                    "diagnostic_summary": diag_summary,
+                    "diagnostic_values_count": len(diagnostic_values),
+                    "diagnostic_values": diagnostic_values,
+                    "vaccination_details_count": len(vaccination_details),
                     "vaccination_details": vaccination_details,
-                    "document_category": metadata.get("document_category"),
                     "time_s": round(elapsed, 1),
-                })
+                }
+                results.append(result_entry)
+
+                # Validate against expectations.
+                file_issues = _validate_result(filename, result_entry)
+                if file_issues:
+                    print(f"  ISSUES:")
+                    for issue in file_issues:
+                        print(f"    ! {issue}")
+                    all_issues.extend([(filename, issue) for issue in file_issues])
+                else:
+                    print(f"  VALIDATION: PASS")
+
             except ValueError as ve:
                 print(f"  VALIDATION ERROR: {ve}")
-                print(f"  Raw JSON: {raw_json[:200]}")
+                print(f"  Raw JSON length: {len(raw_json)} chars")
+                print(f"  Raw JSON tail: ...{raw_json[-200:]}")
                 results.append({
                     "file": filename,
                     "status": "validation_error",
                     "error": str(ve),
+                    "raw_json_length": len(raw_json),
                     "time_s": round(elapsed, 1),
                 })
+                file_issues = _validate_result(filename, {"status": "validation_error", "error": str(ve)})
+                all_issues.extend([(filename, issue) for issue in file_issues])
         elif error:
             results.append({
                 "file": filename,
@@ -154,6 +470,8 @@ async def test_extraction():
                 "error": error,
                 "time_s": round(elapsed, 1),
             })
+            file_issues = _validate_result(filename, {"status": "error", "error": error})
+            all_issues.extend([(filename, issue) for issue in file_issues])
         print()
 
     # --- Summary ---
@@ -171,9 +489,22 @@ async def test_extraction():
     print(f"  Skipped: {len(skipped)}")
 
     total_items = sum(r.get("items_count", 0) for r in success)
+    total_diag = sum(r.get("diagnostic_values_count", 0) for r in success)
+    total_vacc = sum(r.get("vaccination_details_count", 0) for r in success)
     total_time = sum(r.get("time_s", 0) for r in results)
-    print(f"\nTotal items extracted: {total_items}")
+    print(f"\nTotal preventive items extracted: {total_items}")
+    print(f"Total diagnostic parameters extracted: {total_diag}")
+    print(f"Total vaccination detail rows: {total_vacc}")
     print(f"Total time: {total_time:.1f}s")
+
+    # Breakdown by category.
+    categories = {}
+    for r in success:
+        cat = r.get("document_category", "Unknown")
+        categories.setdefault(cat, []).append(r["file"])
+    print(f"\n--- By Category ---")
+    for cat, files_list in sorted(categories.items()):
+        print(f"  {cat}: {len(files_list)} files")
 
     if success:
         print(f"\n--- Successful Extractions ---")
@@ -182,7 +513,9 @@ async def test_extraction():
                 f"{i['item_name']} ({i['last_done_date']})"
                 for i in r.get("items", [])
             ) or "(no preventive items)"
-            print(f"  {r['file']}: {r['items_count']} items — {items_str}")
+            diag_str = f", {r['diagnostic_values_count']} diag params" if r.get("diagnostic_values_count") else ""
+            vacc_str = f", {r['vaccination_details_count']} vacc rows" if r.get("vaccination_details_count") else ""
+            print(f"  {r['file']}: {r['items_count']} items — {items_str}{diag_str}{vacc_str}")
 
     if failed:
         print(f"\n--- Failed Extractions ---")
@@ -193,6 +526,16 @@ async def test_extraction():
         print(f"\n--- Skipped ---")
         for r in skipped:
             print(f"  {r['file']}: {r.get('reason', 'unknown')}")
+
+    # Validation issues.
+    if all_issues:
+        print(f"\n{'='*80}")
+        print(f"VALIDATION ISSUES: {len(all_issues)}")
+        print(f"{'='*80}")
+        for filename, issue in all_issues:
+            print(f"  [{filename}] {issue}")
+    else:
+        print(f"\nALL VALIDATIONS PASSED")
 
     # Save detailed results to JSON.
     results_path = os.path.join(
