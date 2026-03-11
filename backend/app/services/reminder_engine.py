@@ -36,7 +36,7 @@ from app.models.pet import Pet
 from app.models.user import User
 from app.core.encryption import decrypt_field
 from app.core.log_sanitizer import mask_phone
-from app.utils.date_utils import get_today_ist, IST
+from app.utils.date_utils import get_today_ist, IST, format_date_for_user
 
 
 logger = logging.getLogger(__name__)
@@ -239,7 +239,7 @@ def send_pending_reminders(db: Session) -> dict:
                 to_number=plaintext_mobile,
                 pet_name=pet.name,
                 item_name=master.item_name,
-                due_date=str(reminder.next_due_date),
+                due_date=format_date_for_user(reminder.next_due_date),
                 record_status=record.status,
             )
 

@@ -182,6 +182,39 @@ def format_date_for_db(d: date) -> str:
     return d.strftime(DB_DATE_FORMAT)
 
 
+def format_date_for_user(value) -> str:
+    """
+    Format dates for user-facing output as DD-MM-YYYY.
+
+    Accepts date, datetime, or common date-string forms.
+    Returns "N/A" for missing values.
+    """
+    if value is None:
+        return "N/A"
+
+    if isinstance(value, datetime):
+        return value.date().strftime("%d-%m-%Y")
+
+    if isinstance(value, date):
+        return value.strftime("%d-%m-%Y")
+
+    text = str(value).strip()
+    if not text:
+        return "N/A"
+
+    # ISO date or datetime string: YYYY-MM-DD or YYYY-MM-DD HH:MM:SS
+    match = re.match(r"^(\d{4})-(\d{2})-(\d{2})", text)
+    if match:
+        y, m, d = match.groups()
+        return f"{d}-{m}-{y}"
+
+    # Already user format.
+    if re.match(r"^\d{2}-\d{2}-\d{4}$", text):
+        return text
+
+    return text
+
+
 def get_today_ist() -> date:
     """
     Get today's date in Asia/Kolkata timezone.

@@ -168,10 +168,18 @@ EXPECTED_OUTCOMES = {
 }
 
 
+def _safe_print(text: str) -> None:
+    """Print text with fallback for Unicode characters that Windows console can't encode."""
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode("ascii", errors="replace").decode("ascii"))
+
+
 def _print_diagnostic_values(diagnostic_values: list[dict], indent: str = "    ") -> None:
     """Pretty-print diagnostic test values."""
     if not diagnostic_values:
-        print(f"{indent}(none)")
+        _safe_print(f"{indent}(none)")
         return
 
     # Group by test_type.
@@ -183,7 +191,7 @@ def _print_diagnostic_values(diagnostic_values: list[dict], indent: str = "    "
         by_type.setdefault(tt, []).append(val)
 
     for test_type, values in sorted(by_type.items()):
-        print(f"{indent}[{test_type.upper()}] — {len(values)} parameters:")
+        _safe_print(f"{indent}[{test_type.upper()}] — {len(values)} parameters:")
         for val in values:
             name = val.get("parameter_name", "?")
             numeric = val.get("value_numeric")
@@ -203,7 +211,7 @@ def _print_diagnostic_values(diagnostic_values: list[dict], indent: str = "    "
                 parts.append(f"[{flag.upper()}]")
             if obs:
                 parts.append(f"on {obs}")
-            print(f"{indent}  - {' '.join(parts)}")
+            _safe_print(f"{indent}  - {' '.join(parts)}")
 
 
 def _print_vaccination_details(vaccination_details: list[dict], indent: str = "    ") -> None:
@@ -294,6 +302,9 @@ async def test_extraction():
         _call_openai_extraction,
         _call_openai_extraction_vision,
         _validate_extraction_json,
+        _infer_document_category,
+        _resolve_document_category,
+        _derive_blood_test_fallback_items,
     )
 
     repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -382,7 +393,30 @@ async def test_extraction():
                 items, doc_name, pet_name, metadata = _validate_extraction_json(raw_json)
                 diagnostic_values = metadata.get("diagnostic_values", [])
                 vaccination_details = metadata.get("vaccination_details", [])
-                document_category = metadata.get("document_category")
+
+                # Apply the same inference + resolution as extract_and_process_document.
+                inferred_category = _infer_document_category(
+                    document_name=doc_name,
+                    file_path=filepath,
+                    items=items,
+                    vaccination_details=vaccination_details,
+                    diagnostic_values=diagnostic_values,
+                )
+                document_category = _resolve_document_category(
+                    metadata.get("document_category"),
+                    inferred_category,
+                    document_name=doc_name,
+                    file_path=filepath,
+                )
+
+                # Apply blood test fallback items.
+                items = _derive_blood_test_fallback_items(
+                    extracted_items=items,
+                    document_name=doc_name,
+                    file_path=filepath,
+                    document_category=document_category,
+                    diagnostic_values=diagnostic_values,
+                )
 
                 print(f"  Document name: {doc_name}")
                 print(f"  Document category: {document_category}")

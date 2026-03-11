@@ -3,6 +3,8 @@
     "file": "Blood _29_01_25_3.pdf",
     "status": "success",
     "document_name": "Blood Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 1,
     "items": [
@@ -17,14 +19,30 @@
     ],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "The platelet count is slightly below the normal reference range.",
+    "diagnostic_values_count": 1,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Platelet Count (Manual)",
+        "value_numeric": 188000,
+        "value_text": null,
+        "unit": "/ cmm",
+        "reference_range": "200000 - 500000",
+        "status_flag": "low",
+        "observed_at": "29-Jan-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 4.7
+    "time_s": 7.2
   },
   {
     "file": "Blood_12_02_25_2.pdf",
     "status": "success",
     "document_name": "Blood and Urine Diagnostic Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 1,
     "items": [
@@ -39,14 +57,160 @@
     ],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "All measured blood and urine parameters for ZAYN are within or close to the normal reference ranges provided. No significant abnormalities are noted in kidney, liver, or blood sugar tests.",
+    "diagnostic_values_count": 14,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Serum Blood Urea Nitrogen",
+        "value_numeric": 24.1,
+        "value_text": null,
+        "unit": "mg / dl",
+        "reference_range": "07 - 27 mg / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Serum Creatinine",
+        "value_numeric": 1.3,
+        "value_text": null,
+        "unit": "mg / dl",
+        "reference_range": "0.4 - 1.8 mg / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Bilirubin Total",
+        "value_numeric": 0.4,
+        "value_text": null,
+        "unit": "mg / dl",
+        "reference_range": "0 - 0.4 mg / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Bilirubin Direct",
+        "value_numeric": 0.2,
+        "value_text": null,
+        "unit": "mg / dl",
+        "reference_range": "0.0 - 0.1 mg / dl",
+        "status_flag": "high",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Bilirubin Indirect",
+        "value_numeric": 0.2,
+        "value_text": null,
+        "unit": "mg / dl",
+        "reference_range": "0 - 0.3 mg / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "S.G.O.T.",
+        "value_numeric": 28,
+        "value_text": null,
+        "unit": "IU / L",
+        "reference_range": "5 - 55 IU / L",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "S.G.P.T.",
+        "value_numeric": 45,
+        "value_text": null,
+        "unit": "IU / L",
+        "reference_range": "5 - 60 IU / L",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Alkaline Phosphatase",
+        "value_numeric": 82,
+        "value_text": null,
+        "unit": "IU / L",
+        "reference_range": "10 - 150 IU / L",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Total Proteins",
+        "value_numeric": 7.7,
+        "value_text": null,
+        "unit": "gm / dl",
+        "reference_range": "5.1 - 7.8 gm / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Albumin",
+        "value_numeric": 3.7,
+        "value_text": null,
+        "unit": "gm / dl",
+        "reference_range": "2.6 - 4.3 gm / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Globulin",
+        "value_numeric": 4.0,
+        "value_text": null,
+        "unit": "gm / dl",
+        "reference_range": "2.3 - 4.5 gm / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "A / G Ratio",
+        "value_numeric": 0.93,
+        "value_text": null,
+        "unit": null,
+        "reference_range": "0.75 - 1.9",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Random Blood Sugar",
+        "value_numeric": 87,
+        "value_text": null,
+        "unit": "mg/dl",
+        "reference_range": "60 - 125 mg/dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Urine Sugar",
+        "value_numeric": null,
+        "value_text": "Trace",
+        "unit": "g/dl",
+        "reference_range": "Trace : 0.1 g/dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 11.6
+    "time_s": 14.0
   },
   {
     "file": "Blood_12_02_25_3.pdf",
     "status": "success",
     "document_name": "Hemoprotozoan Screening Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 1,
     "items": [
@@ -61,20 +225,318 @@
     ],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "Screening for hemoprotozoan parasites in the dog ZAYN showed that all tested organisms were not detected.",
+    "diagnostic_values_count": 10,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Babesia canis",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Babesia gibsoni",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Ehrlichia sps",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Hepatozoon sp.",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Histoplasma sp.",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Leishmania sp.",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Microfilaria sp.",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Trypanosoma sp.",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Hemobartonella sp.",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Anaplasma Species",
+        "value_numeric": null,
+        "value_text": "Not Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 10.9
+    "time_s": 10.7
   },
   {
     "file": "Blood_22_02_25_1.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 184 column 20 (char 4823)",
-    "time_s": 15.4
+    "status": "success",
+    "document_name": "Blood Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
+    "pet_name": "ZAYN ASHITA",
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-02-22",
+        "dose": null,
+        "doctor_name": "Dr Hamid Shah",
+        "clinic_name": "TATA TRUSTS SMALL ANIMAL HOSPITAL",
+        "batch_number": null
+      }
+    ],
+    "doctor_name": "Dr Hamid Shah",
+    "clinic_name": "TATA TRUSTS SMALL ANIMAL HOSPITAL",
+    "diagnostic_summary": "All measured blood chemistry values for ZAYN ASHITA are within the provided reference ranges. No abnormal findings are noted in this report.",
+    "diagnostic_values_count": 17,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Glucose",
+        "value_numeric": 92,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "74 - 143",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Creatinine",
+        "value_numeric": 1.4,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "0.5 - 1.8",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Urea",
+        "value_numeric": 20,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "7 - 27",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "BUN: Creatinine Ratio",
+        "value_numeric": 15,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Phosphorus",
+        "value_numeric": 3.9,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "2.5 - 6.8",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Calcium",
+        "value_numeric": 10.2,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "7.9 - 12.0",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Total Protein",
+        "value_numeric": 6.6,
+        "value_text": null,
+        "unit": "g/dL",
+        "reference_range": "5.2 - 8.2",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Albumin",
+        "value_numeric": 3.5,
+        "value_text": null,
+        "unit": "g/dL",
+        "reference_range": "2.3 - 4.0",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Globulin",
+        "value_numeric": 3.1,
+        "value_text": null,
+        "unit": "g/dL",
+        "reference_range": "2.5 - 4.5",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Albumin: Globulin Ratio",
+        "value_numeric": 1.1,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "ALT",
+        "value_numeric": 44,
+        "value_text": null,
+        "unit": "U/L",
+        "reference_range": "10 - 125",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "ALP",
+        "value_numeric": 52,
+        "value_text": null,
+        "unit": "U/L",
+        "reference_range": "23 - 212",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "GGT",
+        "value_numeric": 0,
+        "value_text": null,
+        "unit": "U/L",
+        "reference_range": "0 - 11",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Bilirubin - Total",
+        "value_numeric": 0.1,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "0.0 - 0.9",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Cholesterol",
+        "value_numeric": 280,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "110 - 320",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Amylase",
+        "value_numeric": 1036,
+        "value_text": null,
+        "unit": "U/L",
+        "reference_range": "500 - 1,500",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Lipase",
+        "value_numeric": 1237,
+        "value_text": null,
+        "unit": "U/L",
+        "reference_range": "200 - 1,800",
+        "status_flag": "normal",
+        "observed_at": "22/2/2025"
+      }
+    ],
+    "vaccination_details_count": 0,
+    "vaccination_details": [],
+    "time_s": 15.1
   },
   {
     "file": "Blood_22_02_25_2.pdf",
     "status": "success",
     "document_name": "Dog Blood Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 1,
     "items": [
@@ -89,14 +551,160 @@
     ],
     "doctor_name": null,
     "clinic_name": null,
+    "diagnostic_summary": "This is a blood test report for a dog named ZAYN. All measured blood parameters, including WBC, RBC, HGB, and platelets, are within their respective reference ranges.",
+    "diagnostic_values_count": 14,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "WBC",
+        "value_numeric": 10.8,
+        "value_text": null,
+        "unit": "10\u2079/l",
+        "reference_range": "6.0 - 17.0 10\u2079/l",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "LYM",
+        "value_numeric": 2.7,
+        "value_text": null,
+        "unit": "10\u2079/l",
+        "reference_range": "0.9 - 5.0 10\u2079/l",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MON",
+        "value_numeric": 0.7,
+        "value_text": null,
+        "unit": "10\u2079/l",
+        "reference_range": "0.3 - 1.5 10\u2079/l",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "NEU",
+        "value_numeric": 6.9,
+        "value_text": null,
+        "unit": "10\u2079/l",
+        "reference_range": "3.5 - 12.0 10\u2079/l",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "EOS",
+        "value_numeric": 0.5,
+        "value_text": null,
+        "unit": "10\u2079/l",
+        "reference_range": "0.1 - 1.5 10\u2079/l",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "HGB",
+        "value_numeric": 16.0,
+        "value_text": null,
+        "unit": "g/dl",
+        "reference_range": "12.0 - 18.0 g/dl",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCH",
+        "value_numeric": 24.6,
+        "value_text": null,
+        "unit": "pg",
+        "reference_range": "19.5 - 25.5 pg",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCHC",
+        "value_numeric": 37.7,
+        "value_text": null,
+        "unit": "g/dl",
+        "reference_range": "32.0 - 38.5 g/dl",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RBC",
+        "value_numeric": 6.51,
+        "value_text": null,
+        "unit": "10\u00b9\u00b2/l",
+        "reference_range": "5.50 - 8.50 10\u00b9\u00b2/l",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCV",
+        "value_numeric": 65.1,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": "60.0 - 72.0 fl",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "HCT",
+        "value_numeric": 42.4,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "37.0 - 55.0 %",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RDW",
+        "value_numeric": 15.7,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "12.0 - 17.5 %",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PLT",
+        "value_numeric": 222,
+        "value_text": null,
+        "unit": "10\u2079/l",
+        "reference_range": "200 - 500 10\u2079/l",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MPV",
+        "value_numeric": 8.8,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": "5.5 - 10.5 fl",
+        "status_flag": "normal",
+        "observed_at": "2025-02-22"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 15.3
+    "time_s": 12.5
   },
   {
     "file": "Blood_22_02_25_3.pdf",
     "status": "success",
     "document_name": "Peripheral Smear Hematology Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "Zayn",
     "items_count": 1,
     "items": [
@@ -111,26 +719,596 @@
     ],
     "doctor_name": null,
     "clinic_name": "Small Animal Hospital Mumbai",
+    "diagnostic_summary": "The peripheral smear shows adequate red and white blood cell density, mild hemoconcentration, and normocytic normochromic RBCs. Platelet count is adequate.",
+    "diagnostic_values_count": 3,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Erythrocyte",
+        "value_numeric": null,
+        "value_text": "Adequate density. Mild hemoconcentration. Normocytic normochromic RBCs.",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "22-02-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Leukocyte",
+        "value_numeric": null,
+        "value_text": "Density correlating with analyzer.",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "22-02-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Platelets (Manual count)",
+        "value_numeric": null,
+        "value_text": "Adequate.",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "22-02-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 6.9
+    "time_s": 5.7
   },
   {
     "file": "Blood_28_01_25.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 169 column 25 (char 4719)",
-    "time_s": 12.6
+    "status": "success",
+    "document_name": "Blood Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
+    "pet_name": "ZAYN",
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-01-28",
+        "dose": null,
+        "doctor_name": null,
+        "clinic_name": "Dogs & Cats Veterinary Clinic",
+        "batch_number": null
+      }
+    ],
+    "doctor_name": null,
+    "clinic_name": "Dogs & Cats Veterinary Clinic",
+    "diagnostic_summary": "This blood test report for ZAYN, a male Labrador dog, shows a mildly elevated creatinine level and a low platelet count. All other measured parameters are within normal reference ranges.",
+    "diagnostic_values_count": 30,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "ALP (Alkaline Phosphatase)",
+        "value_numeric": 77,
+        "value_text": null,
+        "unit": "U/L",
+        "reference_range": "20.0 - 150.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "ALT (Alanine Aminotransferase)",
+        "value_numeric": 28,
+        "value_text": null,
+        "unit": "U/L",
+        "reference_range": "10.0 - 118.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "BUN (Blood Urea Nitrogen)",
+        "value_numeric": 15,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "7.0 - 25.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "CRE (Creatinine)",
+        "value_numeric": 1.7,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "0.3 - 1.4",
+        "status_flag": "high",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "GLU (Glucose)",
+        "value_numeric": 94,
+        "value_text": null,
+        "unit": "mg/dL",
+        "reference_range": "60.0 - 110.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "TP (Total Protein)",
+        "value_numeric": 6.8,
+        "value_text": null,
+        "unit": "g/dL",
+        "reference_range": "5.4 - 8.2",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "WBC (White Blood Cells)",
+        "value_numeric": 9.71,
+        "value_text": null,
+        "unit": "10^9/l",
+        "reference_range": "6.0 - 17.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "LYM (Lymphocyte)",
+        "value_numeric": 2.1,
+        "value_text": null,
+        "unit": "10^9/l",
+        "reference_range": "1.0 - 4.8",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MON (Monocyte)",
+        "value_numeric": 0.39,
+        "value_text": null,
+        "unit": "10^9/l",
+        "reference_range": "0.2 - 1.5",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "NEU (Neutrophil)",
+        "value_numeric": 6.49,
+        "value_text": null,
+        "unit": "10^9/l",
+        "reference_range": "3.0 - 12.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "EOS (Eosinophil)",
+        "value_numeric": 0.6,
+        "value_text": null,
+        "unit": "10^9/l",
+        "reference_range": "0.0 - 0.8",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "BAS (Basophil)",
+        "value_numeric": 0.12,
+        "value_text": null,
+        "unit": "10^9/l",
+        "reference_range": "0.0 - 0.4",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "LYM% (Lymphocyte %)",
+        "value_numeric": 21.6,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MON% (Monocyte %)",
+        "value_numeric": 4.0,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "NEU% (Neutrophil %)",
+        "value_numeric": 66.9,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "EOS% (Eosinophil %)",
+        "value_numeric": 6.2,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "BAS% (Basophil %)",
+        "value_numeric": 1.3,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RBC (Red Blood Cells)",
+        "value_numeric": 6.96,
+        "value_text": null,
+        "unit": "10^12/l",
+        "reference_range": "5.5 - 8.5",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "HGB (Hemoglobin)",
+        "value_numeric": 15.1,
+        "value_text": null,
+        "unit": "g/dl",
+        "reference_range": "12.0 - 18.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "HCT (Hematocrit)",
+        "value_numeric": 45.78,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "37.0 - 55.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCV (Mean Corpuscular Volume)",
+        "value_numeric": 66,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": "60.0 - 77.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCH (Mean Corpuscular Hemoglobin)",
+        "value_numeric": 21.7,
+        "value_text": null,
+        "unit": "pg",
+        "reference_range": "19.5 - 24.5",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCHC (Mean Corpuscular Hemoglobin Concentration)",
+        "value_numeric": 33.0,
+        "value_text": null,
+        "unit": "g/dl",
+        "reference_range": "31.0 - 39.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RDWc (Red Blood Cell Distribution Width, Coefficient of Variation)",
+        "value_numeric": 19.0,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "14.0 - 20.0",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RDWs (Red Blood Cell Distribution Width, Standard Deviation)",
+        "value_numeric": 42.2,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PLT (Platelet)",
+        "value_numeric": 156,
+        "value_text": null,
+        "unit": "10^9/l",
+        "reference_range": "165.0 - 500.0",
+        "status_flag": "low",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MPV (Mean Platelet Volume)",
+        "value_numeric": 10.2,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": "3.9 - 11.1",
+        "status_flag": "normal",
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PCT (Plateletcrit)",
+        "value_numeric": 0.16,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PDWc (Platelet Distribution Width, Coefficient of Variation)",
+        "value_numeric": 39.8,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PDWs (Platelet Distribution Width, Standard Deviation)",
+        "value_numeric": 17.7,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Jan-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
+    "vaccination_details": [],
+    "time_s": 24.4
   },
   {
     "file": "Blood_29_01_25.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 185 column 22 (char 5034)",
-    "time_s": 14.0
+    "status": "success",
+    "document_name": "Complete Blood Count Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
+    "pet_name": "DOG ZAYN",
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-01-29",
+        "dose": null,
+        "doctor_name": "Dr. D. P. Chaudhari",
+        "clinic_name": "UNIQUE LAB NEW",
+        "batch_number": null
+      }
+    ],
+    "doctor_name": "Dr. D. P. Chaudhari",
+    "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "The blood test for DOG ZAYN shows most parameters within normal limits, except for a slightly elevated eosinophil count and low platelet count. No blood parasites were detected.",
+    "diagnostic_values_count": 19,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Haemoglobin",
+        "value_numeric": 14.1,
+        "value_text": null,
+        "unit": "gm%",
+        "reference_range": "12.0 - 18.0 gm %",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Erythrocytes Count",
+        "value_numeric": 6.02,
+        "value_text": null,
+        "unit": "million/cmm",
+        "reference_range": "5.5 - 8.5 million / cmm",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PCV (HCT)",
+        "value_numeric": 42.4,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "37.0 - 55.0 %",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RDW",
+        "value_numeric": 15.8,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCV",
+        "value_numeric": 70.43,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": "60.0 - 77.0 fl",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCH",
+        "value_numeric": 23.42,
+        "value_text": null,
+        "unit": "pg",
+        "reference_range": "19.5 - 26 pg",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCHC",
+        "value_numeric": 33.25,
+        "value_text": null,
+        "unit": "g / dl",
+        "reference_range": "32.0 - 37.0 g / dl",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "TOTAL WBC COUNT",
+        "value_numeric": 7.5,
+        "value_text": null,
+        "unit": "x 10\u00b3 / cmm",
+        "reference_range": "6.0 - 17.0 x 10\u00b3 / cmm",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Neutrophils",
+        "value_numeric": 61,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "60 - 77  %",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Eosinophils",
+        "value_numeric": 11,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "2  - 10      %",
+        "status_flag": "high",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Lymphocytes",
+        "value_numeric": 27,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "12 - 30  %",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Monocytes",
+        "value_numeric": 1,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "03 - 10  %",
+        "status_flag": "low",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Basophils",
+        "value_numeric": 0,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "00 - 00  %",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Platelets",
+        "value_numeric": 158000,
+        "value_text": null,
+        "unit": "/ cmm",
+        "reference_range": "200000 - 500000 / cmm",
+        "status_flag": "low",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PDW",
+        "value_numeric": 13.9,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MPV",
+        "value_numeric": 10.0,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RBC Morphology",
+        "value_numeric": null,
+        "value_text": "Normocytic, Normochromic",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "WBC Morphology",
+        "value_numeric": null,
+        "value_text": "Eosinophilia (+)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PARASITES IN BLOOD",
+        "value_numeric": null,
+        "value_text": "PARASITES NOT DETECTED",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
+    "vaccination_details": [],
+    "time_s": 15.9
   },
   {
     "file": "Blood_29_01_25_2.pdf",
     "status": "success",
     "document_name": "Biochemical Blood Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 1,
     "items": [
@@ -145,20 +1323,268 @@
     ],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "All measured biochemical parameters, including serum calcium, sodium, potassium, chlorides, and phosphorus, are within their respective normal reference ranges.",
+    "diagnostic_values_count": 5,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Serum Calcium",
+        "value_numeric": 9.6,
+        "value_text": null,
+        "unit": "mg/dl",
+        "reference_range": "7.5 - 11.3 mg / dl",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Sodium",
+        "value_numeric": 147.7,
+        "value_text": null,
+        "unit": "mEq / L",
+        "reference_range": "141 -156   mEq / L",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Potassium",
+        "value_numeric": 4.7,
+        "value_text": null,
+        "unit": "mEq / L",
+        "reference_range": "4.0 - 5.6    mEq / L",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Chlorides",
+        "value_numeric": 110.4,
+        "value_text": null,
+        "unit": "mEq / L",
+        "reference_range": "105 - 115    mEq / L",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Serum Phosphorus",
+        "value_numeric": 6.1,
+        "value_text": null,
+        "unit": "mg / dl",
+        "reference_range": "2.1 - 6.3 mg / dl",
+        "status_flag": "normal",
+        "observed_at": "29-Jan-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 6.5
+    "time_s": 15.5
   },
   {
     "file": "CBC_12_02_25.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 184 column 22 (char 5026)",
-    "time_s": 15.5
+    "status": "success",
+    "document_name": "Complete Blood Count Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
+    "pet_name": "DOG ZAYN",
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-02-12",
+        "dose": null,
+        "doctor_name": "Dr. D. P. Chaudhari",
+        "clinic_name": "UNIQUE LAB NEW",
+        "batch_number": null
+      }
+    ],
+    "doctor_name": "Dr. D. P. Chaudhari",
+    "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "The complete blood count for DOG ZAYN shows all measured parameters within normal limits except for a low neutrophil percentage and high lymphocyte percentage, with no blood parasites detected.",
+    "diagnostic_values_count": 17,
+    "diagnostic_values": [
+      {
+        "test_type": "blood",
+        "parameter_name": "Haemoglobin",
+        "value_numeric": 17.6,
+        "value_text": null,
+        "unit": "gm%",
+        "reference_range": "12.0 - 18.0 gm %",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Erythrocytes Count",
+        "value_numeric": 7.06,
+        "value_text": null,
+        "unit": "million/cmm",
+        "reference_range": "5.5 - 8.5 million / cmm",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PCV (HCT)",
+        "value_numeric": 50.6,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "37.0 - 55.0 %",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "RDW",
+        "value_numeric": 15.4,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCV",
+        "value_numeric": 71.67,
+        "value_text": null,
+        "unit": "fl",
+        "reference_range": "60.0 - 77.0 fl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCH",
+        "value_numeric": 24.93,
+        "value_text": null,
+        "unit": "pg",
+        "reference_range": "19.5 - 26 pg",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MCHC",
+        "value_numeric": 34.78,
+        "value_text": null,
+        "unit": "g / dl",
+        "reference_range": "32.0 - 37.0 g / dl",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "TOTAL WBC COUNT",
+        "value_numeric": 7.4,
+        "value_text": null,
+        "unit": "x 10\u00b3 / cmm",
+        "reference_range": "6.0 - 17.0 x 10\u00b3 / cmm",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Neutrophils",
+        "value_numeric": 30,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "60 - 77 %",
+        "status_flag": "low",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Eosinophils",
+        "value_numeric": 5,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "2 - 10 %",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Lymphocytes",
+        "value_numeric": 64,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "12 - 30 %",
+        "status_flag": "high",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Monocytes",
+        "value_numeric": 1,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "03 - 10 %",
+        "status_flag": "low",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Basophils",
+        "value_numeric": 0,
+        "value_text": null,
+        "unit": "%",
+        "reference_range": "00 - 00 %",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Platelets",
+        "value_numeric": 221000,
+        "value_text": null,
+        "unit": "/ cmm",
+        "reference_range": "200000 - 500000 / cmm",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "PDW",
+        "value_numeric": 13.3,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "MPV",
+        "value_numeric": 9.4,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "blood",
+        "parameter_name": "Platelet Count (Manual)",
+        "value_numeric": 252000,
+        "value_text": null,
+        "unit": "/ cmm",
+        "reference_range": "200000 - 500000 / cmm",
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
+    "vaccination_details": [],
+    "time_s": 14.9
   },
   {
     "file": "Prescription_Chavan_12_02_25.jpg",
     "status": "success",
-    "document_name": "Vet Prescription and Blood/Urine Test Advice",
+    "document_name": "Vet Prescription and Diagnostic Advice",
+    "document_category": "Prescription",
+    "document_type": "pet_medical",
     "pet_name": "Zayn",
     "items_count": 1,
     "items": [
@@ -173,83 +1599,1107 @@
     ],
     "doctor_name": "Dr. Makarand Chavan",
     "clinic_name": "Dogs & Cats Veterinary Clinic",
+    "diagnostic_summary": null,
+    "diagnostic_values_count": 0,
+    "diagnostic_values": [],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Other",
     "time_s": 4.0
   },
   {
     "file": "Urine_12_02_25.pdf",
     "status": "success",
     "document_name": "Urine Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 0,
     "items": [],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "The urine examination for dog ZAYN shows a hazy yellow appearance with trace proteins, trace bile pigment and bile salts, and otherwise unremarkable findings. No significant abnormalities such as glucose, ketones, occult blood, or crystals were detected.",
+    "diagnostic_values_count": 17,
+    "diagnostic_values": [
+      {
+        "test_type": "urine",
+        "parameter_name": "Colour",
+        "value_numeric": null,
+        "value_text": "Yellow",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Appearance",
+        "value_numeric": null,
+        "value_text": "Hazy",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "pH",
+        "value_numeric": null,
+        "value_text": "Acidic",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Specific Gravity",
+        "value_numeric": 1.02,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Proteins",
+        "value_numeric": null,
+        "value_text": "Present (Trace)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Glucose",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ketone",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bile Pigment",
+        "value_numeric": null,
+        "value_text": "Present (Trace)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bile Salts",
+        "value_numeric": null,
+        "value_text": "Present (Trace)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Occult Blood",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Urobilinogen",
+        "value_numeric": null,
+        "value_text": "Normal",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Epithelial Cells",
+        "value_numeric": null,
+        "value_text": "2 - 3 / h.p.f",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Pus Cells",
+        "value_numeric": null,
+        "value_text": "1 - 2 / h.p.f",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Red Blood Cells",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Casts",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Crystals",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Other Findings",
+        "value_numeric": null,
+        "value_text": "Nil",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "12-Feb-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 15.0
+    "time_s": 14.6
   },
   {
     "file": "Urine_1_02_25.pdf",
     "status": "success",
     "document_name": "Urine Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 0,
     "items": [],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "The urine examination for dog ZAYN shows a hazy yellow appearance, acidic pH, specific gravity of 1.020, trace proteins, and normal urobilinogen. No glucose, ketones, blood, or abnormal crystals were detected; mild epithelial and pus cells are present.",
+    "diagnostic_values_count": 17,
+    "diagnostic_values": [
+      {
+        "test_type": "urine",
+        "parameter_name": "Colour",
+        "value_numeric": null,
+        "value_text": "Yellow",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Appearance",
+        "value_numeric": null,
+        "value_text": "Hazy",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "pH",
+        "value_numeric": null,
+        "value_text": "Acidic",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Specific Gravity",
+        "value_numeric": 1.02,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Proteins",
+        "value_numeric": null,
+        "value_text": "Present (Trace)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Glucose",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ketone",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bile Pigment",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bile Salts",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Occult Blood",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Urobilinogen",
+        "value_numeric": null,
+        "value_text": "Normal",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Epithelial Cells",
+        "value_numeric": null,
+        "value_text": "5 - 6 / h.p.f",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Pus Cells",
+        "value_numeric": null,
+        "value_text": "3 - 4 / h.p.f",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Red Blood Cells",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Casts",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Crystals",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Other Findings",
+        "value_numeric": null,
+        "value_text": "Nil",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "01-Feb-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 16.0
+    "time_s": 13.7
   },
   {
     "file": "Urine_26_02_25.pdf",
     "status": "success",
     "document_name": "Urinalysis Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "Zayn",
     "items_count": 0,
     "items": [],
     "doctor_name": "Dr Hamid",
     "clinic_name": "Small Animal Hospital Mumbai",
+    "diagnostic_summary": "The urinalysis for Zayn shows no remarkable changes, with normal appearance, specific gravity, and no significant findings in biochemistry or microscopy.",
+    "diagnostic_values_count": 16,
+    "diagnostic_values": [
+      {
+        "test_type": "urine",
+        "parameter_name": "Appearance",
+        "value_numeric": null,
+        "value_text": "Yellow, clear to slightly hazy",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Specific Gravity",
+        "value_numeric": 1.01,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "pH",
+        "value_numeric": 7.5,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Urine Protein",
+        "value_numeric": null,
+        "value_text": "Trace",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Glucose",
+        "value_numeric": null,
+        "value_text": "Negative",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ketones",
+        "value_numeric": null,
+        "value_text": "Nil",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Blood/Haemoglobin",
+        "value_numeric": null,
+        "value_text": "Nil",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bilirubin",
+        "value_numeric": null,
+        "value_text": "Negative",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Urobilinogen",
+        "value_numeric": null,
+        "value_text": "Negative",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Leukocyte",
+        "value_numeric": null,
+        "value_text": "Nil",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Leukocyte/puscells",
+        "value_numeric": null,
+        "value_text": "Not seen",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Blood",
+        "value_numeric": null,
+        "value_text": "Not seen",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Uroepithelial cells",
+        "value_numeric": null,
+        "value_text": "Occasional",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Crystals",
+        "value_numeric": null,
+        "value_text": "Not seen",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Casts",
+        "value_numeric": null,
+        "value_text": "Not seen",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bacteria",
+        "value_numeric": null,
+        "value_text": "Not seen",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "26-02-2025"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 10.4
+    "time_s": 13.2
   },
   {
     "file": "Urine_28_11_24.pdf",
     "status": "success",
     "document_name": "Urine Test Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
     "pet_name": "ZAYN",
     "items_count": 0,
     "items": [],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
+    "diagnostic_summary": "The urine examination for dog ZAYN shows a hazy yellow appearance with acidic pH and specific gravity of 1.020. Trace amounts of bile pigment and bile salts are present, with occasional red blood cells and bacteria detected.",
+    "diagnostic_values_count": 17,
+    "diagnostic_values": [
+      {
+        "test_type": "urine",
+        "parameter_name": "Colour",
+        "value_numeric": null,
+        "value_text": "Yellow",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Appearance",
+        "value_numeric": null,
+        "value_text": "Hazy",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "pH",
+        "value_numeric": null,
+        "value_text": "Acidic",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Specific Gravity",
+        "value_numeric": 1.02,
+        "value_text": null,
+        "unit": null,
+        "reference_range": null,
+        "status_flag": null,
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Proteins",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Glucose",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ketone",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bile Pigment",
+        "value_numeric": null,
+        "value_text": "Present (Trace)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bile Salts",
+        "value_numeric": null,
+        "value_text": "Present (Trace)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Occult Blood",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Urobilinogen",
+        "value_numeric": null,
+        "value_text": "Normal",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Epithelial Cells",
+        "value_numeric": 7.5,
+        "value_text": "7 - 8 / h.p.f",
+        "unit": "/ h.p.f",
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Pus Cells",
+        "value_numeric": 1.5,
+        "value_text": "1 - 2 / h.p.f",
+        "unit": "/ h.p.f",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Red Blood Cells",
+        "value_numeric": null,
+        "value_text": "Occasional",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Casts",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Crystals",
+        "value_numeric": null,
+        "value_text": "Absent",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28-Nov-2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Bacteria",
+        "value_numeric": null,
+        "value_text": "(+)",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28-Nov-2024"
+      }
+    ],
+    "vaccination_details_count": 0,
     "vaccination_details": [],
-    "document_category": "Diagnostic",
-    "time_s": 12.2
+    "time_s": 15.4
   },
   {
     "file": "Urine_culture_29_11_24.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Expecting value: line 181 column 20 (char 5093)",
-    "time_s": 18.1
+    "status": "success",
+    "document_name": "Urine Culture & Antibiotic Sensitivity Report",
+    "document_category": "Diagnostic",
+    "document_type": "pet_medical",
+    "pet_name": "Zayn",
+    "items_count": 0,
+    "items": [],
+    "doctor_name": null,
+    "clinic_name": null,
+    "diagnostic_summary": "Urine culture from Zayn, a male dog, showed growth of Escherichia coli with a colony count of 10^3 CFU. The organism was tested for antibiotic susceptibility, showing resistance to some antibiotics and susceptibility to others.",
+    "diagnostic_values_count": 32,
+    "diagnostic_values": [
+      {
+        "test_type": "urine",
+        "parameter_name": "Gram's Stain",
+        "value_numeric": null,
+        "value_text": "Plenty pus cells, Few gram negative bacilli, Occasional gram positive cocci in pairs seen",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Culture",
+        "value_numeric": null,
+        "value_text": "Growth Detected",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Organism Isolated",
+        "value_numeric": null,
+        "value_text": "Escherichia coli",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Colony Count",
+        "value_numeric": 1000,
+        "value_text": "10^3 CFU",
+        "unit": "CFU",
+        "reference_range": null,
+        "status_flag": "abnormal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ampicillin",
+        "value_numeric": null,
+        "value_text": "Resistant",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "high",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Amoxicillin/Clavulanic",
+        "value_numeric": 8,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ampicillin/Sulbactam",
+        "value_numeric": null,
+        "value_text": "Susceptible",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Piperacillin/Tazobactam",
+        "value_numeric": 4,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefazolin",
+        "value_numeric": null,
+        "value_text": "Resistant",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "high",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefuroxime",
+        "value_numeric": 4,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefuroxime Axetil",
+        "value_numeric": 4,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefixime",
+        "value_numeric": null,
+        "value_text": "Susceptible",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefpodoxime",
+        "value_numeric": null,
+        "value_text": "Susceptible",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefoperazone",
+        "value_numeric": null,
+        "value_text": "Susceptible",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefotaxime",
+        "value_numeric": null,
+        "value_text": "Susceptible",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ceftriaxone",
+        "value_numeric": 0.25,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefepime",
+        "value_numeric": 0.12,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cefoperazone Sulbactum",
+        "value_numeric": 8,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ciprofloxacin",
+        "value_numeric": 4,
+        "value_text": "Resistant",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "high",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ofloxacin",
+        "value_numeric": null,
+        "value_text": "Resistant",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "high",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Norfloxacin",
+        "value_numeric": null,
+        "value_text": "Resistant",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "high",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Levofloxacin",
+        "value_numeric": 2,
+        "value_text": "Resistant",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "high",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Gentamicin",
+        "value_numeric": 1,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Amikacin",
+        "value_numeric": 2,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Imipenem",
+        "value_numeric": 0.25,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Meropenem",
+        "value_numeric": 0.25,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Ertapenem",
+        "value_numeric": 0.12,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Tigecycline",
+        "value_numeric": 0.5,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Colistin",
+        "value_numeric": 0.5,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Cotrimoxazole (Trimethoprim/Sulfamethoxazole)",
+        "value_numeric": null,
+        "value_text": "Susceptible",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Fosfomycin",
+        "value_numeric": 64,
+        "value_text": "Susceptible",
+        "unit": "ug/mL",
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      },
+      {
+        "test_type": "urine",
+        "parameter_name": "Nitrofurantoin",
+        "value_numeric": null,
+        "value_text": "Susceptible",
+        "unit": null,
+        "reference_range": null,
+        "status_flag": "normal",
+        "observed_at": "28.11.2024"
+      }
+    ],
+    "vaccination_details_count": 0,
+    "vaccination_details": [],
+    "time_s": 26.7
   },
   {
     "file": "Zayn_Vaccination_Record.jpg",
     "status": "success",
     "document_name": "Vaccination Certificate",
+    "document_category": "Vaccination",
+    "document_type": "pet_medical",
     "pet_name": "VEER / ZAYN",
-    "items_count": 4,
+    "items_count": 3,
     "items": [
-      {
-        "item_name": "Core Vaccine",
-        "last_done_date": "2023-03-28",
-        "dose": null,
-        "doctor_name": "DR. MAHARAJ CHAVAN",
-        "clinic_name": null,
-        "batch_number": "A68401"
-      },
       {
         "item_name": "Rabies Vaccine",
         "last_done_date": "2022-11-23",
@@ -264,11 +2714,11 @@
         "dose": null,
         "doctor_name": "DR. MAHARAJ CHAVAN",
         "clinic_name": null,
-        "batch_number": "A513A01"
+        "batch_number": "L4"
       },
       {
         "item_name": "Core Vaccine",
-        "last_done_date": "2022-05-06",
+        "last_done_date": "2023-05-06",
         "dose": null,
         "doctor_name": null,
         "clinic_name": null,
@@ -277,19 +2727,11 @@
     ],
     "doctor_name": "DR. MAHARAJ CHAVAN",
     "clinic_name": null,
+    "diagnostic_summary": null,
+    "diagnostic_values_count": 0,
+    "diagnostic_values": [],
+    "vaccination_details_count": 6,
     "vaccination_details": [
-      {
-        "vaccine_name": "Nobivac DHPPi",
-        "vaccine_name_raw": "Nobivac DHPPi",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A68401",
-        "next_due_date": "2023-03-28",
-        "administered_by": null,
-        "notes": null
-      },
       {
         "vaccine_name": "Starvac-R",
         "vaccine_name_raw": "Starvac-R",
@@ -297,8 +2739,20 @@
         "dose_unit": null,
         "route": null,
         "manufacturer": null,
-        "batch_number": "A640A05",
-        "next_due_date": "2023-07-01",
+        "batch_number": "A640AD5",
+        "next_due_date": "2023-03-28",
+        "administered_by": null,
+        "notes": null
+      },
+      {
+        "vaccine_name": "Canine Distemper, Adenovirus, Parvovirus, Parainfluenza, Leptospira",
+        "vaccine_name_raw": "Canine Distemper, Adenovirus, Parvovirus, Parainfluenza, Leptospira",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "L4",
+        "next_due_date": "2024-11-23",
         "administered_by": null,
         "notes": null
       },
@@ -309,150 +2763,19 @@
         "dose_unit": null,
         "route": null,
         "manufacturer": null,
-        "batch_number": null,
-        "next_due_date": null,
-        "administered_by": null,
-        "notes": null
-      },
-      {
-        "vaccine_name": "Nobivac KC",
-        "vaccine_name_raw": "Nobivac KC",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A513A01",
-        "next_due_date": "2025-02-01",
-        "administered_by": null,
-        "notes": null
-      },
-      {
-        "vaccine_name": "Nobivac RL",
-        "vaccine_name_raw": "Nobivac RL",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A002A06",
-        "next_due_date": "2026-05-01",
-        "administered_by": null,
-        "notes": null
-      }
-    ],
-    "document_category": "Vaccination",
-    "time_s": 14.5
-  },
-  {
-    "file": "Zayn_Vaccination_Record_1.jpg",
-    "status": "success",
-    "document_name": "Pet Vaccination Record",
-    "pet_name": null,
-    "items_count": 4,
-    "items": [
-      {
-        "item_name": "Core Vaccine",
-        "last_done_date": "2023-03-28",
-        "dose": null,
-        "doctor_name": null,
-        "clinic_name": null,
-        "batch_number": "A684B01"
-      },
-      {
-        "item_name": "Core Vaccine",
-        "last_done_date": "2024-11-23",
-        "dose": null,
-        "doctor_name": null,
-        "clinic_name": null,
-        "batch_number": null
-      },
-      {
-        "item_name": "Rabies Vaccine",
-        "last_done_date": "2024-11-23",
-        "dose": null,
-        "doctor_name": null,
-        "clinic_name": null,
-        "batch_number": "E51395"
-      },
-      {
-        "item_name": "Core Vaccine",
-        "last_done_date": "2025-05-06",
-        "dose": null,
-        "doctor_name": null,
-        "clinic_name": null,
-        "batch_number": "A789A01"
-      }
-    ],
-    "doctor_name": "Dr. Atul V. Patil",
-    "clinic_name": null,
-    "vaccination_details": [
-      {
-        "vaccine_name": "Nobivac DHPPi",
-        "vaccine_name_raw": "Nobivac DHPPi",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A684B01",
-        "next_due_date": "2024-03-28",
-        "administered_by": null,
-        "notes": null
-      },
-      {
-        "vaccine_name": "Nobivac Lepto",
-        "vaccine_name_raw": "Nobivac Lepto",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A600A05",
-        "next_due_date": "2024-03-28",
-        "administered_by": null,
-        "notes": null
-      },
-      {
-        "vaccine_name": "Starvac-R",
-        "vaccine_name_raw": "Starvac-R",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": null,
-        "next_due_date": "2024-11-23",
-        "administered_by": null,
-        "notes": null
-      },
-      {
-        "vaccine_name": "Canine Coronavirus Vaccine",
-        "vaccine_name_raw": "Canine Coronavirus Vaccine Killed Virus",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": "Zoetis",
-        "batch_number": null,
+        "batch_number": "CV",
         "next_due_date": "2024-11-23",
         "administered_by": null,
         "notes": null
       },
       {
         "vaccine_name": "Rabies Vaccine",
-        "vaccine_name_raw": "Rabies Veterinary Vaccine, Inactivated, I.P. RABISIN-R",
-        "dose": null,
-        "dose_unit": null,
-        "route": "Deep Intramuscular",
-        "manufacturer": null,
-        "batch_number": "E51395",
-        "next_due_date": "2025-11-23",
-        "administered_by": null,
-        "notes": null
-      },
-      {
-        "vaccine_name": "Nobivac KC",
-        "vaccine_name_raw": "Nobivac KC",
+        "vaccine_name_raw": "Nobivac RL",
         "dose": null,
         "dose_unit": null,
         "route": null,
         "manufacturer": null,
-        "batch_number": "A139A01",
+        "batch_number": "A002A06",
         "next_due_date": "2024-11-23",
         "administered_by": null,
         "notes": null
@@ -470,6 +2793,154 @@
         "notes": null
       },
       {
+        "vaccine_name": "Nobivac KC",
+        "vaccine_name_raw": "Nobivac KC",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "A513A01",
+        "next_due_date": null,
+        "administered_by": null,
+        "notes": null
+      }
+    ],
+    "time_s": 19.0
+  },
+  {
+    "file": "Zayn_Vaccination_Record_1.jpg",
+    "status": "success",
+    "document_name": "Pet Vaccination Record",
+    "document_category": "Vaccination",
+    "document_type": "pet_medical",
+    "pet_name": null,
+    "items_count": 4,
+    "items": [
+      {
+        "item_name": "Core Vaccine",
+        "last_done_date": "2023-03-28",
+        "dose": null,
+        "doctor_name": "Dr. Atul V. Patil",
+        "clinic_name": null,
+        "batch_number": "A684B01"
+      },
+      {
+        "item_name": "Core Vaccine",
+        "last_done_date": "2024-11-23",
+        "dose": null,
+        "doctor_name": "Dr. Atul V. Patil",
+        "clinic_name": null,
+        "batch_number": null
+      },
+      {
+        "item_name": "Rabies Vaccine",
+        "last_done_date": "2024-11-23",
+        "dose": null,
+        "doctor_name": "Dr. Atul V. Patil",
+        "clinic_name": null,
+        "batch_number": "E51395"
+      },
+      {
+        "item_name": "Core Vaccine",
+        "last_done_date": "2025-05-06",
+        "dose": null,
+        "doctor_name": "Dr. Atul V. Patil",
+        "clinic_name": null,
+        "batch_number": "A789A01"
+      }
+    ],
+    "doctor_name": "Dr. Atul V. Patil",
+    "clinic_name": null,
+    "diagnostic_summary": null,
+    "diagnostic_values_count": 0,
+    "diagnostic_values": [],
+    "vaccination_details_count": 9,
+    "vaccination_details": [
+      {
+        "vaccine_name": "Nobivac DHPPi",
+        "vaccine_name_raw": "Nobivac DHPPi",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "A684B01",
+        "next_due_date": "2024-03-28",
+        "administered_by": "Dr. Atul V. Patil",
+        "notes": null
+      },
+      {
+        "vaccine_name": "Nobivac Lepto",
+        "vaccine_name_raw": "Nobivac L4",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "A600A05",
+        "next_due_date": "2024-03-28",
+        "administered_by": "Dr. Atul V. Patil",
+        "notes": null
+      },
+      {
+        "vaccine_name": "Starvac-R",
+        "vaccine_name_raw": "Starvac-R",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": null,
+        "next_due_date": "2024-11-23",
+        "administered_by": "Dr. Atul V. Patil",
+        "notes": null
+      },
+      {
+        "vaccine_name": "Canine Coronavirus Vaccine",
+        "vaccine_name_raw": "Canine Coronavirus Vaccine Killed Virus",
+        "dose": "1 dose",
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": "Zoetis",
+        "batch_number": null,
+        "next_due_date": "2024-11-23",
+        "administered_by": "Dr. Atul V. Patil",
+        "notes": null
+      },
+      {
+        "vaccine_name": "Rabies Vaccine",
+        "vaccine_name_raw": "Rabies Veterinary Vaccine, Inactivated, I.P. RABISIN-R",
+        "dose": null,
+        "dose_unit": null,
+        "route": "Deep Intramuscular",
+        "manufacturer": null,
+        "batch_number": "E51395",
+        "next_due_date": "2025-11-23",
+        "administered_by": "Dr. Atul V. Patil",
+        "notes": null
+      },
+      {
+        "vaccine_name": "Nobivac KC",
+        "vaccine_name_raw": "Nobivac KC",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "A139A01",
+        "next_due_date": "2024-11-23",
+        "administered_by": "Dr. Atul V. Patil",
+        "notes": null
+      },
+      {
+        "vaccine_name": "Nobivac DHPPi",
+        "vaccine_name_raw": "Nobivac DHPPi",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "A789A01",
+        "next_due_date": "2026-05-06",
+        "administered_by": "Dr. Atul V. Patil",
+        "notes": null
+      },
+      {
         "vaccine_name": "Nobivac RL",
         "vaccine_name_raw": "Nobivac RL",
         "dose": null,
@@ -478,7 +2949,7 @@
         "manufacturer": null,
         "batch_number": "A002A05",
         "next_due_date": "2026-05-06",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -490,19 +2961,20 @@
         "manufacturer": null,
         "batch_number": "A1527A01",
         "next_due_date": "2026-05-06",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       }
     ],
-    "document_category": "Vaccination",
-    "time_s": 19.0
+    "time_s": 22.3
   },
   {
     "file": "Zayn_Vaccination_Record_2.jpg",
     "status": "success",
     "document_name": "Pet Vaccination & Health Checkup Record",
+    "document_category": "Vaccination",
+    "document_type": "pet_medical",
     "pet_name": null,
-    "items_count": 4,
+    "items_count": 3,
     "items": [
       {
         "item_name": "Core Vaccine",
@@ -518,7 +2990,7 @@
         "dose": null,
         "doctor_name": "Dr. Makarand Chavan",
         "clinic_name": null,
-        "batch_number": "E51839"
+        "batch_number": "A789A01"
       },
       {
         "item_name": "Rabies Vaccine",
@@ -526,19 +2998,15 @@
         "dose": null,
         "doctor_name": "Dr. Makarand Chavan",
         "clinic_name": null,
-        "batch_number": "E51839"
-      },
-      {
-        "item_name": "Core Vaccine",
-        "last_done_date": "2025-05-06",
-        "dose": null,
-        "doctor_name": null,
-        "clinic_name": null,
-        "batch_number": "A789A01"
+        "batch_number": "E5189"
       }
     ],
     "doctor_name": "Dr. Atul V. Patil",
     "clinic_name": null,
+    "diagnostic_summary": null,
+    "diagnostic_values_count": 0,
+    "diagnostic_values": [],
+    "vaccination_details_count": 7,
     "vaccination_details": [
       {
         "vaccine_name": "Nobivac DHPPi",
@@ -583,7 +3051,7 @@
         "dose_unit": null,
         "route": null,
         "manufacturer": "Boehringer Ingelheim",
-        "batch_number": "E51839",
+        "batch_number": "E5189",
         "next_due_date": "2024-11-23",
         "administered_by": "Dr. Makarand Chavan",
         "notes": null
@@ -623,21 +3091,8 @@
         "next_due_date": null,
         "administered_by": null,
         "notes": null
-      },
-      {
-        "vaccine_name": "Nobivac KC",
-        "vaccine_name_raw": "Nobivac KC",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A157A01",
-        "next_due_date": null,
-        "administered_by": null,
-        "notes": null
       }
     ],
-    "document_category": "Vaccination",
-    "time_s": 20.8
+    "time_s": 15.2
   }
 ]

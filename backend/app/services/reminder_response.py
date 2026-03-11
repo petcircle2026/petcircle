@@ -57,7 +57,7 @@ from app.services.preventive_calculator import (
     compute_next_due_date,
     compute_status,
 )
-from app.utils.date_utils import get_today_ist
+from app.utils.date_utils import get_today_ist, format_date_for_user
 
 
 logger = logging.getLogger(__name__)
@@ -211,8 +211,8 @@ def _handle_done(db: Session, reminder: Reminder) -> dict:
         "status": "completed",
         "reminder_id": str(reminder.id),
         "action": REMINDER_DONE,
-        "last_done_date": str(today),
-        "next_due_date": str(record.next_due_date),
+        "last_done_date": format_date_for_user(today),
+        "next_due_date": format_date_for_user(record.next_due_date),
         "record_status": record.status,
     }
 
@@ -271,8 +271,8 @@ def _handle_snooze(db: Session, reminder: Reminder) -> dict:
         "status": "snoozed",
         "reminder_id": str(reminder.id),
         "action": REMINDER_SNOOZE_7,
-        "old_due_date": str(old_due),
-        "new_due_date": str(record.next_due_date),
+        "old_due_date": format_date_for_user(old_due),
+        "new_due_date": format_date_for_user(record.next_due_date),
     }
 
 
@@ -402,8 +402,8 @@ def apply_reschedule_date(
         "status": "rescheduled",
         "reminder_id": str(reminder.id),
         "action": REMINDER_RESCHEDULE,
-        "old_due_date": str(old_due),
-        "new_due_date": str(new_date),
+        "old_due_date": format_date_for_user(old_due),
+        "new_due_date": format_date_for_user(new_date),
         "record_status": record.status,
     }
 

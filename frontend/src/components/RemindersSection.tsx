@@ -9,6 +9,16 @@ function statusDot(status: string) {
   return "bg-gray-400";
 }
 
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const datePart = value.split(" ")[0];
+  const parts = datePart.split("-");
+  if (parts.length === 3 && parts[0].length === 4) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return value;
+}
+
 export default memo(function RemindersSection({
   reminders,
 }: {
@@ -37,7 +47,7 @@ export default memo(function RemindersSection({
           {reminders.map((r, i) => (
             <tr key={`${r.item_name}-${i}`} className="hover:bg-gray-50">
               <td className="px-4 py-3 font-medium">{r.item_name}</td>
-              <td className="px-4 py-3">{r.next_due_date}</td>
+              <td className="px-4 py-3">{formatDate(r.next_due_date)}</td>
               <td className="px-4 py-3">
                 <span className="flex items-center gap-2">
                   <span
@@ -47,7 +57,7 @@ export default memo(function RemindersSection({
                 </span>
               </td>
               <td className="px-4 py-3 text-gray-500">
-                {r.sent_at || "—"}
+                {formatDate(r.sent_at)}
               </td>
             </tr>
           ))}

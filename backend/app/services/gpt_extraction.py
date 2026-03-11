@@ -184,10 +184,29 @@ def _infer_document_category(
     return "Other"
 
 
-def _resolve_document_category(raw_category: str | None, inferred_category: str) -> str:
-    """Prefer inferred category when GPT returned blank or a weak Other label."""
+def _resolve_document_category(
+    raw_category: str | None,
+    inferred_category: str,
+    document_name: str | None = None,
+    file_path: str | None = None,
+) -> str:
+    """Prefer inferred category when GPT returned blank, Other, or misclassified.
+
+    Strong keyword signals from filename or document name override GPT's
+    category. Example: a file named 'Prescription_...' that GPT labelled
+    'Diagnostic' because it mentions blood tests should stay 'Prescription'.
+    """
     if raw_category in (None, "Other") and inferred_category != "Other":
         return inferred_category
+
+    # When inferred category comes from a strong keyword match in the
+    # filename/document name (Prescription, Vaccination), prefer it over
+    # GPT's classification if the keywords differ.
+    if inferred_category == "Prescription" and raw_category != "Prescription":
+        combined = f"{(document_name or '').lower()} {os.path.basename(file_path or '').lower()}"
+        if "prescription" in combined or "rx" in combined:
+            return "Prescription"
+
     return raw_category or inferred_category
 
 
@@ -1033,7 +1052,12 @@ async def extract_and_process_document(
             vaccination_details=metadata.get("vaccination_details", []),
             diagnostic_values=metadata.get("diagnostic_values", []),
         )
-        document_category = _resolve_document_category(metadata["document_category"], inferred_category)
+        document_category = _resolve_document_category(
+            metadata["document_category"],
+            inferred_category,
+            document_name=document_name or document.document_name,
+            file_path=document.file_path,
+        )
         results["document_category"] = document_category
 
         extracted_items = _derive_blood_test_fallback_items(
