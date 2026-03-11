@@ -216,9 +216,14 @@ def send_pending_reminders(db: Session) -> dict:
     for reminder, record, pet, user, master in pending_rows:
 
         # Send the WhatsApp reminder/overdue template via Cloud API.
-        # Template selection: upcoming → TEMPLATE_REMINDER, overdue → TEMPLATE_OVERDUE.
+        # Template selection: 
+        #   - Birthday Celebration → WHATSAPP_TEMPLATE_BIRTHDAY (special celebratory message)
+        #   - upcoming → TEMPLATE_REMINDER
+        #   - overdue → TEMPLATE_OVERDUE
         # retry_whatsapp_call handles retries (1 retry, never raises).
-        from app.services.whatsapp_sender import send_reminder_message
+        from app.services.whatsapp_sender import send_reminder_message, send_template_message
+        from app.config import settings
+        from app.utils.date_utils import format_date_for_user as format_date_util
 
         # Decrypt the user's mobile number for sending.
         plaintext_mobile = decrypt_field(user.mobile_number)
@@ -234,14 +239,23 @@ def send_pending_reminders(db: Session) -> dict:
             except RuntimeError:
                 loop = None
 
-            coro = send_reminder_message(
-                db=db,
-                to_number=plaintext_mobile,
-                pet_name=pet.name,
-                item_name=master.item_name,
-                due_date=format_date_for_user(reminder.next_due_date),
-                record_status=record.status,
-            )
+        # Special handling for Birthday Celebration
+            if master.item_name == "Birthday Celebration":
+                coro = send_template_message(
+                    db=db,
+                    to_number=plaintext_mobile,
+                    template_name=settings.WHATSAPP_TEMPLATE_BIRTHDAY,
+                    parameters=[pet.name, format_date_for_user(reminder.next_due_date)],
+                )
+            else:
+                coro = send_reminder_message(
+                    db=db,
+                    to_number=plaintext_mobile,
+                    pet_name=pet.name,
+                    item_name=master.item_name,
+                    due_date=format_date_for_user(reminder.next_due_date),
+                    record_status=record.status,
+                )
 
             if loop and loop.is_running():
                 # Already in an async context — schedule as a task and wait.

@@ -383,6 +383,35 @@ SEED_DATA: list[dict] = [
         "reminder_before_days": 30,
         "overdue_after_days": 14,
     },
+
+    # =============================
+    # SPECIAL: BIRTHDAY CELEBRATION
+    # =============================
+
+    # --- Birthday Celebration ---
+    # Special event for both dogs and cats to celebrate pet's birthday.
+    # Annual recurrence (365 days). Only created if DOB is provided during onboarding.
+    # Reminder 7 days before, overdue after 7 days past birthday date.
+    {
+        "item_name": "Birthday Celebration",
+        "category": "complete",
+        "circle": "health",
+        "species": "dog",
+        "recurrence_days": 365,
+        "medicine_dependent": False,
+        "reminder_before_days": 7,
+        "overdue_after_days": 7,
+    },
+    {
+        "item_name": "Birthday Celebration",
+        "category": "complete",
+        "circle": "health",
+        "species": "cat",
+        "recurrence_days": 365,
+        "medicine_dependent": False,
+        "reminder_before_days": 7,
+        "overdue_after_days": 7,
+    },
 ]
 
 

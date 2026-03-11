@@ -30,7 +30,7 @@ Rules:
 import json
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from uuid import UUID
 from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
@@ -53,7 +53,7 @@ from app.core.constants import (
 from app.config import settings
 from app.core.encryption import encrypt_field, decrypt_field, hash_field
 from app.core.log_sanitizer import mask_phone
-from app.utils.date_utils import is_ambiguous_date_input, parse_date, parse_date_with_ai
+from app.utils.date_utils import is_ambiguous_date_input, parse_date, parse_date_with_ai, get_today_ist
 from app.utils.breed_normalizer import normalize_breed, normalize_breed_with_ai
 from app.utils.retry import retry_openai_call
 from app.services.preventive_seeder import seed_preventive_master
@@ -1315,6 +1315,11 @@ def seed_preventive_records_for_pet(db: Session, pet: Pet) -> int:
     """
     Create initial preventive records for a newly onboarded pet.
 
+    Special handling for Birthday Celebration:
+        - Only created if pet.dob is provided.
+        - Uses next_due_date calculated from DOB via birthday_service.
+        - All other items use the standard approach (empty last_done_date).
+
     Args:
         db: SQLAlchemy database session.
         pet: The Pet model instance.
@@ -1336,11 +1341,42 @@ def seed_preventive_records_for_pet(db: Session, pet: Pet) -> int:
             # Use a savepoint so individual failures only roll back this insert,
             # not the entire transaction (which would lose previously flushed records).
             nested = db.begin_nested()
-            record = PreventiveRecord(
-                pet_id=pet.id,
-                preventive_master_id=master.id,
-                status="upcoming",
-            )
+
+            # Special handling for Birthday Celebration
+            if master.item_name == "Birthday Celebration":
+                # Skip if no DOB provided
+                if not pet.dob:
+                    nested.rollback()
+                    logger.debug(
+                        "Skipping Birthday Celebration for pet_id=%s: no DOB",
+                        str(pet.id),
+                    )
+                    continue
+
+                # Import here to avoid circular dependency
+                from app.services.birthday_service import calculate_next_birthday
+
+                next_birthday = calculate_next_birthday(pet.dob)
+                previous_birthday = date(
+                    next_birthday.year - 1, pet.dob.month, pet.dob.day
+                )
+                today = get_today_ist()
+
+                record = PreventiveRecord(
+                    pet_id=pet.id,
+                    preventive_master_id=master.id,
+                    last_done_date=previous_birthday,
+                    next_due_date=next_birthday,
+                    status="upcoming" if next_birthday <= today else "up_to_date",
+                )
+            else:
+                # Standard preventive record with empty dates
+                record = PreventiveRecord(
+                    pet_id=pet.id,
+                    preventive_master_id=master.id,
+                    status="upcoming",
+                )
+
             db.add(record)
             db.flush()
             nested.commit()

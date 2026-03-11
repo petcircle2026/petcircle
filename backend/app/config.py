@@ -66,6 +66,7 @@ class Settings(BaseSettings):
     WHATSAPP_TEMPLATE_NUDGE: str
     WHATSAPP_TEMPLATE_CONFLICT: str
     WHATSAPP_TEMPLATE_ONBOARDING_COMPLETE: str
+    WHATSAPP_TEMPLATE_BIRTHDAY: str
 
     # --- Admin ---
     # Secret key for admin API authentication via X-ADMIN-KEY header.
