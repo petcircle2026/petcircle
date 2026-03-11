@@ -1258,7 +1258,6 @@ async def _send_extraction_summary(
     processed = result.get("items_processed", 0)
     errors = result.get("errors", [])
     status = result.get("status", "failed")
-    doctor_name = result.get("doctor_name")
     clinic_name = result.get("clinic_name")
     vaccination_details = result.get("vaccination_details", [])
 
@@ -1318,10 +1317,8 @@ async def _send_extraction_summary(
     if lines:
         msg += f"\n*Health Records:*\n" + "\n".join(lines) + "\n"
 
-    if doctor_name or clinic_name:
+    if clinic_name:
         msg += "\n*Extracted Document Details:*\n"
-        if doctor_name:
-            msg += f"  • Doctor: {doctor_name}\n"
         if clinic_name:
             msg += f"  • Clinic: {clinic_name}\n"
 
@@ -1333,14 +1330,11 @@ async def _send_extraction_summary(
             vaccine_name = detail.get("vaccine_name") or detail.get("vaccine_name_raw") or "Vaccine"
             dose = detail.get("dose")
             batch = detail.get("batch_number")
-            admin_by = detail.get("administered_by")
             parts = [str(vaccine_name)]
             if dose:
                 parts.append(f"dose {dose}")
             if batch:
                 parts.append(f"batch {batch}")
-            if admin_by:
-                parts.append(f"by {admin_by}")
             msg += "  • " + ", ".join(parts) + "\n"
 
     if errors:

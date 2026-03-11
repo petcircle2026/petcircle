@@ -147,6 +147,106 @@ def _resolve_document_category(raw_category: str | None, inferred_category: str)
     return raw_category or inferred_category
 
 
+def _normalize_name_for_matching(value: str | None) -> str:
+    """Normalize a person or pet name for tolerant comparisons."""
+    cleaned = re.sub(r"[^a-z0-9\s]", " ", (value or "").strip().lower())
+    cleaned = re.sub(r"\s+", " ", cleaned)
+    return cleaned.strip()
+
+
+def _pet_name_matches_document_name(extracted_pet_name: str | None, pet_name: str | None) -> bool:
+    """Accept pet-name aliases such as 'VEER / ZAYN' when one alias matches the pet."""
+    normalized_pet_name = _normalize_name_for_matching(pet_name)
+    if not normalized_pet_name:
+        return True
+
+    normalized_extracted_name = _normalize_name_for_matching(extracted_pet_name)
+    if not normalized_extracted_name:
+        return True
+    if normalized_extracted_name == normalized_pet_name:
+        return True
+
+    alias_candidates = [
+        _normalize_name_for_matching(part)
+        for part in re.split(r"[\/,&]|\band\b|\bor\b", str(extracted_pet_name), flags=re.IGNORECASE)
+    ]
+    alias_candidates = [candidate for candidate in alias_candidates if candidate]
+
+    for candidate in alias_candidates:
+        if candidate == normalized_pet_name:
+            return True
+        if re.search(rf"\b{re.escape(normalized_pet_name)}\b", candidate):
+            return True
+
+    return False
+
+
+def _is_plausible_doctor_name(value: str | None, pet_name: str | None = None) -> bool:
+    """Reject obvious non-doctor text such as owner labels or pet-name fragments."""
+    normalized_value = _normalize_name_for_matching(value)
+    if not normalized_value:
+        return False
+    if pet_name and normalized_value == _normalize_name_for_matching(pet_name):
+        return False
+    if any(char.isdigit() for char in normalized_value):
+        return False
+
+    invalid_keywords = (
+        "owner",
+        "patient",
+        "pet name",
+        "collection center",
+        "report date",
+        "reg date",
+        "lab no",
+        "species",
+        "breed",
+        "c o",
+    )
+    if any(keyword in normalized_value for keyword in invalid_keywords):
+        return False
+
+    token_count = len(normalized_value.split())
+    if token_count > 6:
+        return False
+
+    return len(normalized_value.replace(" ", "")) >= 3
+
+
+def _select_best_doctor_name(
+    metadata_doctor_name: str | None,
+    extracted_items: list[dict],
+    vaccination_details: list[dict],
+    pet_name: str | None,
+) -> str | None:
+    """Prefer plausible vaccination doctor details over noisy top-level OCR text."""
+    candidates: list[str | None] = []
+
+    for detail in vaccination_details:
+        if not isinstance(detail, dict):
+            continue
+        candidates.append(detail.get("administered_by"))
+        candidates.append(detail.get("doctor_name"))
+
+    candidates.append(metadata_doctor_name)
+
+    for item in extracted_items:
+        if not isinstance(item, dict):
+            continue
+        candidates.append(item.get("doctor_name"))
+
+    seen: set[str] = set()
+    for candidate in candidates:
+        normalized_candidate = _normalize_name_for_matching(candidate)
+        if normalized_candidate in seen:
+            continue
+        seen.add(normalized_candidate)
+        if _is_plausible_doctor_name(candidate, pet_name=pet_name):
+            return str(candidate).strip()
+
+    return None
+
+
 def _append_single_extracted_date_to_filename(
     original_filename: str,
     extracted_items: list[dict],
@@ -894,20 +994,19 @@ async def extract_and_process_document(
             )[:200]
         if document_category:
             document.document_category = document_category
-        if metadata["doctor_name"]:
-            document.doctor_name = str(metadata["doctor_name"])[:200]
+        selected_doctor_name = _select_best_doctor_name(
+            metadata_doctor_name=(str(metadata["doctor_name"]).strip() if metadata["doctor_name"] else None),
+            extracted_items=extracted_items,
+            vaccination_details=metadata.get("vaccination_details", []),
+            pet_name=pet.name,
+        )
+        results["doctor_name"] = selected_doctor_name
+        if selected_doctor_name:
+            document.doctor_name = selected_doctor_name[:200]
         if metadata["clinic_name"]:
             document.hospital_name = str(metadata["clinic_name"])[:200]
 
         # Enrich top-level doctor/clinic from item-level values when missing.
-        if not results["doctor_name"]:
-            for item in extracted_items:
-                item_doctor = item.get("doctor_name")
-                if item_doctor:
-                    results["doctor_name"] = item_doctor
-                    document.doctor_name = str(item_doctor)[:200]
-                    break
-
         if not results["clinic_name"]:
             for item in extracted_items:
                 item_clinic = item.get("clinic_name")
@@ -996,7 +1095,7 @@ async def extract_and_process_document(
         # If GPT extracted a pet name from the document, verify it matches
         # the registered pet name. If not, flag the document and skip extraction.
         if extracted_pet_name and pet.name:
-            if extracted_pet_name.strip().lower() != pet.name.strip().lower():
+            if not _pet_name_matches_document_name(extracted_pet_name, pet.name):
                 logger.warning(
                     "Pet name mismatch: document says '%s', registered pet is '%s'. "
                     "Flagging document %s — skipping extraction.",
