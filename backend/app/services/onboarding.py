@@ -40,6 +40,7 @@ from app.models.dashboard_token import DashboardToken
 from app.models.preventive_master import PreventiveMaster
 from app.models.preventive_record import PreventiveRecord
 from app.models.document import Document
+from app.models.reminder import Reminder
 from app.core.constants import (
     APP_RETURNING_HEADING,
     MAX_PETS_PER_USER,
@@ -987,6 +988,42 @@ async def _step_awaiting_documents(db, user, text_lower, send_fn):
     )
 
 
+def _get_active_reminders_text(db: Session, pet_id) -> str:
+    """
+    Fetch active reminders for a pet and format them for WhatsApp message.
+    
+    Returns formatted text with reminders or empty string if none exist.
+    Active reminders are those with status 'pending' or 'sent'.
+    """
+    try:
+        reminders = (
+            db.query(Reminder, PreventiveRecord, PreventiveMaster)
+            .join(PreventiveRecord, Reminder.preventive_record_id == PreventiveRecord.id)
+            .join(PreventiveMaster, PreventiveRecord.preventive_master_id == PreventiveMaster.id)
+            .filter(
+                PreventiveRecord.pet_id == pet_id,
+                Reminder.status.in_(["pending", "sent"]),
+            )
+            .order_by(Reminder.next_due_date.asc())
+            .all()
+        )
+        
+        if not reminders:
+            return ""
+        
+        # Format reminders for display
+        reminder_lines = []
+        for reminder, record, master in reminders:
+            due_date_str = reminder.next_due_date.strftime("%d/%m/%Y")
+            reminder_lines.append(f"• {master.item_name}: Due {due_date_str}")
+        
+        result = "Active Reminders:\n" + "\n".join(reminder_lines) + "\n\n"
+        return result
+    except Exception as e:
+        logger.error("Failed to fetch active reminders for pet %s: %s", str(pet_id), str(e))
+        return ""
+
+
 async def _finalize_onboarding(db, user, send_fn):
     """
     Finalize onboarding: mark complete, clear deadline, send appropriate message.
@@ -1088,6 +1125,11 @@ async def _finalize_onboarding(db, user, send_fn):
             "We couldn't load the preventive health items right now. "
             "They will be set up automatically — no action needed.\n\n"
         )
+
+    # --- Add active reminders ---
+    reminders_text = _get_active_reminders_text(db, pet.id)
+    if reminders_text:
+        msg += reminders_text
 
     if token:
         msg += (

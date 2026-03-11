@@ -1102,9 +1102,12 @@ async def _send_dashboard_links(db, user) -> None:
 
     Auto-regenerates expired or revoked tokens so the user always
     receives a working link.
+    Includes active reminders for each pet.
     """
     from datetime import datetime
     from app.models.dashboard_token import DashboardToken
+    from app.models.reminder import Reminder
+    from app.models.preventive_master import PreventiveMaster
     from app.services.onboarding import refresh_dashboard_token
     from app.config import settings
 
@@ -1135,13 +1138,39 @@ async def _send_dashboard_links(db, user) -> None:
             # Auto-refresh if token is expired or missing.
             if token_record and token_record.expires_at and datetime.utcnow() > token_record.expires_at:
                 new_token = refresh_dashboard_token(db, pet.id)
-                messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
+                dashboard_url = f"{settings.FRONTEND_URL}/dashboard/{new_token}"
             elif token_record:
-                messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{token_record.token}")
+                dashboard_url = f"{settings.FRONTEND_URL}/dashboard/{token_record.token}"
             else:
                 # No token at all — generate a fresh one.
                 new_token = refresh_dashboard_token(db, pet.id)
-                messages.append(f"*{pet.name}'s Dashboard*:\n{settings.FRONTEND_URL}/dashboard/{new_token}")
+                dashboard_url = f"{settings.FRONTEND_URL}/dashboard/{new_token}"
+            
+            pet_msg = f"*{pet.name}'s Dashboard*:\n{dashboard_url}"
+            
+            # Fetch and append active reminders for this pet
+            try:
+                reminders = (
+                    db.query(Reminder, PreventiveRecord, PreventiveMaster)
+                    .join(PreventiveRecord, Reminder.preventive_record_id == PreventiveRecord.id)
+                    .join(PreventiveMaster, PreventiveRecord.preventive_master_id == PreventiveMaster.id)
+                    .filter(
+                        PreventiveRecord.pet_id == pet.id,
+                        Reminder.status.in_(["pending", "sent"]),
+                    )
+                    .order_by(Reminder.next_due_date.asc())
+                    .all()
+                )
+                
+                if reminders:
+                    pet_msg += "\n\nActive Reminders:"
+                    for reminder, record, master in reminders:
+                        due_date_str = reminder.next_due_date.strftime("%d/%m/%Y")
+                        pet_msg += f"\n• {master.item_name}: Due {due_date_str}"
+            except Exception as e:
+                logger.error("Failed to fetch reminders for pet %s: %s", str(pet.id), str(e))
+            
+            messages.append(pet_msg)
         except Exception as e:
             logger.error("Failed to get/refresh token for pet %s: %s", str(pet.id), str(e))
             messages.append(f"*{pet.name}'s Dashboard*: Link temporarily unavailable")
@@ -1152,7 +1181,7 @@ async def _send_dashboard_links(db, user) -> None:
 
     await send_text_message(
         db, from_number,
-        "Your pet dashboards:\n\n" + "\n".join(messages),
+        "Your pet dashboards:\n\n" + "\n\n".join(messages),
     )
 
 
