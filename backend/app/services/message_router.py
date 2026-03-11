@@ -46,6 +46,8 @@ from app.core.constants import (
     ORDER_COMMANDS,
     ORDER_CATEGORY_PAYLOADS,
     ORDER_CONFIRM_PAYLOADS,
+    ORDER_FULFILL_YES_PREFIX,
+    ORDER_FULFILL_NO_PREFIX,
 )
 
 # Semaphore to limit concurrent background extraction tasks.
@@ -163,6 +165,14 @@ async def route_message(db: Session, message_data: dict) -> None:
     if msg_type not in _ACTIONABLE_TYPES:
         logger.info("Ignoring non-actionable message type '%s' from %s", msg_type, mask_phone(from_number))
         return
+
+    # Admin-only WhatsApp order status updates from ORDER_NOTIFICATION_PHONE.
+    if msg_type == "button" and _is_order_admin_number(from_number):
+        payload = message_data.get("button_payload", "")
+        if payload.startswith(ORDER_FULFILL_YES_PREFIX) or payload.startswith(ORDER_FULFILL_NO_PREFIX):
+            from app.services.order_service import handle_admin_order_status_feedback
+            await handle_admin_order_status_feedback(db, from_number, payload)
+            return
 
     try:
         # --- Step 1: Look up or create user ---
@@ -540,6 +550,17 @@ async def _handle_button(db: Session, user, message_data: dict) -> None:
             db, from_number,
             "Sorry, I didn't understand that response.",
         )
+
+
+def _is_order_admin_number(from_number: str) -> bool:
+    """Return True if sender number matches ORDER_NOTIFICATION_PHONE (digit-insensitive)."""
+    configured = settings.ORDER_NOTIFICATION_PHONE or ""
+    if not configured:
+        return False
+
+    configured_digits = "".join(ch for ch in configured if ch.isdigit())
+    sender_digits = "".join(ch for ch in from_number if ch.isdigit())
+    return bool(configured_digits) and sender_digits.endswith(configured_digits)
 
 
 async def _handle_reminder_button(db: Session, user, payload: str) -> None:

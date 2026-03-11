@@ -20,6 +20,7 @@ State is tracked via user.order_state and user.active_order_id.
 """
 
 import logging
+from uuid import UUID
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.core.encryption import decrypt_field
@@ -32,6 +33,8 @@ from app.core.constants import (
     ORDER_CANCEL,
     ORDER_CATEGORY_MAP,
     ORDER_CATEGORY_LABELS,
+    ORDER_FULFILL_YES_PREFIX,
+    ORDER_FULFILL_NO_PREFIX,
 )
 from app.models.order import Order
 from app.models.pet import Pet
@@ -634,6 +637,41 @@ async def cancel_order_flow(db: Session, user) -> None:
     logger.info("Order flow cancelled by %s", mask_phone(from_number))
 
 
+async def handle_admin_order_status_feedback(db: Session, from_number: str, payload: str) -> None:
+    """Handle admin WhatsApp fulfillment feedback and update order status."""
+
+    is_yes = payload.startswith(ORDER_FULFILL_YES_PREFIX)
+    is_no = payload.startswith(ORDER_FULFILL_NO_PREFIX)
+    if not (is_yes or is_no):
+        await send_text_message(db, from_number, "I couldn't process that response.")
+        return
+
+    order_id_str = payload.split(":", 1)[1] if ":" in payload else ""
+    try:
+        order_id = UUID(order_id_str)
+    except Exception:
+        await send_text_message(db, from_number, "I couldn't identify that order. Please contact support.")
+        return
+
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        await send_text_message(db, from_number, "Order not found.")
+        return
+
+    if is_yes:
+        order.status = "completed"  # type: ignore[assignment]
+        note = "Admin confirmed via WhatsApp: fulfilled."
+        order.admin_notes = f"{order.admin_notes}\n{note}".strip() if order.admin_notes else note  # type: ignore[assignment]
+        db.commit()
+        await send_text_message(db, from_number, "Marked as fulfilled (completed).")
+    else:
+        order.status = "cancelled"  # type: ignore[assignment]
+        note = "Admin reported via WhatsApp: not fulfilled yet, order cancelled."
+        order.admin_notes = f"{order.admin_notes}\n{note}".strip() if order.admin_notes else note  # type: ignore[assignment]
+        db.commit()
+        await send_text_message(db, from_number, "Marked as not fulfilled yet and cancelled.")
+
+
 # --- Private Helpers ---
 
 
@@ -690,10 +728,14 @@ async def _notify_admin_whatsapp(db: Session, order: Order, user, pet) -> None:
             f"Pet: {pet_name}\n"
             f"Category: {label}\n"
             f"Items: {order.items_description}\n\n"
-            f"Please call the user to process this order."
+            "Has this order been fulfilled?"
         )
 
-        await send_text_message(db, admin_phone, msg)
+        buttons = [
+            {"id": f"{ORDER_FULFILL_YES_PREFIX}{order.id}", "title": "Yes, fulfilled"},
+            {"id": f"{ORDER_FULFILL_NO_PREFIX}{order.id}", "title": "No, order cancelled"},
+        ]
+        await send_interactive_buttons(db, admin_phone, msg, buttons)
         logger.info("Admin notified about order %s", str(order.id))
     except Exception as e:
         # Never crash on notification failure — order is already confirmed.

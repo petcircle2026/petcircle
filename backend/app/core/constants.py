@@ -182,6 +182,13 @@ ORDER_CONFIRM_PAYLOADS: frozenset[str] = frozenset({
     ORDER_CONFIRM, ORDER_CANCEL,
 })
 
+# Prefixes for dynamic order fulfillment payloads sent to admin number.
+# Full payload format:
+#   ORDER_FULFILL_YES:{order_id}
+#   ORDER_FULFILL_NO:{order_id}
+ORDER_FULFILL_YES_PREFIX: str = "ORDER_FULFILL_YES:"
+ORDER_FULFILL_NO_PREFIX: str = "ORDER_FULFILL_NO:"
+
 # Map button payload → database category value.
 ORDER_CATEGORY_MAP: dict[str, str] = {
     ORDER_CAT_MEDICINES: "medicines",

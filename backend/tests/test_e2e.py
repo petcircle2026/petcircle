@@ -60,7 +60,7 @@ from app.services.document_upload import (
 )
 from app.services.gpt_extraction import (
     _validate_extraction_json,
-    _match_preventive_master,
+    _match_preventive_master_from_list,
 )
 from app.utils.date_utils import parse_date, format_date_for_db, get_today_ist
 from app.core.constants import *
@@ -391,14 +391,17 @@ def main():
         test("Empty extraction returns empty list", len(items3) == 0)
 
         # Test preventive master matching
-        master = _match_preventive_master(db, "Rabies Vaccine", "dog")
+        dog_masters = db.query(PreventiveMaster).filter(
+            PreventiveMaster.species == "dog"
+        ).all()
+        master = _match_preventive_master_from_list(dog_masters, "Rabies Vaccine")
         test("Exact match 'Rabies Vaccine' for dog", master is not None)
         test("Master has correct recurrence", master and master.recurrence_days == 365)
 
-        master2 = _match_preventive_master(db, "Rabies", "dog")
+        master2 = _match_preventive_master_from_list(dog_masters, "Rabies")
         test("Partial match 'Rabies' for dog", master2 is not None)
 
-        master3 = _match_preventive_master(db, "Nonexistent Item", "dog")
+        master3 = _match_preventive_master_from_list(dog_masters, "Nonexistent Item")
         test("No match for unknown item", master3 is None)
 
         # ===================================================================

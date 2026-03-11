@@ -166,7 +166,16 @@ export default function OrdersPanel({ adminKey }: { adminKey: string }) {
                           disabled={actionLoading === o.id}
                           className="rounded bg-green-500 px-2 py-1 text-xs text-white hover:bg-green-600 disabled:opacity-50"
                         >
-                          Complete
+                          Fulfilled
+                        </button>
+                      )}
+                      {(o.status === "pending" || o.status === "confirmed" || o.status === "completed") && (
+                        <button
+                          onClick={() => handleStatusChange(o.id, "confirmed")}
+                          disabled={actionLoading === o.id}
+                          className="rounded bg-orange-500 px-2 py-1 text-xs text-white hover:bg-orange-600 disabled:opacity-50"
+                        >
+                          Not Fulfilled
                         </button>
                       )}
                       {o.status !== "cancelled" && o.status !== "completed" && (

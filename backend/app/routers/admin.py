@@ -533,11 +533,12 @@ def update_order_status(
         raise HTTPException(status_code=404, detail="Order not found.")
 
     old_status = order.status
-    order.status = body.status
+    order.status = body.status  # type: ignore[assignment]
     if body.admin_notes is not None:
-        order.admin_notes = body.admin_notes
+        order.admin_notes = body.admin_notes  # type: ignore[assignment]
 
     db.commit()
+
     logger.info(
         "Order status updated: order_id=%s, %s → %s",
         str(order_id), old_status, body.status,
