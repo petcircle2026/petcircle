@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { AdminUser } from "@/lib/api";
 import { adminApi } from "@/lib/api";
+import { formatPhoneForDisplay } from "@/lib/phone";
 
 export default function UsersPanel({ adminKey }: { adminKey: string }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -61,7 +62,7 @@ export default function UsersPanel({ adminKey }: { adminKey: string }) {
               <td className="px-4 py-3 font-medium">
                 {u.full_name || "—"}
               </td>
-              <td className="px-4 py-3">{u.mobile_number}</td>
+              <td className="px-4 py-3">{formatPhoneForDisplay(u.mobile_number)}</td>
               <td className="px-4 py-3">{u.pincode || "—"}</td>
               <td className="px-4 py-3">
                 {u.consent_given ? (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { AdminMessage } from "@/lib/api";
 import { adminApi } from "@/lib/api";
+import { formatPhoneForDisplay } from "@/lib/phone";
 
 export default function MessagesPanel({ adminKey }: { adminKey: string }) {
   const [messages, setMessages] = useState<AdminMessage[]>([]);
@@ -76,7 +77,7 @@ export default function MessagesPanel({ adminKey }: { adminKey: string }) {
                       {m.direction}
                     </span>
                   </td>
-                  <td className="px-4 py-3">{m.mobile_number}</td>
+                  <td className="px-4 py-3">{formatPhoneForDisplay(m.mobile_number)}</td>
                   <td className="px-4 py-3">{m.message_type}</td>
                   <td className="max-w-md truncate px-4 py-3 text-gray-500">
                     {m.payload}
