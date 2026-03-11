@@ -43,6 +43,7 @@ from app.models.preventive_master import PreventiveMaster
 from app.models.reminder import Reminder
 from app.models.document import Document
 from app.models.diagnostic_test_result import DiagnosticTestResult
+from app.services.gpt_extraction import _infer_document_category, _resolve_document_category
 from app.services.document_upload import download_from_supabase
 from app.services.preventive_calculator import (
     compute_next_due_date,
@@ -266,10 +267,17 @@ def get_dashboard_data(db: Session, token: str) -> dict:
 
     document_data = []
     for doc in documents:
+        inferred_category = _infer_document_category(
+            document_name=doc.document_name,
+            file_path=doc.file_path,
+            items=[],
+            vaccination_details=[],
+            diagnostic_values=[],
+        )
         document_data.append({
             "id": str(doc.id),
             "document_name": doc.document_name,
-            "document_category": doc.document_category,
+            "document_category": _resolve_document_category(doc.document_category, inferred_category),
             "doctor_name": doc.doctor_name,
             "hospital_name": doc.hospital_name,
             "mime_type": doc.mime_type,

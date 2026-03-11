@@ -54,3 +54,45 @@ def test_infer_document_category_uses_filename_when_gpt_misses_prescription() ->
     )
 
     assert category == "Prescription"
+
+
+def test_resolve_document_category_overrides_other_with_inferred_diagnostic() -> None:
+    resolved = gpt_extraction._resolve_document_category("Other", "Diagnostic")
+
+    assert resolved == "Diagnostic"
+
+
+def test_extract_date_from_filename_supports_sample_report_names() -> None:
+    extracted = gpt_extraction._extract_date_from_filename("uploads/CBC_12_02_25.pdf")
+
+    assert extracted == "2025-02-12"
+
+
+def test_derive_blood_test_fallback_items_uses_filename_for_cbc_reports() -> None:
+    items = gpt_extraction._derive_blood_test_fallback_items(
+        extracted_items=[],
+        document_name="Blood Test Report",
+        file_path="uploads/CBC_12_02_25.pdf",
+        document_category="Diagnostic",
+        diagnostic_values=[],
+    )
+
+    assert items == [{"item_name": "Preventive Blood Test", "last_done_date": "2025-02-12"}]
+
+
+def test_derive_blood_test_fallback_items_prefers_observed_blood_date() -> None:
+    items = gpt_extraction._derive_blood_test_fallback_items(
+        extracted_items=[],
+        document_name="Blood Test Report",
+        file_path="uploads/Blood_29_01_25.pdf",
+        document_category="Diagnostic",
+        diagnostic_values=[
+            {
+                "test_type": "blood",
+                "parameter_name": "Creatinine",
+                "observed_at": "2025-01-28",
+            }
+        ],
+    )
+
+    assert items == [{"item_name": "Preventive Blood Test", "last_done_date": "2025-01-28"}]

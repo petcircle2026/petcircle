@@ -140,6 +140,13 @@ def _infer_document_category(
     return "Other"
 
 
+def _resolve_document_category(raw_category: str | None, inferred_category: str) -> str:
+    """Prefer inferred category when GPT returned blank or a weak Other label."""
+    if raw_category in (None, "Other") and inferred_category != "Other":
+        return inferred_category
+    return raw_category or inferred_category
+
+
 def _append_single_extracted_date_to_filename(
     original_filename: str,
     extracted_items: list[dict],
@@ -178,6 +185,76 @@ def _append_single_extracted_date_to_filename(
     if dot > 0:
         return f"{original_filename[:dot]}_{only_date}{original_filename[dot:]}"
     return f"{original_filename}_{only_date}"
+
+
+def _extract_date_from_filename(file_path: str | None) -> str | None:
+    """Extract a canonical YYYY-MM-DD date from a document filename when present."""
+    stem = os.path.splitext(os.path.basename(file_path or ""))[0]
+    if not stem:
+        return None
+
+    normalized = stem.replace("_", "-").replace(".", "-")
+    patterns = (
+        r"\b\d{1,2}-\d{1,2}-\d{2,4}\b",
+        r"\b\d{4}-\d{1,2}-\d{1,2}\b",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, normalized)
+        if not match:
+            continue
+        try:
+            return format_date_for_db(parse_date(match.group(0)))
+        except ValueError:
+            continue
+    return None
+
+
+def _derive_blood_test_fallback_items(
+    extracted_items: list[dict],
+    document_name: str | None,
+    file_path: str | None,
+    document_category: str | None,
+    diagnostic_values: list[dict],
+) -> list[dict]:
+    """Fill in Preventive Blood Test when diagnostic blood/CBC docs omit tracked items."""
+    if extracted_items or document_category != "Diagnostic":
+        return extracted_items
+
+    combined_text = f"{(document_name or '').lower()} {os.path.basename(file_path or '').lower()}"
+    blood_like = any(keyword in combined_text for keyword in (
+        "blood",
+        "cbc",
+        "hematology",
+        "haematology",
+        "hemogram",
+        "complete blood count",
+    ))
+    has_blood_values = any(
+        isinstance(value, dict) and str(value.get("test_type") or "").strip().lower() == "blood"
+        for value in diagnostic_values
+    )
+    if not blood_like and not has_blood_values:
+        return extracted_items
+
+    observed_dates: list[str] = []
+    for value in diagnostic_values:
+        if not isinstance(value, dict):
+            continue
+        if str(value.get("test_type") or "").strip().lower() != "blood":
+            continue
+        observed_at = value.get("observed_at")
+        if not observed_at:
+            continue
+        try:
+            observed_dates.append(format_date_for_db(parse_date(str(observed_at))))
+        except ValueError:
+            continue
+
+    fallback_date = observed_dates[0] if observed_dates else _extract_date_from_filename(file_path)
+    if not fallback_date:
+        return extracted_items
+
+    return [{"item_name": "Preventive Blood Test", "last_done_date": fallback_date}]
 
 
 # --- Expected JSON keys from GPT extraction ---
@@ -675,7 +752,6 @@ async def extract_and_process_document(
 
         # --- Step 2: Validate and normalize ---
         extracted_items, document_name, extracted_pet_name, metadata = _validate_extraction_json(raw_json)
-        results["items_extracted"] = len(extracted_items)
         results["document_type"] = metadata["document_type"]
         results["document_category"] = metadata["document_category"]
         results["diagnostic_summary"] = metadata["diagnostic_summary"]
@@ -684,14 +760,24 @@ async def extract_and_process_document(
         results["clinic_name"] = metadata["clinic_name"]
         results["vaccination_details"] = metadata["vaccination_details"]
 
-        document_category = metadata["document_category"] or _infer_document_category(
+        inferred_category = _infer_document_category(
             document_name=document_name or document.document_name,
             file_path=document.file_path,
             items=extracted_items,
             vaccination_details=metadata.get("vaccination_details", []),
             diagnostic_values=metadata.get("diagnostic_values", []),
         )
+        document_category = _resolve_document_category(metadata["document_category"], inferred_category)
         results["document_category"] = document_category
+
+        extracted_items = _derive_blood_test_fallback_items(
+            extracted_items=extracted_items,
+            document_name=document_name or document.document_name,
+            file_path=document.file_path,
+            document_category=document_category,
+            diagnostic_values=metadata.get("diagnostic_values", []),
+        )
+        results["items_extracted"] = len(extracted_items)
 
         # Keep original filename; append a date only when exactly one date is present.
         if document.document_name:
