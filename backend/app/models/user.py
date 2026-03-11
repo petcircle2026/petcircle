@@ -17,7 +17,7 @@ Constraints:
 
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from app.database import Base
@@ -81,6 +81,25 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # --- Order Flow State ---
+    # Tracks the current step in the WhatsApp order conversation.
+    # States: awaiting_order_category, awaiting_order_items, awaiting_order_pet
+    # Nullable — None when user is not in an order flow.
+    order_state = Column(String(30), nullable=True)
+
+    # Reference to the draft order being built during the order flow.
+    # SET NULL on delete so user record isn't affected if order is cleaned up.
+    # use_alter=True avoids circular FK dependency during table creation.
+    active_order_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("orders.id", ondelete="SET NULL", use_alter=True),
+        nullable=True,
+    )
+
     # Relationship to pets — one user can have up to MAX_PETS_PER_USER pets.
     # Cascade defined on the Pet model's foreign key side.
     pets = relationship("Pet", back_populates="user")
+
+    # Relationship to orders — one user can have many orders.
+    # foreign_keys specified to avoid ambiguity with active_order_id FK.
+    orders = relationship("Order", back_populates="user", foreign_keys="Order.user_id")

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { MEDICINES_STORAGE_PREFIX } from "@/lib/branding";
 
 interface MedicineItem {
   id: string;
@@ -13,7 +14,7 @@ export default function MedicinesSection({ token }: { token: string }) {
   const [name, setName] = useState("");
   const [notes, setNotes] = useState("");
 
-  const key = `petcircle_medicines_${token}`;
+  const key = `${MEDICINES_STORAGE_PREFIX}${token}`;
 
   useEffect(() => {
     const raw = localStorage.getItem(key);

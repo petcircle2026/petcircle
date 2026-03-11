@@ -3,6 +3,7 @@
 import { useState } from "react";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import { adminLogin } from "@/lib/api";
+import { APP_ADMIN_TITLE } from "@/lib/branding";
 
 export default function AdminPage() {
   const [adminKey, setAdminKey] = useState("");
@@ -51,7 +52,7 @@ export default function AdminPage() {
         className="w-full max-w-sm rounded-lg border bg-white p-8 shadow-sm"
       >
         <h1 className="mb-6 text-center text-xl font-bold">
-          PetCircle Admin
+          {APP_ADMIN_TITLE}
         </h1>
         <label className="mb-2 block text-sm font-medium text-gray-700">
           Password

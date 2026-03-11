@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { APP_DASHBOARD_TITLE } from "@/lib/branding";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PetCircle — Pet Health Dashboard",
+  title: APP_DASHBOARD_TITLE,
   description: "View your pet's preventive health records and reminders",
 };
 

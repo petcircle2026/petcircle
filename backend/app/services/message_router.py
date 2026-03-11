@@ -29,6 +29,7 @@ from app.core.encryption import decrypt_field
 from app.core.log_sanitizer import mask_phone
 from app.utils.breed_fun_facts import get_breed_fun_fact
 from app.core.constants import (
+    APP_WELCOME_HEADING,
     REMINDER_DONE,
     REMINDER_SNOOZE_7,
     REMINDER_RESCHEDULE,
@@ -42,6 +43,9 @@ from app.core.constants import (
     ACKNOWLEDGMENTS,
     FAREWELLS,
     HELP_COMMANDS,
+    ORDER_COMMANDS,
+    ORDER_CATEGORY_PAYLOADS,
+    ORDER_CONFIRM_PAYLOADS,
 )
 
 # Semaphore to limit concurrent background extraction tasks.
@@ -175,7 +179,7 @@ async def route_message(db: Session, message_data: dict) -> None:
             if user.onboarding_state == "awaiting_consent":
                 await send_text_message(
                     db, from_number,
-                    "Hey there! Welcome to *PetCircle* 🐾\n\n"
+                    f"{APP_WELCOME_HEADING}\n\n"
                     "I'm your pet's personal health assistant. I help you stay on top of "
                     "vaccinations, deworming, tick treatments, and all the preventive care "
                     "your furry friend needs — right here on WhatsApp.\n\n"
@@ -310,6 +314,30 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
     if reschedule_result:
         return
 
+    # --- Active order flow — intercept text for items or pet selection ---
+    if user.order_state in ("awaiting_order_items", "awaiting_order_pet", "awaiting_order_confirm"):
+        # Allow user to cancel mid-flow by typing "cancel" or "stop".
+        if text_lower in ("cancel", "stop"):
+            from app.services.order_service import cancel_order_flow
+            await cancel_order_flow(db, user)
+            return
+
+        if user.order_state == "awaiting_order_items":
+            from app.services.order_service import handle_order_items
+            await handle_order_items(db, user, text)
+            return
+        elif user.order_state == "awaiting_order_pet":
+            from app.services.order_service import handle_order_pet_selection
+            await handle_order_pet_selection(db, user, text)
+            return
+        elif user.order_state == "awaiting_order_confirm":
+            # User typed text instead of tapping a button — remind them.
+            await send_text_message(
+                db, from_number,
+                "Please tap *Confirm Order* or *Cancel* above to proceed.",
+            )
+            return
+
     # --- Greeting — canned menu, no GPT call ---
     if text_lower in GREETINGS:
         await _send_help_menu(db, from_number)
@@ -370,6 +398,12 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
         await _send_dashboard_links(db, user)
         return
 
+    # "order" / "shop" / "buy" command — start product ordering flow.
+    if text_lower in ORDER_COMMANDS:
+        from app.services.order_service import start_order_flow
+        await start_order_flow(db, user)
+        return
+
     # General query — route to GPT query engine
     await _handle_query(db, user, text)
 
@@ -383,6 +417,7 @@ async def _send_help_menu(db: Session, from_number: str) -> None:
         "• Ask me anything about your pet's health\n"
         "• Send *add pet* to register another pet\n"
         "• Send *dashboard* to view your pet's records\n"
+        "• Send *order* to buy medicines, food, or supplements\n"
         "• Send *help* to see this menu\n"
         "• Upload a vet document for extraction",
     )
@@ -479,6 +514,12 @@ async def _handle_button(db: Session, user, message_data: dict) -> None:
         await _handle_reminder_button(db, user, payload)
     elif payload in CONFLICT_PAYLOADS:
         await _handle_conflict_button(db, user, payload)
+    elif payload in ORDER_CATEGORY_PAYLOADS:
+        from app.services.order_service import handle_order_category
+        await handle_order_category(db, user, payload)
+    elif payload in ORDER_CONFIRM_PAYLOADS:
+        from app.services.order_service import handle_order_confirmation
+        await handle_order_confirmation(db, user, payload)
     else:
         logger.warning("Unknown button payload '%s' from %s", payload, from_number)
         await send_text_message(

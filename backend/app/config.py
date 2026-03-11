@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     # Frontend URL for CORS allow-origin (e.g., https://petcircle.vercel.app).
     FRONTEND_URL: str
 
+    # --- Order Notifications ---
+    # WhatsApp phone number to notify when a new order is placed.
+    # Format: country code + number, no + prefix (e.g., "919095705762").
+    # Optional — if not set, only dashboard notification (no WhatsApp alert).
+    ORDER_NOTIFICATION_PHONE: str | None = None
+
     # --- Timezone ---
     # Derived from constants, not from environment.
     # Exposed here so all layers can access timezone through settings.

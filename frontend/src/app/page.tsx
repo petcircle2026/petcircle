@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { APP_BRAND_NAME } from "@/lib/branding";
 
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-8">
-      <h1 className="text-3xl font-bold">PetCircle</h1>
+      <h1 className="text-3xl font-bold">{APP_BRAND_NAME}</h1>
       <p className="mt-4 text-gray-600 text-center">
         Preventive pet health system powered by WhatsApp.
         <br />

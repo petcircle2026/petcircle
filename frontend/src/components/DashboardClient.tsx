@@ -12,6 +12,7 @@ import RemindersSection from "./RemindersSection";
 import DocumentsSection from "./DocumentsSection";
 import MedicinesSection from "./MedicinesSection";
 import BloodUrineSection from "./BloodUrineSection";
+import { APP_TAGLINE } from "@/lib/branding";
 
 function DashboardInner({ token }: { token: string }) {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -217,7 +218,7 @@ function DashboardInner({ token }: { token: string }) {
 
       {/* Footer */}
       <footer className="py-4 text-center text-xs text-gray-400">
-        PetCircle — Preventive Pet Health System
+        {APP_TAGLINE}
       </footer>
     </div>
   );

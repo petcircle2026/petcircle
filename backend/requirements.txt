@@ -11,3 +11,4 @@ openai==1.59.6
 pytz==2024.2
 cryptography==44.0.0
 PyPDF2==3.0.1
+PyMuPDF==1.25.3

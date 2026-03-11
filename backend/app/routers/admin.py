@@ -47,6 +47,7 @@ from app.models.message_log import MessageLog
 from app.models.preventive_record import PreventiveRecord
 from app.models.preventive_master import PreventiveMaster
 from app.models.conflict_flag import ConflictFlag
+from app.models.order import Order
 
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,12 @@ class PetUpdateRequest(BaseModel):
     dob: Optional[str] = None
     weight: Optional[float] = Field(None, gt=0, le=999.99)
     neutered: Optional[bool] = None
+
+
+class OrderStatusUpdate(BaseModel):
+    """Request body for updating order status."""
+    status: str = Field(..., pattern="^(pending|confirmed|completed|cancelled)$")
+    admin_notes: Optional[str] = Field(None, max_length=2000)
 
 
 def _format_message_payload(message_type: str, payload) -> str:
@@ -203,6 +210,13 @@ def get_stats(db: Session = Depends(get_db)):
     # --- Conflicts ---
     pending_conflicts = db.query(func.count(ConflictFlag.id)).filter(ConflictFlag.status == "pending").scalar() or 0
 
+    # --- Orders ---
+    total_orders = db.query(func.count(Order.id)).scalar() or 0
+    orders_pending = db.query(func.count(Order.id)).filter(Order.status == "pending").scalar() or 0
+    orders_confirmed = db.query(func.count(Order.id)).filter(Order.status == "confirmed").scalar() or 0
+    orders_completed = db.query(func.count(Order.id)).filter(Order.status == "completed").scalar() or 0
+    orders_cancelled = db.query(func.count(Order.id)).filter(Order.status == "cancelled").scalar() or 0
+
     # --- Messages in last 24h ---
     cutoff = datetime.utcnow() - timedelta(hours=24)
     messages_24h = db.query(func.count(MessageLog.id)).filter(MessageLog.created_at >= cutoff).scalar() or 0
@@ -241,6 +255,13 @@ def get_stats(db: Session = Depends(get_db)):
         },
         "conflicts": {
             "pending": pending_conflicts,
+        },
+        "orders": {
+            "total": total_orders,
+            "pending": orders_pending,
+            "confirmed": orders_confirmed,
+            "completed": orders_completed,
+            "cancelled": orders_cancelled,
         },
         "messages_24h": messages_24h,
     }
@@ -450,6 +471,82 @@ def list_messages(
             "created_at": str(m.created_at),
         })
     return results
+
+
+@router.get("/orders")
+def list_orders(
+    status: Optional[str] = Query(None, pattern="^(pending|confirmed|completed|cancelled)$"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """List orders with optional status filter and pagination."""
+    query = db.query(Order).order_by(Order.created_at.desc())
+
+    if status:
+        query = query.filter(Order.status == status)
+
+    orders = query.offset(skip).limit(limit).all()
+    results = []
+    for o in orders:
+        # Resolve user name and pet name via relationships.
+        user = db.query(User).filter(User.id == o.user_id).first()
+        pet = db.query(Pet).filter(Pet.id == o.pet_id).first() if o.pet_id else None
+
+        user_name = user.full_name if user else "Unknown"
+        user_phone = decrypt_field(user.mobile_number) if user else "Unknown"
+        pet_name = pet.name if pet else None
+
+        results.append({
+            "id": str(o.id),
+            "user_id": str(o.user_id),
+            "user_name": user_name,
+            "user_phone": user_phone,
+            "pet_id": str(o.pet_id) if o.pet_id else None,
+            "pet_name": pet_name,
+            "category": o.category,
+            "items_description": o.items_description,
+            "status": o.status,
+            "admin_notes": o.admin_notes,
+            "created_at": str(o.created_at),
+            "updated_at": str(o.updated_at),
+        })
+
+    return results
+
+
+@router.patch("/orders/{order_id}/status")
+def update_order_status(
+    order_id: UUID,
+    body: OrderStatusUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Update order status and optionally add admin notes.
+
+    Valid transitions: any status → any status (admin has full control).
+    """
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found.")
+
+    old_status = order.status
+    order.status = body.status
+    if body.admin_notes is not None:
+        order.admin_notes = body.admin_notes
+
+    db.commit()
+    logger.info(
+        "Order status updated: order_id=%s, %s → %s",
+        str(order_id), old_status, body.status,
+    )
+
+    return {
+        "status": "updated",
+        "order_id": str(order_id),
+        "old_status": old_status,
+        "new_status": body.status,
+    }
 
 
 @router.patch("/revoke-token/{pet_id}")

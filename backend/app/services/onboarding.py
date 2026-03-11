@@ -41,6 +41,7 @@ from app.models.preventive_master import PreventiveMaster
 from app.models.preventive_record import PreventiveRecord
 from app.models.document import Document
 from app.core.constants import (
+    APP_RETURNING_HEADING,
     MAX_PETS_PER_USER,
     MAX_PET_WEIGHT_KG,
     DASHBOARD_TOKEN_BYTES,
@@ -336,7 +337,7 @@ async def _send_onboarding_resume(db, user, state, send_fn):
             progress_lines.append(f"Neutered: {'Yes' if pet.neutered else 'No'}")
 
     # Compose welcome-back header.
-    greeting = "Welcome back to *PetCircle* 🐾\n\nLet's continue setting up your profile."
+    greeting = f"{APP_RETURNING_HEADING}\n\nLet's continue setting up your profile."
 
     if progress_lines:
         greeting += "\n\nHere's what we have so far:\n" + "\n".join(f"  • {line}" for line in progress_lines)
@@ -1098,6 +1099,11 @@ async def _finalize_onboarding(db, user, send_fn):
             "Dashboard link couldn't be generated right now. "
             "Send *dashboard* anytime to get your link.\n\n"
         )
+
+    msg += (
+        f"Need medicines, food, or supplements? Just type *order* and "
+        f"we'll help you get what your pet needs!\n\n"
+    )
 
     msg += (
         f"You can upload medical records (photos, PDFs) anytime to update "

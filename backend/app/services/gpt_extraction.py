@@ -829,19 +829,31 @@ async def extract_and_process_document(
                     f"Veterinary document text:\n\n{pdf_text}"
                 )
             else:
-                # Scanned PDF with no extractable text — mark and skip.
-                logger.warning(
-                    "PDF has no extractable text (scanned): document_id=%s",
+                # Scanned PDF — render pages as images and use GPT vision.
+                logger.info(
+                    "PDF has no extractable text (scanned), "
+                    "falling back to vision API: document_id=%s",
                     str(document_id),
                 )
-                document.extraction_status = "failed"
-                db.commit()
-                results["status"] = "failed"
-                results["errors"].append(
-                    "This PDF appears to be a scanned image. "
-                    "Please upload photos of the document instead."
-                )
-                return results
+                from app.utils.file_reader import render_pdf_pages_as_images
+                page_images = render_pdf_pages_as_images(file_bytes, max_pages=3)
+                if page_images:
+                    # Send the first page to vision API (most CBC reports are single-page).
+                    raw_json = await _call_openai_extraction_vision(page_images[0])
+                else:
+                    # PyMuPDF not available or rendering failed — mark and skip.
+                    logger.warning(
+                        "Cannot render scanned PDF pages: document_id=%s",
+                        str(document_id),
+                    )
+                    document.extraction_status = "failed"
+                    db.commit()
+                    results["status"] = "failed"
+                    results["errors"].append(
+                        "This PDF appears to be a scanned image and could not be processed. "
+                        "Please upload photos of the document instead."
+                    )
+                    return results
         else:
             # Fallback: use whatever text was passed (for backwards compatibility).
             raw_json = await _call_openai_extraction(document_text)

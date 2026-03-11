@@ -11,6 +11,7 @@ No business logic lives here — only app bootstrapping.
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.core.constants import APP_API_TITLE
 from app.routers import webhook, admin, internal, dashboard
 
 
@@ -19,7 +20,7 @@ from app.routers import webhook, admin, internal, dashboard
 # If any required env var is missing, the app crashes before reaching this point.
 # Swagger/redoc disabled in production to avoid exposing full API schema.
 app = FastAPI(
-    title="PetCircle API",
+    title=APP_API_TITLE,
     description="WhatsApp-based preventive pet health system — Phase 1",
     version="1.0.0",
     docs_url=None if settings.APP_ENV == "production" else "/docs",

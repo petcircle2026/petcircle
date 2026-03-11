@@ -86,3 +86,6 @@ class Pet(Base):
 
     # One pet has one dashboard token (but modeled as relationship for flexibility).
     dashboard_tokens = relationship("DashboardToken", back_populates="pet")
+
+    # One pet can have many orders.
+    orders = relationship("Order", back_populates="pet")

@@ -17,6 +17,7 @@ from app.models.dashboard_token import DashboardToken
 from app.models.conflict_flag import ConflictFlag
 from app.models.shown_fun_fact import ShownFunFact
 from app.models.diagnostic_test_result import DiagnosticTestResult
+from app.models.order import Order
 
 __all__ = [
     "User",
@@ -30,4 +31,5 @@ __all__ = [
     "ConflictFlag",
     "ShownFunFact",
     "DiagnosticTestResult",
+    "Order",
 ]

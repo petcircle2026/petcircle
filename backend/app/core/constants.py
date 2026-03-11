@@ -6,6 +6,16 @@ No other file should hardcode these values.
 Import from this module to ensure single source of truth.
 """
 
+# --- Application Branding ---
+APP_BRAND_NAME: str = "PetCircle"
+APP_BRAND_SLUG: str = "petcircle"
+APP_BRAND_PAW_ICON: str = "🐾"
+APP_API_TITLE: str = f"{APP_BRAND_NAME} API"
+APP_TAGLINE: str = f"{APP_BRAND_NAME} — Preventive Pet Health System"
+APP_ADMIN_TITLE: str = f"{APP_BRAND_NAME} Admin"
+APP_WELCOME_HEADING: str = f"Hey there! Welcome to *{APP_BRAND_NAME}* {APP_BRAND_PAW_ICON}"
+APP_RETURNING_HEADING: str = f"Welcome back to *{APP_BRAND_NAME}* {APP_BRAND_PAW_ICON}"
+
 # --- User & Pet Limits ---
 # Maximum number of pets a single user can register.
 # Enforced at the service layer during onboarding.
@@ -147,6 +157,44 @@ FAREWELLS: frozenset[str] = frozenset({
 HELP_COMMANDS: frozenset[str] = frozenset({
     "help", "menu", "commands", "what can you do",
 })
+
+# --- Order Flow ---
+# Commands that trigger the product ordering flow.
+ORDER_COMMANDS: frozenset[str] = frozenset({
+    "order", "shop", "buy",
+})
+
+# Button payload IDs for order category selection.
+ORDER_CAT_MEDICINES: str = "ORDER_CAT_MEDICINES"
+ORDER_CAT_FOOD: str = "ORDER_CAT_FOOD"
+ORDER_CAT_SUPPLEMENTS: str = "ORDER_CAT_SUPPLEMENTS"
+
+# Button payload IDs for order confirmation.
+ORDER_CONFIRM: str = "ORDER_CONFIRM"
+ORDER_CANCEL: str = "ORDER_CANCEL"
+
+# Sets for routing in message_router.
+ORDER_CATEGORY_PAYLOADS: frozenset[str] = frozenset({
+    ORDER_CAT_MEDICINES, ORDER_CAT_FOOD, ORDER_CAT_SUPPLEMENTS,
+})
+
+ORDER_CONFIRM_PAYLOADS: frozenset[str] = frozenset({
+    ORDER_CONFIRM, ORDER_CANCEL,
+})
+
+# Map button payload → database category value.
+ORDER_CATEGORY_MAP: dict[str, str] = {
+    ORDER_CAT_MEDICINES: "medicines",
+    ORDER_CAT_FOOD: "food_nutrition",
+    ORDER_CAT_SUPPLEMENTS: "supplements",
+}
+
+# Map database category → display label for WhatsApp messages.
+ORDER_CATEGORY_LABELS: dict[str, str] = {
+    "medicines": "Medicines",
+    "food_nutrition": "Food & Nutrition",
+    "supplements": "Supplements",
+}
 
 # --- Pet Weight ---
 # Maximum allowed pet weight in kg. Anything above is rejected.

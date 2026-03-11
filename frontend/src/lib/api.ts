@@ -5,6 +5,8 @@
  * Base URL is set via NEXT_PUBLIC_API_URL environment variable.
  */
 
+import { DASHBOARD_CACHE_PREFIX } from "@/lib/branding";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 // --- Dashboard Types (match backend response shapes) ---
@@ -188,6 +190,21 @@ export interface AdminMessage {
   created_at: string;
 }
 
+export interface AdminOrder {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_phone: string;
+  pet_id: string | null;
+  pet_name: string | null;
+  category: string;
+  items_description: string;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AdminStats {
   users: { total: number; active: number; onboarding_complete: number; deleted: number };
   pets: { total: number; active: number; dogs: number; cats: number };
@@ -195,6 +212,7 @@ export interface AdminStats {
   preventive_records: { overdue: number; upcoming: number; up_to_date: number; cancelled: number };
   reminders: { total: number; pending: number; sent: number; completed: number; snoozed: number };
   conflicts: { pending: number };
+  orders: { total: number; pending: number; confirmed: number; completed: number; cancelled: number };
   messages_24h: number;
 }
 
@@ -202,7 +220,7 @@ export interface AdminStats {
 // On success: cache the response so the dashboard can show last-known data
 // if the backend is temporarily unavailable. Cache is per-token.
 
-const CACHE_PREFIX = "petcircle_dash_";
+const CACHE_PREFIX = DASHBOARD_CACHE_PREFIX;
 
 function getCachedDashboard(token: string): { data: DashboardData; cachedAt: string } | null {
   try {
@@ -517,6 +535,27 @@ export const adminApi = {
       key
     );
   },
+  getOrders: (key: string, status?: string) => {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    const qs = params.toString();
+    return adminFetch<AdminOrder[]>(
+      `/admin/orders${qs ? `?${qs}` : ""}`,
+      key
+    );
+  },
+  updateOrderStatus: (
+    key: string,
+    orderId: string,
+    status: string,
+    adminNotes?: string
+  ) =>
+    adminMutate(
+      `/admin/orders/${orderId}/status`,
+      key,
+      "PATCH",
+      { status, admin_notes: adminNotes ?? null }
+    ),
   softDeleteUser: (key: string, userId: string) =>
     adminMutate(`/admin/soft-delete-user/${userId}`, key, "PATCH"),
   revokeToken: (key: string, petId: string) =>

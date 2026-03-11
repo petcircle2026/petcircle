@@ -95,6 +95,21 @@ export default function OverviewPanel({ adminKey }: { adminKey: string }) {
         </div>
       </section>
 
+      {/* Orders */}
+      {stats.orders && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            Orders
+          </h2>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <StatCard label="Total Orders" value={stats.orders.total} color="gray" />
+            <StatCard label="Pending" value={stats.orders.pending} color="amber" alertOnly />
+            <StatCard label="Confirmed" value={stats.orders.confirmed} color="blue" />
+            <StatCard label="Completed" value={stats.orders.completed} color="green" />
+          </div>
+        </section>
+      )}
+
       {/* Reminders & Activity */}
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">

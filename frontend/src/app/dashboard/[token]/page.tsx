@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import DashboardClient from "@/components/DashboardClient";
+import { APP_DASHBOARD_PAGE_TITLE } from "@/lib/branding";
 
 export const metadata: Metadata = {
-  title: "Pet Health Dashboard — PetCircle",
+  title: APP_DASHBOARD_PAGE_TITLE,
 };
 
 interface DashboardPageProps {
