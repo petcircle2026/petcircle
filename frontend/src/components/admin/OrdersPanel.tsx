@@ -18,7 +18,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   supplements: "Supplements",
 };
 
-const STATUS_OPTIONS = ["all", "pending", "completed", "cancelled"];
+const STATUS_OPTIONS = ["all", "pending", "confirmed", "completed", "cancelled"];
 
 const STATUS_LABELS: Record<string, string> = {
   all: "All",
@@ -221,7 +221,7 @@ export default function OrdersPanel({ adminKey }: { adminKey: string }) {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
-                        {o.status === "pending" && (
+                        {(o.status === "pending" || o.status === "confirmed") && (
                           <button
                             onClick={() => handleStatusChange(o.id, "completed")}
                             disabled={actionLoading === o.id}
@@ -230,7 +230,7 @@ export default function OrdersPanel({ adminKey }: { adminKey: string }) {
                             Fulfilled
                           </button>
                         )}
-                        {o.status === "pending" && (
+                        {(o.status === "pending" || o.status === "confirmed") && (
                           <button
                             onClick={() => handleStatusChange(o.id, "cancelled")}
                             disabled={actionLoading === o.id}

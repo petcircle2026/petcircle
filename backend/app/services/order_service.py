@@ -57,6 +57,16 @@ async def start_order_flow(db: Session, user) -> None:
     """
     from_number = _get_mobile(user)
 
+    # Clean up any abandoned draft order from a previous incomplete flow.
+    # Draft orders have empty items_description — they were created when the
+    # user selected a category but never confirmed.
+    if user.active_order_id:
+        old_order = db.query(Order).filter(Order.id == user.active_order_id).first()
+        if old_order and not old_order.items_description:
+            db.delete(old_order)
+            logger.info("Cleaned up abandoned draft order %s", str(old_order.id))
+        _clear_order_state(db, user)
+
     # Check if user has any active (non-deleted) pets for personalization.
     pets = _get_active_pets(db, user)
     if pets and len(pets) == 1:
