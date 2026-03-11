@@ -59,10 +59,11 @@ _recent_uploads: dict[str, list[float]] = {}
 # Key: str(pet_id), Value: True if rejection was sent this batch.
 _rejection_sent: dict[str, bool] = {}
 
-# Tracks whether a generic error message was recently sent to a user.
-# Prevents spamming "Sorry, something went wrong" during webhook retries.
-# Key: from_number, Value: True if error was recently sent
-_error_sent: dict[str, bool] = {}
+# Tracks the last inbound message token that already got a generic error reply.
+# Prevents duplicate "Sorry, something went wrong" during webhook retries for
+# the same inbound message, while still allowing one apology for a new message.
+# Key: from_number, Value: dedup token for the failed inbound message.
+_error_sent: dict[str, str] = {}
 
 # Window in seconds for counting a "batch" of uploads.
 # Files uploaded within this window are considered one batch.
@@ -108,6 +109,25 @@ def _get_mobile(user) -> str:
     Falls back to decrypting the stored encrypted mobile_number.
     """
     return getattr(user, "_plaintext_mobile", None) or decrypt_field(user.mobile_number)
+
+
+def _build_error_dedup_token(message_data: dict) -> str:
+    """Build a stable token to identify a specific inbound message retry."""
+    message_id = message_data.get("message_id")
+    if message_id:
+        return f"wamid:{message_id}"
+
+    msg_type = message_data.get("type") or "unknown"
+    if msg_type == "text":
+        return f"text:{(message_data.get('text') or '').strip().lower()}"
+    if msg_type in ("image", "document"):
+        media_id = message_data.get("media_id") or ""
+        filename = message_data.get("filename") or ""
+        return f"media:{msg_type}:{media_id}:{filename}"
+    if msg_type == "button":
+        return f"button:{message_data.get('button_payload') or ''}"
+
+    return f"type:{msg_type}"
 
 
 # All valid reminder payload IDs
@@ -248,8 +268,10 @@ async def route_message(db: Session, message_data: dict) -> None:
         except Exception:
             pass
         try:
-            if not _error_sent.get(from_number):
-                _error_sent[from_number] = True
+            dedup_token = _build_error_dedup_token(message_data)
+            should_send = _error_sent.get(from_number) != dedup_token
+            if should_send:
+                _error_sent[from_number] = dedup_token
                 await send_text_message(
                     db, from_number,
                     "Sorry, something went wrong. Please try again.",
@@ -710,12 +732,6 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             source_wamid=message_id,
         )
 
-        await send_text_message(
-            db, from_number,
-            f"*{display_name}* saved for *{pet.name}*. "
-            f"Will start extracting health data once all files are received.",
-        )
-
         # Track this exact document in the current in-memory batch so the
         # deferred extractor doesn't accidentally sweep unrelated pending docs.
         _batch_document_ids.setdefault(pet_key, []).append(document.id)
@@ -820,13 +836,19 @@ async def _delayed_batch_extraction(
         extracting_fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
         await send_text_message(
             bg_db, from_number,
-            f"Got it — I received *{total}* document{'s' if total != 1 else ''} for *{pet_name}*:\n{doc_names}\n\n"
-            f"Fun fact: {received_fun_fact}",
+            f"Got it — I received *{total}* document{'s' if total != 1 else ''} for *{pet_name}*.\n\n"
+            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
         )
         await send_text_message(
             bg_db, from_number,
-            f"I will now start extracting health data for *{pet_name}*:\n{doc_names}\n\n"
-            f"Fun fact: {extracting_fun_fact}",
+            f"✅ The below files are saved for *{pet_name}*:\n{doc_names}\n\n"
+            "Will start extracting health data shortly.\n\n"
+            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
+        )
+        await send_text_message(
+            bg_db, from_number,
+            f"🧪 I will now start extracting health data for *{pet_name}*:\n{doc_names}\n\n"
+            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
         )
 
         last_result = None

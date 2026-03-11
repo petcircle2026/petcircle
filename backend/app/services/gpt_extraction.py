@@ -244,6 +244,10 @@ EXTRACTION_SYSTEM_PROMPT = (
     "- Do NOT infer dates — only extract what is explicitly stated.\n"
     "- Extract the pet's name EXACTLY as written in the document (if present).\n"
     "- For vaccination records, extract all available vaccine details (dose, batch, doctor, clinic, next due date) without guessing.\n"
+    "- For vaccination cards/booklets, treat the administered date as the handwritten/typed DATE GIVEN for each row.\n"
+    "- NEVER use vaccine sticker metadata dates (manufacturing/expiry/lot label dates) as last_done_date.\n"
+    "- In vaccination documents, do not add Annual Checkup to items unless a separate checkup event is explicitly documented outside the vaccine table.\n"
+    "- Capture next_due_date for each vaccine row whenever it is visible.\n"
     "- If any field is missing in the document, use null for that field.\n"
     "- If the document is not pet/veterinary related, set document_type to 'not_pet_related' and items to [].\n"
     '- If no preventive items are found, return {"document_name": "...", "document_type": "pet_medical", '
@@ -460,6 +464,32 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
             continue
 
         validated.append(item)
+
+    # Vaccination records should not include generic annual-checkup rows inferred
+    # from vaccine tables.
+    document_category = metadata.get("document_category")
+    if document_category == "Vaccination":
+        validated = [
+            item for item in validated
+            if _normalize_preventive_item_name(item.get("item_name", "")) != "annual checkup"
+        ]
+
+    # Normalize optional next_due_date inside vaccination_details.
+    normalized_vaccination_details = []
+    for detail in metadata.get("vaccination_details", []):
+        if not isinstance(detail, dict):
+            continue
+
+        next_due = detail.get("next_due_date")
+        if next_due:
+            try:
+                detail["next_due_date"] = format_date_for_db(parse_date(str(next_due)))
+            except ValueError:
+                detail["next_due_date"] = None
+
+        normalized_vaccination_details.append(detail)
+
+    metadata["vaccination_details"] = normalized_vaccination_details
 
     return validated, document_name, extracted_pet_name, metadata
 
