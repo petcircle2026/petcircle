@@ -315,14 +315,28 @@ async def _handle_text(db: Session, user, message_data: dict) -> None:
         return
 
     # --- Active order flow — intercept text for items or pet selection ---
-    if user.order_state in ("awaiting_order_items", "awaiting_order_pet", "awaiting_order_confirm"):
+    if user.order_state in (
+        "awaiting_order_pet_for_recommendation",
+        "awaiting_recommendation_selection",
+        "awaiting_order_items",
+        "awaiting_order_pet",
+        "awaiting_order_confirm",
+    ):
         # Allow user to cancel mid-flow by typing "cancel" or "stop".
         if text_lower in ("cancel", "stop"):
             from app.services.order_service import cancel_order_flow
             await cancel_order_flow(db, user)
             return
 
-        if user.order_state == "awaiting_order_items":
+        if user.order_state == "awaiting_order_pet_for_recommendation":
+            from app.services.order_service import handle_order_pet_for_recommendation
+            await handle_order_pet_for_recommendation(db, user, text)
+            return
+        elif user.order_state == "awaiting_recommendation_selection":
+            from app.services.order_service import handle_recommendation_selection
+            await handle_recommendation_selection(db, user, text)
+            return
+        elif user.order_state == "awaiting_order_items":
             from app.services.order_service import handle_order_items
             await handle_order_items(db, user, text)
             return

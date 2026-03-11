@@ -48,6 +48,8 @@ from app.models.preventive_record import PreventiveRecord
 from app.models.preventive_master import PreventiveMaster
 from app.models.conflict_flag import ConflictFlag
 from app.models.order import Order
+from app.models.order_recommendation import OrderRecommendation
+from app.models.pet_preference import PetPreference
 
 
 logger = logging.getLogger(__name__)
@@ -546,6 +548,177 @@ def update_order_status(
         "order_id": str(order_id),
         "old_status": old_status,
         "new_status": body.status,
+    }
+
+
+@router.get("/order-recommendations")
+def list_order_recommendations(
+    species: Optional[str] = Query(None, pattern="^(dog|cat)$"),
+    category: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=1000),
+    db: Session = Depends(get_db),
+):
+    """
+    List cached recommendation profiles.
+    
+    Useful for understanding what combinations have been recommended
+    and how often they're being reused.
+    """
+    query = db.query(OrderRecommendation).order_by(OrderRecommendation.used_count.desc())
+
+    if species:
+        query = query.filter(OrderRecommendation.species == species)
+    
+    if category:
+        query = query.filter(OrderRecommendation.category == category)
+
+    recommendations = query.offset(skip).limit(limit).all()
+    
+    results = []
+    for rec in recommendations:
+        results.append({
+            "id": str(rec.id),
+            "species": rec.species,
+            "breed": rec.breed,
+            "age_range": rec.age_range,
+            "category": rec.category,
+            "item_count": len(rec.items) if rec.items else 0,
+            "items": rec.items,
+            "used_count": rec.used_count,
+            "created_at": str(rec.created_at),
+            "updated_at": str(rec.updated_at),
+        })
+
+    return results
+
+
+@router.get("/pet-preferences/{pet_id}")
+def list_pet_preferences(
+    pet_id: UUID,
+    category: Optional[str] = Query(None),
+    preference_type: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """
+    List all preferences (ordered items) for a specific pet.
+    
+    Shows both items from recommendation lists and custom items.
+    Helps understand pet owner ordering patterns.
+    """
+    # Verify pet exists
+    pet = db.query(Pet).filter(Pet.id == pet_id).first()
+    if not pet:
+        raise HTTPException(status_code=404, detail="Pet not found.")
+
+    query = db.query(PetPreference).filter(
+        PetPreference.pet_id == pet_id
+    ).order_by(PetPreference.used_count.desc())
+
+    if category:
+        query = query.filter(PetPreference.category == category)
+    
+    if preference_type:
+        query = query.filter(PetPreference.preference_type == preference_type)
+
+    preferences = query.all()
+    
+    results = []
+    for pref in preferences:
+        results.append({
+            "id": str(pref.id),
+            "pet_id": str(pref.pet_id),
+            "category": pref.category,
+            "item_name": pref.item_name,
+            "preference_type": pref.preference_type,
+            "used_count": pref.used_count,
+            "created_at": str(pref.created_at),
+            "updated_at": str(pref.updated_at),
+        })
+
+    return {
+        "pet_id": str(pet_id),
+        "pet_name": pet.name,
+        "species": pet.species,
+        "preferences": results,
+    }
+
+
+@router.get("/preferences-stats")
+def preferences_stats(
+    db: Session = Depends(get_db),
+):
+    """
+    Get statistics about preferences across all users.
+    
+    Shows popular items, most used categories, etc.
+    """
+    total_preferences = db.query(func.count(PetPreference.id)).scalar() or 0
+    total_recommendations = db.query(func.count(OrderRecommendation.id)).scalar() or 0
+    
+    # Most used items
+    most_used_items = (
+        db.query(
+            PetPreference.item_name,
+            PetPreference.category,
+            func.sum(PetPreference.used_count).label("total_uses")
+        )
+        .group_by(PetPreference.item_name, PetPreference.category)
+        .order_by(func.sum(PetPreference.used_count).desc())
+        .limit(20)
+        .all()
+    )
+    
+    # Most popular recommendations
+    most_used_recs = (
+        db.query(
+            OrderRecommendation.species,
+            OrderRecommendation.breed,
+            OrderRecommendation.category,
+            OrderRecommendation.used_count
+        )
+        .order_by(OrderRecommendation.used_count.desc())
+        .limit(20)
+        .all()
+    )
+    
+    # Preference type breakdown
+    pref_type_breakdown = (
+        db.query(
+            PetPreference.preference_type,
+            func.count(PetPreference.id).label("count")
+        )
+        .group_by(PetPreference.preference_type)
+        .all()
+    )
+    
+    return {
+        "total_preferences": total_preferences,
+        "total_recommendations": total_recommendations,
+        "most_used_items": [
+            {
+                "item_name": item[0],
+                "category": item[1],
+                "total_uses": item[2],
+            }
+            for item in most_used_items
+        ],
+        "most_popular_recommendations": [
+            {
+                "species": rec[0],
+                "breed": rec[1],
+                "category": rec[2],
+                "used_count": rec[3],
+            }
+            for rec in most_used_recs
+        ],
+        "preference_type_breakdown": [
+            {
+                "type": breakdown[0],
+                "count": breakdown[1],
+            }
+            for breakdown in pref_type_breakdown
+        ],
     }
 
 

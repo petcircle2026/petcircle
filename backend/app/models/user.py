@@ -83,7 +83,9 @@ class User(Base):
 
     # --- Order Flow State ---
     # Tracks the current step in the WhatsApp order conversation.
-    # States: awaiting_order_category, awaiting_order_items, awaiting_order_pet
+    # States: awaiting_order_category, awaiting_order_pet_for_recommendation,
+    #         awaiting_recommendation_selection, awaiting_order_items,
+    #         awaiting_order_pet, awaiting_order_confirm
     # Nullable — None when user is not in an order flow.
     order_state = Column(String(30), nullable=True)
 

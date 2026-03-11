@@ -18,6 +18,8 @@ from app.models.conflict_flag import ConflictFlag
 from app.models.shown_fun_fact import ShownFunFact
 from app.models.diagnostic_test_result import DiagnosticTestResult
 from app.models.order import Order
+from app.models.order_recommendation import OrderRecommendation
+from app.models.pet_preference import PetPreference
 
 __all__ = [
     "User",
@@ -32,4 +34,6 @@ __all__ = [
     "ShownFunFact",
     "DiagnosticTestResult",
     "Order",
+    "OrderRecommendation",
+    "PetPreference",
 ]
