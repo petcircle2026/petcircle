@@ -104,8 +104,8 @@ export default function OverviewPanel({ adminKey }: { adminKey: string }) {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <StatCard label="Total Orders" value={stats.orders.total} color="gray" />
             <StatCard label="Pending" value={stats.orders.pending} color="amber" alertOnly />
-            <StatCard label="Confirmed" value={stats.orders.confirmed} color="blue" />
-            <StatCard label="Completed" value={stats.orders.completed} color="green" />
+            <StatCard label="Fulfilled" value={stats.orders.completed} color="green" />
+            <StatCard label="Cancelled" value={stats.orders.cancelled} color="red" alertOnly />
           </div>
         </section>
       )}

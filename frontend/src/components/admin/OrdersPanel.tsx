@@ -167,82 +167,83 @@ export default function OrdersPanel({ adminKey }: { adminKey: string }) {
                 const orderItems = parseOrderItemsByCategory(o.items_description, o.category);
 
                 return (
-                <tr key={o.id} className="hover:bg-gray-50">
-                  <td className="whitespace-nowrap px-4 py-3 text-gray-600">
-                    {new Date(o.created_at).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="font-medium">{o.user_name}</div>
-                    <div className="text-xs text-gray-400">{formatPhoneForDisplay(o.user_phone)}</div>
-                  </td>
-                  <td className="px-4 py-3">{o.pet_name || "-"}</td>
-                  <td className="px-4 py-3">
-                    {CATEGORY_LABELS[o.category] || o.category}
-                  </td>
-                  <td className="max-w-xs px-4 py-3">
-                    {orderItems.length > 0 ? (
-                      <ul className="space-y-1">
-                        {orderItems.map((item, idx) => (
-                          <li key={`${o.id}-item-${idx}`} className="break-words text-gray-700">
-                            {item}
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                        STATUS_COLORS[o.status] || "bg-gray-100 text-gray-800"
-                      }`}
-                    >
-                      {STATUS_LABELS[o.status] || o.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <input
-                      type="text"
-                      placeholder={o.admin_notes || "Add notes..."}
-                      value={notesInput[o.id] ?? ""}
-                      onChange={(e) =>
-                        setNotesInput((prev) => ({
-                          ...prev,
-                          [o.id]: e.target.value,
-                        }))
-                      }
-                      className="w-32 rounded border px-2 py-1 text-xs"
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      {o.status === "pending" && (
-                        <button
-                          onClick={() => handleStatusChange(o.id, "completed")}
-                          disabled={actionLoading === o.id}
-                          className="rounded bg-green-500 px-2 py-1 text-xs text-white hover:bg-green-600 disabled:opacity-50"
-                        >
-                          Fulfilled
-                        </button>
+                  <tr key={o.id} className="hover:bg-gray-50">
+                    <td className="whitespace-nowrap px-4 py-3 text-gray-600">
+                      {new Date(o.created_at).toLocaleDateString("en-IN", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{o.user_name}</div>
+                      <div className="text-xs text-gray-400">{formatPhoneForDisplay(o.user_phone)}</div>
+                    </td>
+                    <td className="px-4 py-3">{o.pet_name || "-"}</td>
+                    <td className="px-4 py-3">
+                      {CATEGORY_LABELS[o.category] || o.category}
+                    </td>
+                    <td className="max-w-xs px-4 py-3">
+                      {orderItems.length > 0 ? (
+                        <ul className="space-y-1">
+                          {orderItems.map((item, idx) => (
+                            <li key={`${o.id}-item-${idx}`} className="break-words text-gray-700">
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-gray-400">-</span>
                       )}
-                      {o.status === "pending" && (
-                        <button
-                          onClick={() => handleStatusChange(o.id, "cancelled")}
-                          disabled={actionLoading === o.id}
-                          className="rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600 disabled:opacity-50"
-                        >
-                          Cancelled
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );})}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                          STATUS_COLORS[o.status] || "bg-gray-100 text-gray-800"
+                        }`}
+                      >
+                        {STATUS_LABELS[o.status] || o.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <input
+                        type="text"
+                        placeholder={o.admin_notes || "Add notes..."}
+                        value={notesInput[o.id] ?? ""}
+                        onChange={(e) =>
+                          setNotesInput((prev) => ({
+                            ...prev,
+                            [o.id]: e.target.value,
+                          }))
+                        }
+                        className="w-32 rounded border px-2 py-1 text-xs"
+                      />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-1">
+                        {o.status === "pending" && (
+                          <button
+                            onClick={() => handleStatusChange(o.id, "completed")}
+                            disabled={actionLoading === o.id}
+                            className="rounded bg-green-500 px-2 py-1 text-xs text-white hover:bg-green-600 disabled:opacity-50"
+                          >
+                            Fulfilled
+                          </button>
+                        )}
+                        {o.status === "pending" && (
+                          <button
+                            onClick={() => handleStatusChange(o.id, "cancelled")}
+                            disabled={actionLoading === o.id}
+                            className="rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600 disabled:opacity-50"
+                          >
+                            Cancelled
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
