@@ -217,7 +217,15 @@ def _derive_blood_test_fallback_items(
     diagnostic_values: list[dict],
 ) -> list[dict]:
     """Fill in Preventive Blood Test when diagnostic blood/CBC docs omit tracked items."""
-    if extracted_items or document_category != "Diagnostic":
+    if document_category != "Diagnostic":
+        return extracted_items
+
+    # Skip fallback if items already include a Preventive Blood Test entry.
+    has_blood_item = any(
+        _normalize_preventive_item_name(item.get("item_name", "")) == "preventive blood test"
+        for item in extracted_items
+    )
+    if has_blood_item:
         return extracted_items
 
     combined_text = f"{(document_name or '').lower()} {os.path.basename(file_path or '').lower()}"
@@ -254,7 +262,8 @@ def _derive_blood_test_fallback_items(
     if not fallback_date:
         return extracted_items
 
-    return [{"item_name": "Preventive Blood Test", "last_done_date": fallback_date}]
+    # Append the blood test fallback to any existing items rather than replacing.
+    return extracted_items + [{"item_name": "Preventive Blood Test", "last_done_date": fallback_date}]
 
 
 # --- Expected JSON keys from GPT extraction ---
@@ -568,7 +577,94 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
 
     metadata["vaccination_details"] = normalized_vaccination_details
 
+    # Derive tracked items from vaccination_details when GPT populated
+    # vaccine details but did not include matching entries in the items array.
+    validated = _derive_items_from_vaccination_details(validated, normalized_vaccination_details)
+
     return validated, document_name, extracted_pet_name, metadata
+
+
+# Mapping from common vaccine names in vaccination_details to tracked item names.
+_VACCINE_DETAIL_TO_ITEM: dict[str, str] = {
+    "rabies": "Rabies Vaccine",
+    "dhpp": "Core Vaccine",
+    "dhppi": "Core Vaccine",
+    "da2pp": "Core Vaccine",
+    "da2ppl": "Core Vaccine",
+    "5 in 1": "Core Vaccine",
+    "7 in 1": "Core Vaccine",
+    "9 in 1": "Core Vaccine",
+    "canine distemper": "Core Vaccine",
+    "fvrcp": "Feline Core",
+    "feline core": "Feline Core",
+    "tricat": "Feline Core",
+    "felocell": "Feline Core",
+    "core vaccine": "Core Vaccine",
+}
+
+
+def _derive_items_from_vaccination_details(
+    existing_items: list[dict],
+    vaccination_details: list[dict],
+) -> list[dict]:
+    """
+    Convert vaccination_details entries into tracked preventive items
+    when they are not already represented in the items array.
+
+    GPT often populates vaccination_details with rich metadata but omits
+    the corresponding entry from the items array. This bridges that gap.
+    """
+    if not vaccination_details:
+        return existing_items
+
+    # Track which item names are already present (normalized).
+    existing_names = {
+        _normalize_preventive_item_name(item.get("item_name", ""))
+        for item in existing_items
+    }
+
+    derived: list[dict] = []
+    for detail in vaccination_details:
+        if not isinstance(detail, dict):
+            continue
+
+        vaccine_name = str(detail.get("vaccine_name") or detail.get("vaccine_name_raw") or "").strip()
+        if not vaccine_name:
+            continue
+
+        # Try to map the vaccine name to a tracked item.
+        normalized_vaccine = vaccine_name.lower().strip()
+        mapped_item = None
+        for keyword, item_name in _VACCINE_DETAIL_TO_ITEM.items():
+            if keyword in normalized_vaccine:
+                mapped_item = item_name
+                break
+
+        if not mapped_item:
+            continue
+
+        # Skip if already present in items.
+        if _normalize_preventive_item_name(mapped_item) in existing_names:
+            continue
+
+        # We need a date — try next_due_date is NOT last_done, we need administered date.
+        # vaccination_details doesn't have a standard "administered_date" key,
+        # so we skip if we can't determine when it was done.
+        # The items array is the primary source for last_done_date.
+        # Only derive if we can find a date from the detail.
+        admin_date = detail.get("date") or detail.get("administered_date") or detail.get("last_done_date")
+        if not admin_date:
+            continue
+
+        try:
+            parsed = format_date_for_db(parse_date(str(admin_date)))
+        except ValueError:
+            continue
+
+        derived.append({"item_name": mapped_item, "last_done_date": parsed})
+        existing_names.add(_normalize_preventive_item_name(mapped_item))
+
+    return existing_items + derived
 
 
 def _load_species_masters(db: Session, species: str) -> list[PreventiveMaster]:

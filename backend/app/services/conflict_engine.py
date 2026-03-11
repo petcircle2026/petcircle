@@ -82,6 +82,12 @@ def check_and_create_conflict(
         # Caller should proceed with creating a new preventive record.
         return None
 
+    if existing_record.last_done_date is None:
+        # Placeholder record (created during onboarding with no date).
+        # No conflict — caller should proceed to fill the placeholder
+        # via create_preventive_record().
+        return None
+
     if existing_record.last_done_date == new_date:
         # Dates match — no conflict. This is an idempotent re-extraction.
         logger.info(
