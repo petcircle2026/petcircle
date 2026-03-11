@@ -699,7 +699,6 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
 
     try:
         filename = original_filename or f"{media_id}.{_mime_to_ext(detected_mime)}"
-        display_name = original_filename or "Document"
         document = await process_document_upload(
             db=db,
             pet_id=pet.id,
@@ -709,12 +708,6 @@ async def _handle_media(db: Session, user, message_data: dict) -> None:
             mime_type=detected_mime,
             pet_name=pet.name,
             source_wamid=message_id,
-        )
-
-        await send_text_message(
-            db, from_number,
-            f"*{display_name}* saved for *{pet.name}*. "
-            f"Will start extracting health data once all files are received.",
         )
 
         # Track this exact document in the current in-memory batch so the
@@ -820,13 +813,19 @@ async def _delayed_batch_extraction(
         fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
         await send_text_message(
             bg_db, from_number,
-            f"Got it — I received *{total}* document{'s' if total != 1 else ''} for *{pet_name}*:\n{doc_names}\n\n"
-            f"Fun fact: {fun_fact}",
+            f"Got it — I received *{total}* document{'s' if total != 1 else ''} for *{pet_name}*.\n\n"
+            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
         )
         await send_text_message(
             bg_db, from_number,
-            f"I will now start extracting health data for *{pet_name}*:\n{doc_names}\n\n"
-            f"Fun fact: {fun_fact}",
+            f"✅ The below files are saved for *{pet_name}*:\n{doc_names}\n\n"
+            "Will start extracting health data shortly.\n\n"
+            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
+        )
+        await send_text_message(
+            bg_db, from_number,
+            f"🧪 I will now start extracting health data for *{pet_name}*:\n{doc_names}\n\n"
+            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
         )
 
         last_result = None
