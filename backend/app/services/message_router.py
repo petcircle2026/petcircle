@@ -833,22 +833,23 @@ async def _delayed_batch_extraction(
         pet_species = pet.species if pet else "dog"
         pet_breed = pet.breed if pet else None
         received_fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
+        saved_fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
         extracting_fun_fact = await get_breed_fun_fact(bg_db, user_id, pet_breed, pet_species)
         await send_text_message(
             bg_db, from_number,
             f"Got it — I received *{total}* document{'s' if total != 1 else ''} for *{pet_name}*.\n\n"
-            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
+            f"🎉 *Fun fact time!*\n✨ {received_fun_fact}",
         )
         await send_text_message(
             bg_db, from_number,
             f"✅ The below files are saved for *{pet_name}*:\n{doc_names}\n\n"
             "Will start extracting health data shortly.\n\n"
-            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
+            f"🎉 *Fun fact time!*\n✨ {saved_fun_fact}",
         )
         await send_text_message(
             bg_db, from_number,
             f"🧪 I will now start extracting health data for *{pet_name}*:\n{doc_names}\n\n"
-            f"🎉 *Fun fact time!*\n✨ {fun_fact}",
+            f"🎉 *Fun fact time!*\n✨ {extracting_fun_fact}",
         )
 
         last_result = None
@@ -969,7 +970,7 @@ async def _delayed_batch_extraction(
             await send_text_message(
                 bg_db, from_number,
                 f"Extraction encountered an issue for {pet_name}. "
-                f"Please check the dashboard or try uploading again.",
+                f"Try uploading again.",
             )
         except Exception:
             pass
