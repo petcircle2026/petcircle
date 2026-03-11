@@ -39,10 +39,12 @@ async def test_extraction():
         _validate_extraction_json,
     )
 
-    fixtures_dir = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-        "fixtures", "sample_reports",
-    )
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    candidate_dirs = [
+        os.path.join(repo_root, "Sample_Reports"),
+        os.path.join(repo_root, "fixtures", "sample_reports"),
+    ]
+    fixtures_dir = next((path for path in candidate_dirs if os.path.exists(path)), candidate_dirs[0])
 
     if not os.path.exists(fixtures_dir):
         print(f"ERROR: Fixtures directory not found: {fixtures_dir}")
@@ -50,7 +52,7 @@ async def test_extraction():
 
     files = sorted(os.listdir(fixtures_dir))
     print(f"\n{'='*80}")
-    print(f"GPT Extraction Test — {len(files)} files in fixtures/sample_reports")
+    print(f"GPT Extraction Test — {len(files)} files in {os.path.relpath(fixtures_dir, repo_root)}")
     print(f"{'='*80}\n")
 
     results = []
@@ -112,12 +114,15 @@ async def test_extraction():
 
         if raw_json:
             try:
-                items, doc_name, pet_name, _metadata = _validate_extraction_json(raw_json)
+                items, doc_name, pet_name, metadata = _validate_extraction_json(raw_json)
                 print(f"  Document name: {doc_name}")
                 print(f"  Pet name: {pet_name}")
                 print(f"  Items extracted: {len(items)}")
                 for item in items:
                     print(f"    - {item.get('item_name')}: {item.get('last_done_date')}")
+                vaccination_details = metadata.get("vaccination_details", [])
+                if vaccination_details:
+                    print(f"  Vaccination detail rows: {len(vaccination_details)}")
                 print(f"  Time: {elapsed:.1f}s")
 
                 results.append({
@@ -127,6 +132,10 @@ async def test_extraction():
                     "pet_name": pet_name,
                     "items_count": len(items),
                     "items": items,
+                    "doctor_name": metadata.get("doctor_name"),
+                    "clinic_name": metadata.get("clinic_name"),
+                    "vaccination_details": vaccination_details,
+                    "document_category": metadata.get("document_category"),
                     "time_s": round(elapsed, 1),
                 })
             except ValueError as ve:

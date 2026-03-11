@@ -19,7 +19,7 @@
     "clinic_name": "UNIQUE LAB NEW",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 4.7
+    "time_s": 5.6
   },
   {
     "file": "Blood_12_02_25_2.pdf",
@@ -41,7 +41,7 @@
     "clinic_name": "UNIQUE LAB NEW",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 11.6
+    "time_s": 19.0
   },
   {
     "file": "Blood_12_02_25_3.pdf",
@@ -63,13 +63,25 @@
     "clinic_name": "UNIQUE LAB NEW",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 10.9
+    "time_s": 12.4
   },
   {
     "file": "Blood_22_02_25_1.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 184 column 20 (char 4823)",
-    "time_s": 15.4
+    "status": "success",
+    "document_name": "Blood Test Report",
+    "pet_name": "ZAYN ASHITA",
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-02-22"
+      }
+    ],
+    "doctor_name": null,
+    "clinic_name": null,
+    "vaccination_details": [],
+    "document_category": "Diagnostic",
+    "time_s": 23.1
   },
   {
     "file": "Blood_22_02_25_2.pdf",
@@ -91,7 +103,7 @@
     "clinic_name": null,
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 15.3
+    "time_s": 19.4
   },
   {
     "file": "Blood_22_02_25_3.pdf",
@@ -113,19 +125,43 @@
     "clinic_name": "Small Animal Hospital Mumbai",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 6.9
+    "time_s": 6.6
   },
   {
     "file": "Blood_28_01_25.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 169 column 25 (char 4719)",
-    "time_s": 12.6
+    "status": "success",
+    "document_name": "Blood Test Report",
+    "pet_name": null,
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-01-28"
+      }
+    ],
+    "doctor_name": null,
+    "clinic_name": null,
+    "vaccination_details": [],
+    "document_category": "Diagnostic",
+    "time_s": 19.2
   },
   {
     "file": "Blood_29_01_25.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 185 column 22 (char 5034)",
-    "time_s": 14.0
+    "status": "success",
+    "document_name": "Complete Blood Count Report",
+    "pet_name": null,
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-01-29"
+      }
+    ],
+    "doctor_name": null,
+    "clinic_name": null,
+    "vaccination_details": [],
+    "document_category": "Diagnostic",
+    "time_s": 15.4
   },
   {
     "file": "Blood_29_01_25_2.pdf",
@@ -147,18 +183,30 @@
     "clinic_name": "UNIQUE LAB NEW",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 6.5
+    "time_s": 13.9
   },
   {
     "file": "CBC_12_02_25.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Unterminated string starting at: line 184 column 22 (char 5026)",
-    "time_s": 15.5
+    "status": "success",
+    "document_name": "Complete Blood Count Report",
+    "pet_name": null,
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2025-02-12"
+      }
+    ],
+    "doctor_name": null,
+    "clinic_name": null,
+    "vaccination_details": [],
+    "document_category": "Diagnostic",
+    "time_s": 24.3
   },
   {
     "file": "Prescription_Chavan_12_02_25.jpg",
     "status": "success",
-    "document_name": "Vet Prescription and Blood/Urine Test Advice",
+    "document_name": "Vet Prescription and Diagnostic Request",
     "pet_name": "Zayn",
     "items_count": 1,
     "items": [
@@ -174,8 +222,8 @@
     "doctor_name": "Dr. Makarand Chavan",
     "clinic_name": "Dogs & Cats Veterinary Clinic",
     "vaccination_details": [],
-    "document_category": "Other",
-    "time_s": 4.0
+    "document_category": "Diagnostic",
+    "time_s": 4.9
   },
   {
     "file": "Urine_12_02_25.pdf",
@@ -188,7 +236,7 @@
     "clinic_name": "UNIQUE LAB NEW",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 15.0
+    "time_s": 14.8
   },
   {
     "file": "Urine_1_02_25.pdf",
@@ -198,10 +246,10 @@
     "items_count": 0,
     "items": [],
     "doctor_name": "Dr. D. P. Chaudhari",
-    "clinic_name": "UNIQUE LAB NEW",
+    "clinic_name": null,
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 16.0
+    "time_s": 21.1
   },
   {
     "file": "Urine_26_02_25.pdf",
@@ -214,26 +262,42 @@
     "clinic_name": "Small Animal Hospital Mumbai",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 10.4
+    "time_s": 16.5
   },
   {
     "file": "Urine_28_11_24.pdf",
     "status": "success",
     "document_name": "Urine Test Report",
     "pet_name": "ZAYN",
-    "items_count": 0,
-    "items": [],
+    "items_count": 1,
+    "items": [
+      {
+        "item_name": "Preventive Blood Test",
+        "last_done_date": "2024-11-28",
+        "dose": null,
+        "doctor_name": "Dr. D. P. Chaudhari",
+        "clinic_name": "UNIQUE LAB NEW",
+        "batch_number": null
+      }
+    ],
     "doctor_name": "Dr. D. P. Chaudhari",
     "clinic_name": "UNIQUE LAB NEW",
     "vaccination_details": [],
     "document_category": "Diagnostic",
-    "time_s": 12.2
+    "time_s": 19.9
   },
   {
     "file": "Urine_culture_29_11_24.pdf",
-    "status": "validation_error",
-    "error": "GPT returned invalid JSON: Expecting value: line 181 column 20 (char 5093)",
-    "time_s": 18.1
+    "status": "success",
+    "document_name": "Urine Culture & Antibiotic Sensitivity Report",
+    "pet_name": null,
+    "items_count": 0,
+    "items": [],
+    "doctor_name": null,
+    "clinic_name": null,
+    "vaccination_details": [],
+    "document_category": "Diagnostic",
+    "time_s": 21.0
   },
   {
     "file": "Zayn_Vaccination_Record.jpg",
@@ -248,23 +312,23 @@
         "dose": null,
         "doctor_name": "DR. MAHARAJ CHAVAN",
         "clinic_name": null,
-        "batch_number": "A68401"
-      },
-      {
-        "item_name": "Rabies Vaccine",
-        "last_done_date": "2022-11-23",
-        "dose": null,
-        "doctor_name": "DR. MAHARAJ CHAVAN",
-        "clinic_name": null,
-        "batch_number": "A002A06"
+        "batch_number": "A640A05"
       },
       {
         "item_name": "Core Vaccine",
-        "last_done_date": "2022-11-23",
+        "last_done_date": "2021-11-23",
         "dose": null,
         "doctor_name": "DR. MAHARAJ CHAVAN",
         "clinic_name": null,
-        "batch_number": "A513A01"
+        "batch_number": null
+      },
+      {
+        "item_name": "Rabies Vaccine",
+        "last_done_date": "2021-11-23",
+        "dose": null,
+        "doctor_name": "DR. MAHARAJ CHAVAN",
+        "clinic_name": null,
+        "batch_number": "A002406"
       },
       {
         "item_name": "Core Vaccine",
@@ -272,7 +336,7 @@
         "dose": null,
         "doctor_name": null,
         "clinic_name": null,
-        "batch_number": "A789A01"
+        "batch_number": "A784201"
       }
     ],
     "doctor_name": "DR. MAHARAJ CHAVAN",
@@ -285,8 +349,32 @@
         "dose_unit": null,
         "route": null,
         "manufacturer": null,
-        "batch_number": "A68401",
-        "next_due_date": "2023-03-28",
+        "batch_number": "A784201",
+        "next_due_date": null,
+        "administered_by": null,
+        "notes": null
+      },
+      {
+        "vaccine_name": "Nobivac RL",
+        "vaccine_name_raw": "Nobivac RL",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "A002406",
+        "next_due_date": null,
+        "administered_by": null,
+        "notes": null
+      },
+      {
+        "vaccine_name": "Nobivac KC",
+        "vaccine_name_raw": "Nobivac KC",
+        "dose": null,
+        "dose_unit": null,
+        "route": null,
+        "manufacturer": null,
+        "batch_number": "A513A01",
+        "next_due_date": null,
         "administered_by": null,
         "notes": null
       },
@@ -298,7 +386,7 @@
         "route": null,
         "manufacturer": null,
         "batch_number": "A640A05",
-        "next_due_date": "2023-07-01",
+        "next_due_date": null,
         "administered_by": null,
         "notes": null
       },
@@ -313,39 +401,15 @@
         "next_due_date": null,
         "administered_by": null,
         "notes": null
-      },
-      {
-        "vaccine_name": "Nobivac KC",
-        "vaccine_name_raw": "Nobivac KC",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A513A01",
-        "next_due_date": "2025-02-01",
-        "administered_by": null,
-        "notes": null
-      },
-      {
-        "vaccine_name": "Nobivac RL",
-        "vaccine_name_raw": "Nobivac RL",
-        "dose": null,
-        "dose_unit": null,
-        "route": null,
-        "manufacturer": null,
-        "batch_number": "A002A06",
-        "next_due_date": "2026-05-01",
-        "administered_by": null,
-        "notes": null
       }
     ],
     "document_category": "Vaccination",
-    "time_s": 14.5
+    "time_s": 18.3
   },
   {
     "file": "Zayn_Vaccination_Record_1.jpg",
     "status": "success",
-    "document_name": "Pet Vaccination Record",
+    "document_name": "Pet Vaccination & Health Checkup Record",
     "pet_name": null,
     "items_count": 4,
     "items": [
@@ -353,7 +417,7 @@
         "item_name": "Core Vaccine",
         "last_done_date": "2023-03-28",
         "dose": null,
-        "doctor_name": null,
+        "doctor_name": "Dr. Atul V. Patil",
         "clinic_name": null,
         "batch_number": "A684B01"
       },
@@ -361,7 +425,7 @@
         "item_name": "Core Vaccine",
         "last_done_date": "2024-11-23",
         "dose": null,
-        "doctor_name": null,
+        "doctor_name": "Dr. Atul V. Patil",
         "clinic_name": null,
         "batch_number": null
       },
@@ -369,7 +433,7 @@
         "item_name": "Rabies Vaccine",
         "last_done_date": "2024-11-23",
         "dose": null,
-        "doctor_name": null,
+        "doctor_name": "Dr. Atul V. Patil",
         "clinic_name": null,
         "batch_number": "E51395"
       },
@@ -377,7 +441,7 @@
         "item_name": "Core Vaccine",
         "last_done_date": "2025-05-06",
         "dose": null,
-        "doctor_name": null,
+        "doctor_name": "Dr. Atul V. Patil",
         "clinic_name": null,
         "batch_number": "A789A01"
       }
@@ -394,19 +458,19 @@
         "manufacturer": null,
         "batch_number": "A684B01",
         "next_due_date": "2024-03-28",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
         "vaccine_name": "Nobivac Lepto",
-        "vaccine_name_raw": "Nobivac Lepto",
+        "vaccine_name_raw": "Nobivac L4",
         "dose": null,
         "dose_unit": null,
         "route": null,
         "manufacturer": null,
         "batch_number": "A600A05",
         "next_due_date": "2024-03-28",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -418,19 +482,19 @@
         "manufacturer": null,
         "batch_number": null,
         "next_due_date": "2024-11-23",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
         "vaccine_name": "Canine Coronavirus Vaccine",
         "vaccine_name_raw": "Canine Coronavirus Vaccine Killed Virus",
-        "dose": null,
+        "dose": "1 dose",
         "dose_unit": null,
         "route": null,
         "manufacturer": "Zoetis",
         "batch_number": null,
         "next_due_date": "2024-11-23",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -438,11 +502,11 @@
         "vaccine_name_raw": "Rabies Veterinary Vaccine, Inactivated, I.P. RABISIN-R",
         "dose": null,
         "dose_unit": null,
-        "route": "Deep Intramuscular",
+        "route": "Deep intramuscular",
         "manufacturer": null,
         "batch_number": "E51395",
         "next_due_date": "2025-11-23",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -454,7 +518,7 @@
         "manufacturer": null,
         "batch_number": "A139A01",
         "next_due_date": "2024-11-23",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -466,7 +530,7 @@
         "manufacturer": null,
         "batch_number": "A789A01",
         "next_due_date": "2026-05-06",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -478,7 +542,7 @@
         "manufacturer": null,
         "batch_number": "A002A05",
         "next_due_date": "2026-05-06",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -490,19 +554,19 @@
         "manufacturer": null,
         "batch_number": "A1527A01",
         "next_due_date": "2026-05-06",
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       }
     ],
     "document_category": "Vaccination",
-    "time_s": 19.0
+    "time_s": 27.7
   },
   {
     "file": "Zayn_Vaccination_Record_2.jpg",
     "status": "success",
     "document_name": "Pet Vaccination & Health Checkup Record",
     "pet_name": null,
-    "items_count": 4,
+    "items_count": 3,
     "items": [
       {
         "item_name": "Core Vaccine",
@@ -513,26 +577,18 @@
         "batch_number": "A684801"
       },
       {
-        "item_name": "Core Vaccine",
-        "last_done_date": "2024-11-23",
-        "dose": null,
-        "doctor_name": "Dr. Makarand Chavan",
-        "clinic_name": null,
-        "batch_number": "E51839"
-      },
-      {
         "item_name": "Rabies Vaccine",
-        "last_done_date": "2024-11-23",
+        "last_done_date": "2023-11-23",
         "dose": null,
         "doctor_name": "Dr. Makarand Chavan",
         "clinic_name": null,
-        "batch_number": "E51839"
+        "batch_number": "E5189"
       },
       {
         "item_name": "Core Vaccine",
         "last_done_date": "2025-05-06",
         "dose": null,
-        "doctor_name": null,
+        "doctor_name": "Dr. Makarand Chavan",
         "clinic_name": null,
         "batch_number": "A789A01"
       }
@@ -561,7 +617,7 @@
         "manufacturer": null,
         "batch_number": null,
         "next_due_date": null,
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
@@ -573,17 +629,17 @@
         "manufacturer": null,
         "batch_number": null,
         "next_due_date": null,
-        "administered_by": null,
+        "administered_by": "Dr. Atul V. Patil",
         "notes": null
       },
       {
-        "vaccine_name": "Rabies Veterinary Vaccine",
+        "vaccine_name": "Rabies Vaccine",
         "vaccine_name_raw": "Rabies Veterinary Vaccine, Inactivated, I.P.",
         "dose": null,
         "dose_unit": null,
         "route": null,
         "manufacturer": "Boehringer Ingelheim",
-        "batch_number": "E51839",
+        "batch_number": "E5189",
         "next_due_date": "2024-11-23",
         "administered_by": "Dr. Makarand Chavan",
         "notes": null
@@ -597,7 +653,7 @@
         "manufacturer": null,
         "batch_number": "A139A01",
         "next_due_date": null,
-        "administered_by": null,
+        "administered_by": "Dr. Makarand Chavan",
         "notes": null
       },
       {
@@ -609,7 +665,7 @@
         "manufacturer": null,
         "batch_number": "A789A01",
         "next_due_date": "2026-05-06",
-        "administered_by": null,
+        "administered_by": "Dr. Makarand Chavan",
         "notes": null
       },
       {
@@ -619,9 +675,9 @@
         "dose_unit": null,
         "route": null,
         "manufacturer": null,
-        "batch_number": "A002A05",
+        "batch_number": "A0042005",
         "next_due_date": null,
-        "administered_by": null,
+        "administered_by": "Dr. Makarand Chavan",
         "notes": null
       },
       {
@@ -633,11 +689,11 @@
         "manufacturer": null,
         "batch_number": "A157A01",
         "next_due_date": null,
-        "administered_by": null,
+        "administered_by": "Dr. Makarand Chavan",
         "notes": null
       }
     ],
     "document_category": "Vaccination",
-    "time_s": 20.8
+    "time_s": 21.5
   }
 ]

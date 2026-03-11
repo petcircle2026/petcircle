@@ -55,6 +55,50 @@ from app.utils.date_utils import parse_date, format_date_for_db
 logger = logging.getLogger(__name__)
 
 
+def _extract_partial_json_string_value(raw_json: str, key: str) -> str | None:
+    """Best-effort extraction of a top-level JSON string field from malformed output."""
+    match = re.search(rf'"{re.escape(key)}"\s*:\s*(null|"(?:\\.|[^"\\])*")', raw_json)
+    if not match:
+        return None
+
+    raw_value = match.group(1)
+    if raw_value == "null":
+        return None
+
+    try:
+        value = json.loads(raw_value)
+    except json.JSONDecodeError:
+        return None
+
+    return str(value).strip() if value is not None else None
+
+
+def _salvage_partial_extraction_json(raw_json: str) -> dict | None:
+    """Recover minimal extraction metadata from malformed GPT JSON."""
+    document_name = _extract_partial_json_string_value(raw_json, "document_name")
+    document_type = _extract_partial_json_string_value(raw_json, "document_type")
+    document_category = _extract_partial_json_string_value(raw_json, "document_category")
+    pet_name = _extract_partial_json_string_value(raw_json, "pet_name")
+    doctor_name = _extract_partial_json_string_value(raw_json, "doctor_name")
+    clinic_name = _extract_partial_json_string_value(raw_json, "clinic_name")
+
+    if not any((document_name, document_type, document_category, pet_name, doctor_name, clinic_name)):
+        return None
+
+    return {
+        "document_name": document_name,
+        "document_type": document_type or "pet_medical",
+        "document_category": document_category,
+        "pet_name": pet_name,
+        "doctor_name": doctor_name,
+        "clinic_name": clinic_name,
+        "diagnostic_summary": None,
+        "diagnostic_values": [],
+        "vaccination_details": [],
+        "items": [],
+    }
+
+
 def _normalize_document_category(raw_category: str | None) -> str | None:
     """Normalize GPT category output to one of the dashboard's canonical values."""
     value = (raw_category or "").strip().lower()
@@ -558,9 +602,16 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
     try:
         parsed = json.loads(raw_json)
     except json.JSONDecodeError as e:
-        raise ValueError(
-            f"GPT returned invalid JSON: {str(e)}"
-        ) from e
+        parsed = _salvage_partial_extraction_json(raw_json)
+        if parsed is None:
+            raise ValueError(
+                f"GPT returned invalid JSON: {str(e)}"
+            ) from e
+
+        logger.warning(
+            "Recovered partial extraction metadata from malformed GPT JSON: %s",
+            str(e),
+        )
 
     # Extract document_name, pet_name, and new classification fields.
     document_name = None
@@ -618,6 +669,7 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
         )
 
     # Validate each extracted item.
+    today = datetime.utcnow().date()
     validated = []
     for i, item in enumerate(items):
         if not isinstance(item, dict):
@@ -640,6 +692,12 @@ def _validate_extraction_json(raw_json: str) -> tuple[list[dict], str | None, st
         # Normalize and validate the date.
         try:
             parsed_date = parse_date(str(item["last_done_date"]))
+            if parsed_date > today:
+                logger.warning(
+                    "Skipping extraction item at index %d — future date %s. Item: %s",
+                    i, str(parsed_date), str(item),
+                )
+                continue
             item["last_done_date"] = format_date_for_db(parsed_date)
         except ValueError as e:
             logger.warning(

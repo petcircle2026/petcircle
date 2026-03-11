@@ -1,6 +1,10 @@
 import json
 
-from app.services.gpt_extraction import _validate_extraction_json
+from app.services.gpt_extraction import (
+    _pet_name_matches_document_name,
+    _select_best_doctor_name,
+    _validate_extraction_json,
+)
 
 
 def test_vaccination_category_filters_annual_checkup_items() -> None:
@@ -42,3 +46,18 @@ def test_vaccination_details_next_due_date_is_normalized() -> None:
 
     assert metadata["vaccination_details"][0]["next_due_date"] == "2026-05-06"
     assert metadata["vaccination_details"][1]["next_due_date"] is None
+
+
+def test_pet_name_matching_accepts_alias_style_extraction() -> None:
+    assert _pet_name_matches_document_name("VEER / ZAYN", "Zayn") is True
+
+
+def test_select_best_doctor_name_prefers_vaccination_administered_by() -> None:
+    selected = _select_best_doctor_name(
+        metadata_doctor_name="Owner Name",
+        extracted_items=[{"doctor_name": "C/O Ashita Arora"}],
+        vaccination_details=[{"administered_by": "Dr. D. P. Chaudhari"}],
+        pet_name="Zayn",
+    )
+
+    assert selected == "Dr. D. P. Chaudhari"

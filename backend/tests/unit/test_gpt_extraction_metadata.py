@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 
 from app.services import gpt_extraction
 
@@ -96,3 +97,44 @@ def test_derive_blood_test_fallback_items_prefers_observed_blood_date() -> None:
     )
 
     assert items == [{"item_name": "Preventive Blood Test", "last_done_date": "2025-01-28"}]
+
+
+def test_validate_extraction_salvages_metadata_from_malformed_json() -> None:
+    raw_json = (
+        '{'
+        '"document_name": "Blood Test Report", '
+        '"document_type": "pet_medical", '
+        '"document_category": "Diagnostic", '
+        '"pet_name": "ZAYN", '
+        '"doctor_name": "Dr. D. P. Chaudhari", '
+        '"clinic_name": "UNIQUE LAB NEW", '
+        '"diagnostic_values": ['
+    )
+
+    items, document_name, extracted_pet_name, metadata = gpt_extraction._validate_extraction_json(raw_json)
+
+    assert items == []
+    assert document_name == "Blood Test Report"
+    assert extracted_pet_name == "ZAYN"
+    assert metadata["document_category"] == "Diagnostic"
+    assert metadata["doctor_name"] == "Dr. D. P. Chaudhari"
+    assert metadata["clinic_name"] == "UNIQUE LAB NEW"
+
+
+def test_validate_extraction_skips_future_last_done_dates() -> None:
+    future_date = (datetime.utcnow().date() + timedelta(days=30)).isoformat()
+    raw_json = json.dumps(
+        {
+            "document_name": "Vaccination Certificate",
+            "document_type": "pet_medical",
+            "document_category": "Vaccination",
+            "items": [
+                {"item_name": "Rabies Vaccine", "last_done_date": future_date},
+                {"item_name": "Core Vaccine", "last_done_date": "2025-05-06"},
+            ],
+        }
+    )
+
+    items, _, _, _ = gpt_extraction._validate_extraction_json(raw_json)
+
+    assert items == [{"item_name": "Core Vaccine", "last_done_date": "2025-05-06"}]
