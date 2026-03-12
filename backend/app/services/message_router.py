@@ -1264,6 +1264,11 @@ async def _send_batch_summary(
         msg += "You can update records manually via the dashboard."
         if dashboard_link:
             msg += f"\n{dashboard_link}"
+        msg += (
+            "\n\nNeed medicines, food, or supplements? "
+            "Type *order* to place an order with us."
+        )
+        msg += "\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
         return
 
@@ -1290,6 +1295,7 @@ async def _send_batch_summary(
             "\n\nNeed medicines, food, or supplements? "
             "Type *order* to place an order with us."
         )
+        msg += "\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
         return
 
@@ -1313,6 +1319,7 @@ async def _send_batch_summary(
             "\n\nNeed medicines, food, or supplements? "
             "Type *order* to place an order with us."
         )
+        msg += "\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
 
 
@@ -1335,7 +1342,6 @@ async def _send_extraction_summary(
     processed = result.get("items_processed", 0)
     errors = result.get("errors", [])
     status = result.get("status", "failed")
-    clinic_name = result.get("clinic_name")
     vaccination_details = result.get("vaccination_details", [])
 
     if status == "failed":
@@ -1352,6 +1358,11 @@ async def _send_extraction_summary(
         )
         if dashboard_link:
             msg += f"\n\nView *{pet.name}'s Dashboard*:\n{dashboard_link}"
+        msg += (
+            "\n\nNeed medicines, food, or supplements? "
+            "Type *order* to place an order with us."
+        )
+        msg += "\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
         return
 
@@ -1360,7 +1371,8 @@ async def _send_extraction_summary(
             db, from_number,
             f"No preventive health items were found in {pet.name}'s document.\n\n"
             f"If this looks wrong, you can update records manually from the dashboard.\n\n"
-            f"Need medicines, food, or supplements? Type *order* to place an order with us.",
+            f"Need medicines, food, or supplements? Type *order* to place an order with us.\n"
+            f"Type *add pet* to register another pet.",
         )
         return
 
@@ -1394,11 +1406,6 @@ async def _send_extraction_summary(
 
     if lines:
         msg += f"\n*Health Records:*\n" + "\n".join(lines) + "\n"
-
-    if clinic_name:
-        msg += "\n*Extracted Document Details:*\n"
-        if clinic_name:
-            msg += f"  • Clinic: {clinic_name}\n"
 
     if vaccination_details:
         msg += "\n*Vaccination Details Found:*\n"
@@ -1435,6 +1442,7 @@ async def _send_extraction_summary(
         "\n\nNeed medicines, food, or supplements? "
         "Type *order* to place an order with us."
     )
+    msg += "\nType *add pet* to register another pet."
 
     await send_text_message(db, from_number, msg)
 
