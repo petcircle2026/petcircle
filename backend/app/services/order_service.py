@@ -726,6 +726,18 @@ async def _notify_admin_whatsapp(db: Session, order: Order, user, pet) -> None:
 
     try:
         user_phone = decrypt_field(user.mobile_number)
+        admin_phone_normalized = admin_phone.strip().replace("+", "")
+        user_phone_normalized = user_phone.strip().replace("+", "")
+
+        # Safety check: never send admin interactive fulfillment buttons
+        # back to the ordering user's own WhatsApp number.
+        if admin_phone_normalized == user_phone_normalized:
+            logger.warning(
+                "Skipping admin order notification for order %s because ORDER_NOTIFICATION_PHONE matches user phone.",
+                str(order.id),
+            )
+            return
+
         user_name = user.full_name or "Unknown"
         pet_name = pet.name if pet else "N/A"
         order_category = str(order.category)
