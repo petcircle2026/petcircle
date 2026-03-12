@@ -10,13 +10,14 @@ Conversation flow:
     3. Name → store full_name, state=awaiting_pincode → ask pincode
     4. Pincode → store pincode, state=awaiting_pet_name → ask pet name
     5. Pet name → state=awaiting_pet_photo → ask for photo (skippable)
-    6. Photo or skip → state=awaiting_species → ask dog or cat
-    7. Species → create Pet, state=awaiting_breed → ask breed
-    7. Breed or "skip" → state=awaiting_gender → ask gender
-    8. Gender or "skip" → state=awaiting_dob → ask DOB
-    9. DOB or "skip" → state=awaiting_weight → ask weight
-   10. Weight or "skip" → state=awaiting_neutered → ask neutered
-   11. Neutered or "skip" → seed preventive records, generate token,
+    6. Photo → AI suggests species, state=awaiting_species_confirm
+    7. Skip photo → state=awaiting_species → ask dog or cat
+    8. Species confirmed/set → state=awaiting_breed → ask breed
+    9. Breed or "skip" → state=awaiting_gender → ask gender
+   10. Gender or "skip" → state=awaiting_dob → ask DOB
+   11. DOB or "skip" → state=awaiting_weight → ask weight
+   12. Weight or "skip" → state=awaiting_neutered → ask neutered
+   13. Neutered or "skip" → seed preventive records, generate token,
        state=awaiting_documents → prompt upload window (5 min)
    12. Upload docs / "skip" / timeout → state=complete → send dashboard link
 
@@ -56,6 +57,7 @@ from app.core.encryption import encrypt_field, decrypt_field, hash_field
 from app.core.log_sanitizer import mask_phone
 from app.utils.date_utils import is_ambiguous_date_input, parse_date, parse_date_with_ai, get_today_ist
 from app.utils.breed_normalizer import normalize_breed, normalize_breed_with_ai
+from app.utils.file_reader import encode_image_base64
 from app.utils.retry import retry_openai_call
 from app.services.preventive_seeder import seed_preventive_master
 
@@ -264,6 +266,9 @@ async def handle_onboarding_step(
     elif state == "awaiting_species":
         await _step_species(db, user, text_lower, send_fn)
 
+    elif state == "awaiting_species_confirm":
+        await _step_species_confirm(db, user, text_lower, send_fn)
+
     elif state == "awaiting_breed":
         await _step_breed(db, user, text, send_fn)
 
@@ -369,6 +374,10 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_pet_name": "What is your *pet's name*?",
         "awaiting_pet_photo": f"Send a *photo* of {pet_name} or type *skip*.",
         "awaiting_species": f"Is *{pet_name}* a *dog* or a *cat*?",
+        "awaiting_species_confirm": (
+            f"I identified {pet_name}'s photo. Reply *yes* to confirm, "
+            f"or reply *dog*/*cat* to correct it."
+        ),
         "awaiting_breed": f"What *breed* is {pet_name}? (Type *skip* if you're not sure)",
         "awaiting_gender": f"What is {pet_name}'s *gender*? (*male* or *female*, or *skip*)",
         "awaiting_dob": f"When was {pet_name} born? (or type *skip*)",
@@ -532,7 +541,8 @@ async def _step_pet_photo(db, user, text, send_fn, message_data: dict | None = N
     """
     Handle pet photo upload step. Accepts an image or 'skip'.
 
-    If image: download from WhatsApp, upload to Supabase, save path to pet.photo_path.
+    If image: download from WhatsApp, upload to Supabase, save path to pet.photo_path,
+    and use AI to suggest dog/cat with user confirmation.
     If 'skip': advance to awaiting_species without a photo.
     If other text: re-prompt.
     """
@@ -576,13 +586,34 @@ async def _step_pet_photo(db, user, text, send_fn, message_data: dict | None = N
             logger.error("Pet photo upload failed: pet_id=%s, error=%s", str(pet.id), str(e))
             await send_fn(db, user._plaintext_mobile, "Photo upload failed. Let's continue without it.")
 
-        user.onboarding_state = "awaiting_species"
-        db.commit()
+        ai_species = None
+        try:
+            ai_species = await _ai_identify_species_from_photo(file_content, detected_mime)
+        except Exception as e:
+            logger.warning(
+                "Pet species detection failed for pet_id=%s: %s",
+                str(pet.id),
+                str(e),
+            )
 
-        await send_fn(
-            db, user._plaintext_mobile,
-            f"Photo saved! Is *{pet.name}* a *dog* or a *cat*?",
-        )
+        if ai_species in {"dog", "cat"}:
+            pet.species = ai_species
+            user.onboarding_state = "awaiting_species_confirm"
+            db.commit()
+
+            await send_fn(
+                db, user._plaintext_mobile,
+                f"Photo saved! I think *{pet.name}* is a *{ai_species}*.\n\n"
+                "Reply *yes* to confirm, or reply *dog*/*cat* to correct me.",
+            )
+        else:
+            user.onboarding_state = "awaiting_species"
+            db.commit()
+
+            await send_fn(
+                db, user._plaintext_mobile,
+                f"Photo saved! Is *{pet.name}* a *dog* or a *cat*?",
+            )
         return
 
     if text_lower in _SKIP_INPUTS:
@@ -630,6 +661,58 @@ async def _step_species(db, user, text_lower, send_fn):
     await send_fn(
         db, user._plaintext_mobile,
         f"What *breed* is {pet.name}? (Type *skip* if you're not sure)",
+    )
+
+
+async def _step_species_confirm(db, user, text_lower, send_fn):
+    """Handle confirmation of AI-detected species from pet photo."""
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        return
+
+    ai_species = pet.species if pet.species in {"dog", "cat"} else None
+
+    if text_lower in _YES_INPUTS and ai_species:
+        user.onboarding_state = "awaiting_breed"
+        db.commit()
+        await send_fn(
+            db,
+            user._plaintext_mobile,
+            f"Great! What *breed* is {pet.name}? (Type *skip* if you're not sure)",
+        )
+        return
+
+    species_map = {"d": "dog", "dog": "dog", "c": "cat", "cat": "cat"}
+    corrected_species = species_map.get(text_lower)
+    if corrected_species:
+        pet.species = corrected_species
+        user.onboarding_state = "awaiting_breed"
+        db.commit()
+        await send_fn(
+            db,
+            user._plaintext_mobile,
+            f"Thanks for confirming! What *breed* is {pet.name}? (Type *skip* if you're not sure)",
+        )
+        return
+
+    if text_lower in _NO_INPUTS:
+        pet.species = "_pending"
+        user.onboarding_state = "awaiting_species"
+        db.commit()
+        await send_fn(
+            db,
+            user._plaintext_mobile,
+            f"No worries. Is *{pet.name}* a *dog* or a *cat*?",
+        )
+        return
+
+    await send_fn(
+        db,
+        user._plaintext_mobile,
+        "Please reply *yes* to confirm, or reply *dog*/*cat* to set the species.",
     )
 
 
@@ -1326,6 +1409,61 @@ async def _ai_check_weight(
     except Exception as e:
         logger.warning("Weight AI check failed; accepting weight without flagging: %s", str(e))
         return None
+
+
+async def _ai_identify_species_from_photo(file_bytes: bytes, mime_type: str) -> str | None:
+    """
+    Identify whether the uploaded pet photo is a dog or cat.
+
+    Returns:
+        "dog", "cat", or None when uncertain/unavailable.
+    """
+    if not getattr(settings, "OPENAI_API_KEY", None):
+        return None
+
+    if mime_type not in {"image/jpeg", "image/png"}:
+        return None
+
+    client = _get_openai_onboarding_client()
+    data_uri = encode_image_base64(file_bytes, mime_type)
+
+    prompt = (
+        "Classify the main pet in this photo. "
+        "Return strict JSON only with this exact schema: "
+        '{"species":"dog|cat|unknown"}. '
+        "If the image is unclear or not a dog/cat, return unknown."
+    )
+
+    async def _make_call() -> str:
+        response = await client.chat.completions.create(
+            model="gpt-4.1-mini",
+            temperature=0,
+            max_tokens=40,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You classify pet photos and return strict JSON only.",
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": data_uri, "detail": "high"}},
+                    ],
+                },
+            ],
+        )
+        return response.choices[0].message.content
+
+    raw = await retry_openai_call(_make_call)
+    try:
+        parsed = json.loads((raw or "").strip())
+    except json.JSONDecodeError:
+        return None
+
+    species = str(parsed.get("species") or "").strip().lower()
+    return species if species in {"dog", "cat"} else None
 
 def _get_pending_pet(db: Session, user_id: UUID) -> Pet | None:
     """Get the most recently created pet for a user (the one being onboarded)."""

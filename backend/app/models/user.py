@@ -63,7 +63,8 @@ class User(Base):
 
     # Onboarding state — tracks multi-step WhatsApp conversation.
     # States: awaiting_consent, awaiting_name, awaiting_pincode,
-    #         awaiting_pet_name, awaiting_species, awaiting_breed,
+    #         awaiting_pet_name, awaiting_pet_photo, awaiting_species,
+    #         awaiting_species_confirm, awaiting_breed,
     #         awaiting_gender, awaiting_dob, awaiting_weight,
     #         awaiting_neutered, awaiting_documents, complete
     onboarding_state = Column(String(30), default="awaiting_consent")
