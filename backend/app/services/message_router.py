@@ -1268,7 +1268,7 @@ async def _send_batch_summary(
             "\n\nNeed medicines, food, or supplements? "
             "Type *order* to place an order with us."
         )
-        msg += "\nType *add pet* to register another pet."
+        msg += "\n\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
         return
 
@@ -1295,7 +1295,7 @@ async def _send_batch_summary(
             "\n\nNeed medicines, food, or supplements? "
             "Type *order* to place an order with us."
         )
-        msg += "\nType *add pet* to register another pet."
+        msg += "\n\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
         return
 
@@ -1319,7 +1319,7 @@ async def _send_batch_summary(
             "\n\nNeed medicines, food, or supplements? "
             "Type *order* to place an order with us."
         )
-        msg += "\nType *add pet* to register another pet."
+        msg += "\n\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
 
 
@@ -1362,7 +1362,7 @@ async def _send_extraction_summary(
             "\n\nNeed medicines, food, or supplements? "
             "Type *order* to place an order with us."
         )
-        msg += "\nType *add pet* to register another pet."
+        msg += "\n\nType *add pet* to register another pet."
         await send_text_message(db, from_number, msg)
         return
 
@@ -1442,7 +1442,7 @@ async def _send_extraction_summary(
         "\n\nNeed medicines, food, or supplements? "
         "Type *order* to place an order with us."
     )
-    msg += "\nType *add pet* to register another pet."
+    msg += "\n\nType *add pet* to register another pet."
 
     await send_text_message(db, from_number, msg)
 
