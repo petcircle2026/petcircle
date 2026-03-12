@@ -309,6 +309,9 @@ def get_dashboard_data(db: Session, token: str) -> dict:
         })
 
     # --- Build response (no internal IDs exposed) ---
+    # photo_url: serve via dashboard endpoint if pet has a photo, else None.
+    photo_url = f"/dashboard/{token}/pet-photo" if pet.photo_path else None
+
     return {
         "pet": {
             "name": pet.name,
@@ -319,6 +322,7 @@ def get_dashboard_data(db: Session, token: str) -> dict:
             "weight": float(pet.weight) if pet.weight else None,
             "weight_flagged": bool(pet.weight_flagged),
             "neutered": pet.neutered,
+            "photo_url": photo_url,
         },
         "owner": {
             "full_name": user.full_name if user else None,
@@ -373,6 +377,37 @@ def get_document_file_for_token(
 
     filename = doc.file_path.split("/")[-1] if doc.file_path else "document"
     return file_bytes, doc.mime_type, filename
+
+
+def get_pet_photo_for_token(
+    db: Session,
+    token: str,
+) -> tuple[bytes, str]:
+    """
+    Retrieve pet photo bytes for a dashboard token.
+
+    Returns:
+        Tuple of (file_bytes, mime_type).
+
+    Raises:
+        ValueError: If token invalid, pet has no photo, or download fails.
+    """
+    dashboard_token = validate_dashboard_token(db, token)
+
+    pet = db.query(Pet).filter(Pet.id == dashboard_token.pet_id).first()
+    if not pet or pet.is_deleted or not pet.photo_path:
+        raise ValueError("Pet photo not found.")
+
+    file_bytes = asyncio.run(download_from_supabase(pet.photo_path))
+    if not file_bytes:
+        raise ValueError("Could not load photo from storage.")
+
+    # Infer MIME type from file extension.
+    ext = pet.photo_path.rsplit(".", 1)[-1].lower() if "." in pet.photo_path else "jpg"
+    mime_map = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png"}
+    mime_type = mime_map.get(ext, "image/jpeg")
+
+    return file_bytes, mime_type
 
 
 def update_pet_weight(

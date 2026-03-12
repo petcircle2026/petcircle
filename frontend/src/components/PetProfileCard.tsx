@@ -39,9 +39,17 @@ export default function PetProfileCard({ pet, owner, token, onUpdated }: Props) 
   return (
     <div className="rounded-lg border bg-white p-6 shadow-sm">
       <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-2xl">
-          {pet.species === "cat" ? "\uD83D\uDC31" : "\uD83D\uDC36"}
-        </div>
+        {pet.photo_url ? (
+          <img
+            src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${pet.photo_url}`}
+            alt={pet.name}
+            className="h-20 w-20 rounded-full object-cover"
+          />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100 text-2xl">
+            {pet.species === "cat" ? "\uD83D\uDC31" : "\uD83D\uDC36"}
+          </div>
+        )}
         <div>
           <h2 className="text-xl font-bold">{pet.name}</h2>
           {owner.full_name && (

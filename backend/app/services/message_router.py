@@ -227,6 +227,11 @@ async def route_message(db: Session, message_data: dict) -> None:
                     await handle_onboarding_step(db, user, text, send_text_message, message_data=message_data)
                 return
 
+            # --- Allow image uploads during pet photo step ---
+            if user.onboarding_state == "awaiting_pet_photo" and msg_type == "image":
+                await handle_onboarding_step(db, user, "", send_text_message, message_data=message_data)
+                return
+
             # --- All other onboarding states: block non-text ---
             text = (message_data.get("text") or "").strip()
             if not text:

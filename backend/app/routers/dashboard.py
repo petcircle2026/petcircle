@@ -36,6 +36,7 @@ from app.services.dashboard_service import (
     update_preventive_date,
     retry_document_extraction,
     get_document_file_for_token,
+    get_pet_photo_for_token,
 )
 from app.utils.date_utils import parse_date
 
@@ -266,6 +267,25 @@ def dashboard_update_preventive(
             detail="Update failed due to a temporary issue. Please try again.",
         )
 
+
+
+@router.get("/{token}/pet-photo")
+def dashboard_get_pet_photo(
+    token: str,
+    db: Session = Depends(get_db),
+):
+    """Serve the pet's profile photo for the dashboard."""
+    try:
+        file_bytes, mime_type = get_pet_photo_for_token(db, token)
+        headers = {
+            "Content-Disposition": 'inline; filename="pet_photo"',
+            "Cache-Control": "private, max-age=3600",
+        }
+        return FastAPIResponse(content=file_bytes, media_type=mime_type, headers=headers)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Pet photo not found.")
+    except Exception:
+        raise HTTPException(status_code=503, detail="Could not load pet photo.")
 
 
 @router.get("/{token}/document/{document_id}")

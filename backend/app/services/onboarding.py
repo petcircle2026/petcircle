@@ -9,8 +9,9 @@ Conversation flow:
     2. "yes" → consent_given=True, state=awaiting_name → ask name
     3. Name → store full_name, state=awaiting_pincode → ask pincode
     4. Pincode → store pincode, state=awaiting_pet_name → ask pet name
-    5. Pet name → state=awaiting_species → ask dog or cat
-    6. Species → create Pet, state=awaiting_breed → ask breed
+    5. Pet name → state=awaiting_pet_photo → ask for photo (skippable)
+    6. Photo or skip → state=awaiting_species → ask dog or cat
+    7. Species → create Pet, state=awaiting_breed → ask breed
     7. Breed or "skip" → state=awaiting_gender → ask gender
     8. Gender or "skip" → state=awaiting_dob → ask DOB
     9. DOB or "skip" → state=awaiting_weight → ask weight
@@ -257,6 +258,9 @@ async def handle_onboarding_step(
     elif state == "awaiting_pet_name":
         await _step_pet_name(db, user, text, send_fn)
 
+    elif state == "awaiting_pet_photo":
+        await _step_pet_photo(db, user, text, send_fn, message_data=message_data)
+
     elif state == "awaiting_species":
         await _step_species(db, user, text_lower, send_fn)
 
@@ -324,6 +328,8 @@ async def _send_onboarding_resume(db, user, state, send_fn):
     pet = _get_pending_pet(db, user.id)
     if pet:
         progress_lines.append(f"Pet name: {pet.name}")
+        if pet.photo_path:
+            progress_lines.append("Photo: Uploaded")
         if pet.species and pet.species != "_pending":
             progress_lines.append(f"Species: {pet.species}")
         if pet.breed:
@@ -361,6 +367,7 @@ def _get_question_for_state(state: str, pet=None) -> str:
         "awaiting_name": "What is your *full name*?",
         "awaiting_pincode": "What is your *pincode*? (Type *skip* if you prefer not to share)",
         "awaiting_pet_name": "What is your *pet's name*?",
+        "awaiting_pet_photo": f"Send a *photo* of {pet_name} or type *skip*.",
         "awaiting_species": f"Is *{pet_name}* a *dog* or a *cat*?",
         "awaiting_breed": f"What *breed* is {pet_name}? (Type *skip* if you're not sure)",
         "awaiting_gender": f"What is {pet_name}'s *gender*? (*male* or *female*, or *skip*)",
@@ -511,12 +518,87 @@ async def _step_pet_name(db, user, text, send_fn):
     db.add(pet)
     db.commit()
 
-    user.onboarding_state = "awaiting_species"
+    user.onboarding_state = "awaiting_pet_photo"
     db.commit()
 
     await send_fn(
         db, user._plaintext_mobile,
-        f"Great name! Is *{pet_name}* a *dog* or a *cat*?",
+        f"Great name! Would you like to add a photo of *{pet_name}*? 📸\n\n"
+        f"Send a photo or type *skip*.",
+    )
+
+
+async def _step_pet_photo(db, user, text, send_fn, message_data: dict | None = None):
+    """
+    Handle pet photo upload step. Accepts an image or 'skip'.
+
+    If image: download from WhatsApp, upload to Supabase, save path to pet.photo_path.
+    If 'skip': advance to awaiting_species without a photo.
+    If other text: re-prompt.
+    """
+    from app.services.whatsapp_sender import download_whatsapp_media
+    from app.services.document_upload import upload_to_supabase
+
+    pet = _get_pending_pet(db, user.id)
+    if not pet:
+        user.onboarding_state = "awaiting_pet_name"
+        db.commit()
+        await send_fn(db, user._plaintext_mobile, "Something went wrong. Please send your pet's name again.")
+        return
+
+    text_lower = text.lower().strip()
+
+    # Check if this is an image message (message_data will have media_id).
+    media_id = (message_data or {}).get("media_id") if message_data else None
+    msg_type = (message_data or {}).get("type") if message_data else None
+
+    if msg_type == "image" and media_id:
+        # Download the image from WhatsApp.
+        media_result = await download_whatsapp_media(media_id)
+        if not media_result:
+            await send_fn(db, user._plaintext_mobile, "Couldn't download the photo. Please try again or type *skip*.")
+            return
+
+        file_content, detected_mime = media_result
+
+        # Determine file extension from MIME type.
+        ext_map = {"image/jpeg": "jpg", "image/png": "png"}
+        ext = ext_map.get(detected_mime, "jpg")
+
+        # Build storage path: {user_id}/{pet_id}/pet_photo.{ext}
+        storage_path = f"{user.id}/{pet.id}/pet_photo.{ext}"
+
+        try:
+            await upload_to_supabase(file_content, storage_path, detected_mime)
+            pet.photo_path = storage_path
+            logger.info("Pet photo uploaded: pet_id=%s, path=%s", str(pet.id), storage_path)
+        except Exception as e:
+            logger.error("Pet photo upload failed: pet_id=%s, error=%s", str(pet.id), str(e))
+            await send_fn(db, user._plaintext_mobile, "Photo upload failed. Let's continue without it.")
+
+        user.onboarding_state = "awaiting_species"
+        db.commit()
+
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"Photo saved! Is *{pet.name}* a *dog* or a *cat*?",
+        )
+        return
+
+    if text_lower in _SKIP_INPUTS:
+        user.onboarding_state = "awaiting_species"
+        db.commit()
+
+        await send_fn(
+            db, user._plaintext_mobile,
+            f"No problem! Is *{pet.name}* a *dog* or a *cat*?",
+        )
+        return
+
+    # Not an image and not skip — re-prompt.
+    await send_fn(
+        db, user._plaintext_mobile,
+        f"Please send a *photo* of {pet.name} or type *skip* to continue.",
     )
 
 

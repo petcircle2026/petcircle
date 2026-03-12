@@ -66,6 +66,10 @@ class Pet(Base):
     # and user confirmed it anyway during onboarding. Shown in red on dashboard.
     weight_flagged = Column(Boolean, default=False)
 
+    # Photo path — Supabase storage path for the pet's profile photo.
+    # Set during onboarding (optional, skippable). Format: {user_id}/{pet_id}/pet_photo.{ext}
+    photo_path = Column(String, nullable=True)
+
     # Soft delete flag — when True, pet is treated as deleted.
     is_deleted = Column(Boolean, default=False)
 

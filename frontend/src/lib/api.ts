@@ -20,6 +20,7 @@ export interface PetProfile {
   weight: number | null;
   weight_flagged: boolean;
   neutered: boolean;
+  photo_url: string | null;
 }
 
 export interface OwnerInfo {
