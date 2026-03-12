@@ -12,8 +12,8 @@ Conversation flow:
     5. Pet name → state=awaiting_pet_photo → ask for photo (skippable)
     6. Photo → AI suggests species and breed
     7. Species confirmed/set → if breed detected, state=awaiting_breed_confirm
-    8. Skip photo → state=awaiting_breed → ask breed
-    9. If species pending after breed, ask dog or cat
+    8. Skip photo → state=awaiting_species → ask dog or cat
+    9. Species confirmed/set → state=awaiting_breed → ask breed
    10. Breed/species complete → state=awaiting_gender → ask gender
    11. Gender or "skip" → state=awaiting_dob → ask DOB
    12. DOB or "skip" → state=awaiting_weight → ask weight
@@ -551,7 +551,7 @@ async def _step_pet_photo(db, user, text, send_fn, message_data: dict | None = N
 
     If image: download from WhatsApp, upload to Supabase, save path to pet.photo_path,
     and use AI to suggest species/breed with user confirmation.
-    If 'skip': ask breed directly (no-photo path).
+    If 'skip': ask species directly (no-photo path).
     If other text: re-prompt.
     """
     from app.services.whatsapp_sender import download_whatsapp_media
@@ -631,12 +631,12 @@ async def _step_pet_photo(db, user, text, send_fn, message_data: dict | None = N
         return
 
     if text_lower in _SKIP_INPUTS:
-        user.onboarding_state = "awaiting_breed"
+        user.onboarding_state = "awaiting_species"
         db.commit()
 
         await send_fn(
             db, user._plaintext_mobile,
-            f"No problem! What *breed* is {pet.name}? (Type *skip* if you're not sure)",
+            f"No problem! Is *{pet.name}* a *dog* or a *cat*?",
         )
         return
 

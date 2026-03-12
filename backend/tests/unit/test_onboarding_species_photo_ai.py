@@ -98,7 +98,7 @@ async def test_step_pet_photo_ai_unknown_falls_back_to_manual_species(monkeypatc
 
 
 @pytest.mark.anyio
-async def test_step_pet_photo_skip_asks_breed(monkeypatch):
+async def test_step_pet_photo_skip_asks_species(monkeypatch):
     db = _FakeDB()
     pet = SimpleNamespace(id="p1", name="Milo", photo_path=None, species="_pending")
     user = SimpleNamespace(id="u1", onboarding_state="awaiting_pet_photo", _plaintext_mobile="911234567890")
@@ -112,9 +112,10 @@ async def test_step_pet_photo_skip_asks_breed(monkeypatch):
 
     await onboarding._step_pet_photo(db, user, "skip", _send_fn, message_data={"type": "text"})
 
-    assert user.onboarding_state == "awaiting_breed"
+    assert user.onboarding_state == "awaiting_species"
     assert sent_messages
-    assert "breed" in sent_messages[0].lower()
+    assert "dog" in sent_messages[0].lower()
+    assert "cat" in sent_messages[0].lower()
 
 
 @pytest.mark.anyio
