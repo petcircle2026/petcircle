@@ -1286,6 +1286,10 @@ async def _send_batch_summary(
                 msg += f"  - {name}\n"
         if dashboard_link:
             msg += f"\n{dashboard_link}"
+        msg += (
+            "\n\nNeed medicines, food, or supplements? "
+            "Type *order* to place an order with us."
+        )
         await send_text_message(db, from_number, msg)
         return
 
@@ -1305,6 +1309,10 @@ async def _send_batch_summary(
         msg = f"Extraction complete for *{pet.name}*: {success_count} processed, {fail_count} failed."
         if dashboard_link:
             msg += f"\n\n{dashboard_link}"
+        msg += (
+            "\n\nNeed medicines, food, or supplements? "
+            "Type *order* to place an order with us."
+        )
         await send_text_message(db, from_number, msg)
 
 
@@ -1351,7 +1359,8 @@ async def _send_extraction_summary(
         await send_text_message(
             db, from_number,
             f"No preventive health items were found in {pet.name}'s document.\n\n"
-            f"If this looks wrong, you can update records manually from the dashboard.",
+            f"If this looks wrong, you can update records manually from the dashboard.\n\n"
+            f"Need medicines, food, or supplements? Type *order* to place an order with us.",
         )
         return
 
@@ -1421,6 +1430,11 @@ async def _send_extraction_summary(
     dashboard_link = _get_dashboard_link(db, pet)
     if dashboard_link:
         msg += f"\nView *{pet.name}'s Dashboard*:\n{dashboard_link}"
+
+    msg += (
+        "\n\nNeed medicines, food, or supplements? "
+        "Type *order* to place an order with us."
+    )
 
     await send_text_message(db, from_number, msg)
 
