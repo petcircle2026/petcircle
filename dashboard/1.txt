@@ -1,1 +1,0 @@
-Hi Sheryl - pl update the dashboard in this format. Instead of showing a single health score, we can show like Apple Watch three concentric circles for each circle

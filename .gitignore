@@ -53,3 +53,21 @@ frontend/.env.local
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# === Debug/scratch artifacts ===
+bash.exe.stackdump
+_chat.txt
+*.stackdump
+*.PNG
+*.zip
+
+# === Test output artifacts ===
+backend/tests/*.json
+backend/tests/*.log
+!backend/tests/__init__.py
+
+# === Sample data ===
+Sample_Reports/
+
+# === Legacy scratch ===
+dashboard/
