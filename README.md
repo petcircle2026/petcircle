@@ -51,9 +51,9 @@ make frontend-dev # Start frontend dev server
 
 ## Architecture
 
-See [docs/architecture.md](docs/architecture.md) for the full system overview.
+See [workflows/architecture.md](docs/architecture.md) for the full system overview.
 
-See [docs/environment-setup.md](docs/environment-setup.md) for dev/test/prod configuration.
+See [workflows/environment-setup.md](docs/environment-setup.md) for dev/test/prod configuration.
 
 ## Tech Stack
 
