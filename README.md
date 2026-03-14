@@ -68,7 +68,7 @@ See [workflows/environment-setup.md](docs/environment-setup.md) for dev/test/pro
 | Frontend Hosting | Vercel |
 | Cron Jobs | GitHub Actions |
 
-## Render Docker Auto-Deploy
+## Render Docker Auto-Deploy Feature
 
 This repository is configured for Docker-based Render deploys via [render.yaml](render.yaml).
 
