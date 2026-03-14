@@ -12,6 +12,14 @@ venv/
 env/
 .env
 .env.*
+
+# === Environment (real secrets) ===
+backend/.env
+backend/envs/.env.local
+backend/envs/.env.production
+backend/envs/.env.development
+frontend/.env.local
+
 # === Node.js ===
 node_modules/
 .next/
