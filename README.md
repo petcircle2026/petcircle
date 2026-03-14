@@ -6,7 +6,6 @@ WhatsApp-based preventive health tracking for pets. Built with the **WAT framewo
 
 ```
 pet-circle/
-├── .claude/          # Architecture specs (CLAUDE.md, MODULES.md, SEQUENCE.md)
 ├── workflows/        # WAT Layer 1: Markdown SOPs for each major flow
 ├── backend/          # Python + FastAPI (WAT Layer 3: Tools)
 ├── frontend/         # Next.js + Tailwind (Dashboard)
