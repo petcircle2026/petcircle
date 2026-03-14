@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AdminOrder } from "@/lib/api";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 import { formatPhoneForDisplay } from "@/lib/phone";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -84,22 +84,22 @@ export default function OrdersPanel({ adminKey }: { adminKey: string }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState<Record<string, string>>({});
 
-  async function load(status?: string) {
+  const load = useCallback(async (status?: string) => {
     setLoading(true);
     setError("");
     try {
       const filterStatus = status === "all" ? undefined : status;
       setOrders(await adminApi.getOrders(adminKey, filterStatus));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to load orders."));
     } finally {
       setLoading(false);
     }
-  }
+  }, [adminKey]);
 
   useEffect(() => {
     load(statusFilter);
-  }, [adminKey, statusFilter]);
+  }, [load, statusFilter]);
 
   async function handleStatusChange(orderId: string, newStatus: string) {
     setActionLoading(orderId);
@@ -112,8 +112,8 @@ export default function OrdersPanel({ adminKey }: { adminKey: string }) {
         return next;
       });
       await load(statusFilter);
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to update order."));
     } finally {
       setActionLoading(null);
     }

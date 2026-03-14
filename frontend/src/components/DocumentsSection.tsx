@@ -2,7 +2,7 @@
 
 import { memo, useEffect, useMemo, useState } from "react";
 import type { DocumentItem } from "@/lib/api";
-import { retryExtraction } from "@/lib/api";
+import { getErrorMessage, retryExtraction } from "@/lib/api";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -84,8 +84,8 @@ function RetryButton({
     try {
       await retryExtraction(token, documentId);
       onRetried();
-    } catch (e: any) {
-      setError(e.message || "Retry failed.");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Retry failed."));
     } finally {
       setLoading(false);
     }
@@ -180,6 +180,30 @@ export default memo(function DocumentsSection({
 }) {
   const [selectedDoc, setSelectedDoc] = useState<DocumentItem | null>(null);
 
+  const grouped = useMemo(() => {
+    const groups: Record<string, DocumentItem[]> = {};
+    for (const cat of CATEGORY_ORDER) {
+      groups[cat] = [];
+    }
+
+    for (const doc of documents) {
+      const cat = inferCategory(doc);
+      groups[cat].push(doc);
+    }
+
+    for (const cat of CATEGORY_ORDER) {
+      groups[cat].sort((a, b) => {
+        const ta = a.uploaded_at || "";
+        const tb = b.uploaded_at || "";
+        return tb.localeCompare(ta);
+      });
+    }
+
+    return groups;
+  }, [documents]);
+
+  const activeCategories = CATEGORY_ORDER.filter((cat) => grouped[cat].length > 0);
+
   useEffect(() => {
     if (!selectedDoc) return;
     const original = document.body.style.overflow;
@@ -201,33 +225,6 @@ export default memo(function DocumentsSection({
       </div>
     );
   }
-
-  // Group documents by category, sorted by uploaded_at (most recent first) within each.
-  const grouped = useMemo(() => {
-    const groups: Record<string, DocumentItem[]> = {};
-    for (const cat of CATEGORY_ORDER) {
-      groups[cat] = [];
-    }
-
-    for (const doc of documents) {
-      const cat = inferCategory(doc);
-      groups[cat].push(doc);
-    }
-
-    // Sort each group by uploaded_at descending.
-    for (const cat of CATEGORY_ORDER) {
-      groups[cat].sort((a, b) => {
-        const ta = a.uploaded_at || "";
-        const tb = b.uploaded_at || "";
-        return tb.localeCompare(ta);
-      });
-    }
-
-    return groups;
-  }, [documents]);
-
-  // Only show categories that have documents.
-  const activeCategories = CATEGORY_ORDER.filter((cat) => grouped[cat].length > 0);
 
   return (
     <div className="space-y-4">
@@ -288,7 +285,6 @@ export default memo(function DocumentsSection({
           </div>
         </div>
       )}
-
     </div>
   );
 });

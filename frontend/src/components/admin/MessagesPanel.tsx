@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AdminMessage } from "@/lib/api";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 import { formatPhoneForDisplay } from "@/lib/phone";
 
 export default function MessagesPanel({ adminKey }: { adminKey: string }) {
@@ -11,22 +11,22 @@ export default function MessagesPanel({ adminKey }: { adminKey: string }) {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | "incoming" | "outgoing">("all");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       const direction = filter === "all" ? undefined : filter;
       setMessages(await adminApi.getMessages(adminKey, direction, 200));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to load messages."));
     } finally {
       setLoading(false);
     }
-  }
+  }, [adminKey, filter]);
 
   useEffect(() => {
     load();
-  }, [adminKey, filter]);
+  }, [load]);
 
   return (
     <div>

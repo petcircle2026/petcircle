@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AdminReminder } from "@/lib/api";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 
 interface PetGroup {
   pet_name: string;
@@ -46,7 +46,7 @@ export default function RemindersPanel({ adminKey }: { adminKey: string }) {
     adminApi
       .getReminders(adminKey)
       .then(setReminders)
-      .catch((e: any) => setError(e.message))
+      .catch((e: unknown) => setError(getErrorMessage(e, "Failed to load reminders.")))
       .finally(() => setLoading(false));
   }, [adminKey]);
 

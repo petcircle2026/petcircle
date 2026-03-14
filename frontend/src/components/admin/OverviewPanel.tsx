@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AdminStats } from "@/lib/api";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 
 interface StatCardProps {
   label: string;
@@ -42,7 +42,7 @@ export default function OverviewPanel({ adminKey }: { adminKey: string }) {
     adminApi
       .getStats(adminKey)
       .then(setStats)
-      .catch((e: any) => setError(e.message))
+      .catch((e: unknown) => setError(getErrorMessage(e, "Failed to load stats.")))
       .finally(() => setLoading(false));
   }, [adminKey]);
 

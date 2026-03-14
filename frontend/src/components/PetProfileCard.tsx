@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { PetProfile, OwnerInfo } from "@/lib/api";
-import { updateWeight } from "@/lib/api";
+import { getErrorMessage, updateWeight } from "@/lib/api";
 
 interface Props {
   pet: PetProfile;
@@ -29,8 +29,8 @@ export default function PetProfileCard({ pet, owner, token, onUpdated }: Props) 
       await updateWeight(token, val);
       setEditing(false);
       onUpdated();
-    } catch (e: any) {
-      setError(e.message || "Failed to update weight.");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to update weight."));
     } finally {
       setSaving(false);
     }

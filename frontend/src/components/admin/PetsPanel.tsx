@@ -1,37 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AdminPet } from "@/lib/api";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 
 export default function PetsPanel({ adminKey }: { adminKey: string }) {
   const [pets, setPets] = useState<AdminPet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       setPets(await adminApi.getPets(adminKey));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to load pets."));
     } finally {
       setLoading(false);
     }
-  }
+  }, [adminKey]);
 
   useEffect(() => {
     load();
-  }, [adminKey]);
+  }, [load]);
 
   async function handleRevokeToken(petId: string) {
     if (!confirm("Revoke this pet's dashboard token?")) return;
     try {
       await adminApi.revokeToken(adminKey, petId);
       alert("Token revoked.");
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Failed to revoke token."));
     }
   }
 
@@ -39,8 +39,8 @@ export default function PetsPanel({ adminKey }: { adminKey: string }) {
     try {
       await adminApi.triggerReminder(adminKey, petId);
       alert("Reminder triggered.");
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Failed to trigger reminder."));
     }
   }
 

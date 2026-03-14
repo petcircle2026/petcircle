@@ -295,7 +295,7 @@ def _validate_result(filename: str, result: dict) -> list[str]:
     return issues
 
 
-async def test_extraction():
+async def run_extraction_test():
     """Run GPT extraction on all fixture files and report results."""
     from app.utils.file_reader import encode_image_base64, extract_pdf_text, render_pdf_pages_as_images
     from app.services.gpt_extraction import (
@@ -582,4 +582,4 @@ async def test_extraction():
 
 
 if __name__ == "__main__":
-    asyncio.run(test_extraction())
+    asyncio.run(run_extraction_test())

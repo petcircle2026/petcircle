@@ -9,6 +9,25 @@ import { DASHBOARD_CACHE_PREFIX } from "@/lib/branding";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
+}
+
+export function getErrorMessage(error: unknown, fallback = "Something went wrong."): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+  return fallback;
+}
+
 // --- Dashboard Types (match backend response shapes) ---
 
 export interface PetProfile {
@@ -281,7 +300,7 @@ export async function fetchDashboard(token: string): Promise<DashboardResult> {
     // Cache the fresh response for offline/failure fallback.
     cacheDashboard(token, data);
     return { data, stale: false };
-  } catch (e: any) {
+  } catch (e: unknown) {
     // For 404 (invalid token), never fall back to cache.
     if (e instanceof FetchError && e.status === 404) {
       throw e;
@@ -294,7 +313,7 @@ export async function fetchDashboard(token: string): Promise<DashboardResult> {
     }
 
     // No cache available — rethrow the original error.
-    if (e.name === "AbortError") {
+    if (isAbortError(e)) {
       throw new Error("Request timed out. Please try again.");
     }
     throw e;
@@ -331,8 +350,8 @@ export async function updateWeight(
       throw new Error(data?.detail || `Request failed: ${res.status}`);
     }
     return res.json();
-  } catch (e: any) {
-    if (e.name === "AbortError") {
+  } catch (e: unknown) {
+    if (isAbortError(e)) {
       throw new Error("Request timed out. Please try again.");
     }
     throw e;
@@ -366,8 +385,8 @@ export async function updatePreventiveDate(
       throw new Error(data?.detail || `Request failed: ${res.status}`);
     }
     return res.json();
-  } catch (e: any) {
-    if (e.name === "AbortError") {
+  } catch (e: unknown) {
+    if (isAbortError(e)) {
       throw new Error("Request timed out. Please try again.");
     }
     throw e;
@@ -395,8 +414,8 @@ export async function retryExtraction(
       throw new Error(data?.detail || `Request failed: ${res.status}`);
     }
     return res.json();
-  } catch (e: any) {
-    if (e.name === "AbortError") {
+  } catch (e: unknown) {
+    if (isAbortError(e)) {
       throw new Error("Extraction timed out. Please try again.");
     }
     throw e;
@@ -417,8 +436,8 @@ export async function fetchHealthTrends(token: string): Promise<HealthTrendsData
       throw new Error(`Request failed: ${res.status}`);
     }
     return res.json();
-  } catch (e: any) {
-    if (e.name === "AbortError") {
+  } catch (e: unknown) {
+    if (isAbortError(e)) {
       throw new Error("Request timed out. Please try again.");
     }
     throw e;
@@ -450,8 +469,8 @@ export async function adminLogin(password: string): Promise<string> {
     }
     const data = await res.json();
     return data.admin_key;
-  } catch (e: any) {
-    if (e.name === "AbortError") {
+  } catch (e: unknown) {
+    if (isAbortError(e)) {
       throw new Error("Request timed out. Please try again.");
     }
     throw e;
@@ -474,8 +493,8 @@ async function adminFetch<T>(path: string, adminKey: string): Promise<T> {
     if (res.status === 403) throw new Error("Invalid admin key.");
     if (!res.ok) throw new Error(`Request failed: ${res.status}`);
     return res.json();
-  } catch (e: any) {
-    if (e.name === "AbortError") {
+  } catch (e: unknown) {
+    if (isAbortError(e)) {
       throw new Error("Request timed out. Please try again.");
     }
     throw e;
@@ -508,8 +527,8 @@ async function adminMutate<T>(
       throw new Error(data?.detail || `Request failed: ${res.status}`);
     }
     return res.json();
-  } catch (e: any) {
-    if (e.name === "AbortError") {
+  } catch (e: unknown) {
+    if (isAbortError(e)) {
       throw new Error("Request timed out. Please try again.");
     }
     throw e;

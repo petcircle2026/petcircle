@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import AdminDashboard from "@/components/admin/AdminDashboard";
-import { adminLogin } from "@/lib/api";
+import { adminLogin, getErrorMessage } from "@/lib/api";
 import { APP_ADMIN_TITLE } from "@/lib/branding";
 
 export default function AdminPage() {
@@ -24,8 +24,8 @@ export default function AdminPage() {
       const key = await adminLogin(input.trim());
       setAdminKey(key);
       setAuthenticated(true);
-    } catch (err: any) {
-      setError(err.message || "Could not reach the server. Please try again.");
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, "Could not reach the server. Please try again."));
     } finally {
       setLoading(false);
     }

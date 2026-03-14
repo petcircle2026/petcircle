@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { DashboardData } from "@/lib/api";
-import { fetchDashboard } from "@/lib/api";
+import { fetchDashboard, getErrorMessage } from "@/lib/api";
 import ErrorBoundary from "./ErrorBoundary";
 import PetProfileCard from "./PetProfileCard";
 import ActivityRings from "./ActivityRings";
@@ -42,11 +42,11 @@ function DashboardInner({ token }: { token: string }) {
       setStale(result.stale);
       setCachedAt(result.cachedAt);
       if (!result.stale) setRetryCount(0);
-    } catch (e: any) {
+    } catch (e: unknown) {
       setData((prev) => {
         // Only set error if we have no data to show.
         if (!prev) {
-          setError(e.message || "Failed to load dashboard.");
+          setError(getErrorMessage(e, "Failed to load dashboard."));
         }
         return prev;
       });

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { AdminUser } from "@/lib/api";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 import { formatPhoneForDisplay } from "@/lib/phone";
 
 export default function UsersPanel({ adminKey }: { adminKey: string }) {
@@ -10,29 +10,29 @@ export default function UsersPanel({ adminKey }: { adminKey: string }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
       setUsers(await adminApi.getUsers(adminKey));
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to load users."));
     } finally {
       setLoading(false);
     }
-  }
+  }, [adminKey]);
 
   useEffect(() => {
     load();
-  }, [adminKey]);
+  }, [load]);
 
   async function handleDelete(userId: string) {
     if (!confirm("Soft-delete this user? This preserves their data.")) return;
     try {
       await adminApi.softDeleteUser(adminKey, userId);
       load();
-    } catch (e: any) {
-      alert(e.message);
+    } catch (e: unknown) {
+      alert(getErrorMessage(e, "Failed to delete user."));
     }
   }
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { PreventiveRecord } from "@/lib/api";
-import { updatePreventiveDate } from "@/lib/api";
+import { getErrorMessage, updatePreventiveDate } from "@/lib/api";
 
 function formatDate(d: string | null): string {
   if (!d) return "-";
@@ -108,8 +108,8 @@ export default function PreventiveRecordsTable({ records, token, onUpdated }: Pr
       setEditingItem(null);
       setDateInput("");
       onUpdated();
-    } catch (e: any) {
-      setError(e.message || "Failed to update date.");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Failed to update date."));
     } finally {
       setSaving(false);
     }

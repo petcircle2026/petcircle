@@ -2,18 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { HealthTrendsData } from "@/lib/api";
-import { fetchHealthTrends } from "@/lib/api";
-
-/** Format "2024-03" to "Mar 2024" for display. */
-function formatMonth(m: string): string {
-  const [year, month] = m.split("-");
-  const months = [
-    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-  ];
-  const idx = parseInt(month, 10) - 1;
-  return `${months[idx] || month} ${year}`;
-}
+import { fetchHealthTrends, getErrorMessage } from "@/lib/api";
 
 /** Short month label for chart axis: "Mar '24" */
 function shortMonth(m: string): string {
@@ -256,8 +245,8 @@ export default function HealthTrendsSection({ token }: Props) {
         setLoading(true);
         const data = await fetchHealthTrends(token);
         if (!cancelled) setTrends(data);
-      } catch (e: any) {
-        if (!cancelled) setError(e.message || "Failed to load trends.");
+      } catch (e: unknown) {
+        if (!cancelled) setError(getErrorMessage(e, "Failed to load trends."));
       } finally {
         if (!cancelled) setLoading(false);
       }

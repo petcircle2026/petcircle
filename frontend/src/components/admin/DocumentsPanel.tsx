@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AdminDocument } from "@/lib/api";
-import { adminApi } from "@/lib/api";
+import { adminApi, getErrorMessage } from "@/lib/api";
 
 interface PetGroup {
   pet_id: string;
@@ -46,7 +46,7 @@ export default function DocumentsPanel({ adminKey }: { adminKey: string }) {
     adminApi
       .getDocuments(adminKey)
       .then(setDocs)
-      .catch((e: any) => setError(e.message))
+      .catch((e: unknown) => setError(getErrorMessage(e, "Failed to load documents.")))
       .finally(() => setLoading(false));
   }, [adminKey]);
 
