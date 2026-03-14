@@ -89,13 +89,19 @@ SUPABASE_SERVICE_ROLE_KEY=
 WHATSAPP_TOKEN=
 WHATSAPP_VERIFY_TOKEN=
 WHATSAPP_PHONE_NUMBER_ID=
+WHATSAPP_APP_SECRET=
 SUPABASE_BUCKET_NAME=
 WHATSAPP_TEMPLATE_REMINDER=
 WHATSAPP_TEMPLATE_OVERDUE=
 WHATSAPP_TEMPLATE_NUDGE=
 WHATSAPP_TEMPLATE_CONFLICT=
 WHATSAPP_TEMPLATE_ONBOARDING_COMPLETE=
+WHATSAPP_TEMPLATE_BIRTHDAY=
 ADMIN_SECRET_KEY=
+ADMIN_DASHBOARD_PASSWORD=
+DATABASE_URL=
+ENCRYPTION_KEY=
+FRONTEND_URL=
 ```
 
 Startup behavior:
@@ -173,16 +179,13 @@ All state transitions documented with comments.
 
 # MODULE 6 — PREVENTIVE MASTER SEEDER
 
-Insert exact frozen table:
+Insert frozen preventive items (16 unique names, 30 rows with dog/cat variants):
 
-Rabies Vaccine
-Core Vaccine
-Feline Core
-Deworming
-Tick/Flea
-Annual Checkup
-Preventive Blood Test
-Dental Check
+**Essential (Health):**
+Rabies Vaccine, Core Vaccine, Feline Core, Deworming, Tick/Flea, Annual Checkup, Preventive Blood Test, Dental Check
+
+**Complementary (Nutrition, Hygiene, Care):**
+Chronic Care, Food Ordering, Nutrition Planning, Supplements, Bath & Grooming, Nail Trimming, Ear Cleaning, Birthday Celebration
 
 Rules:
 
@@ -207,7 +210,7 @@ Extraction model config:
 
 * Model: gpt-4.1
 * Temperature: 0
-* Max tokens: 1500
+* Max tokens: 4096 (increased from 1500 — large reports with 30+ parameters caused JSON truncation)
 * JSON only
 
 Retry 2 times.
@@ -350,25 +353,20 @@ No partial logic.
 
 # MODULE 13 — DASHBOARD TOKEN API
 
-Route: `GET /dashboard/{token}`
+Routes:
+
+* `GET /dashboard/{token}` — Full dashboard data (pet profile, preventive summary, reminders, documents, health score)
+* `PATCH /dashboard/{token}/weight` — Update pet weight
+* `PATCH /dashboard/{token}/preventive` — Update preventive dates
+* `GET /dashboard/{token}/trends` — Health trends (monthly completion data)
+* `GET /dashboard/{token}/pet-photo` — Serve pet's profile photo
+* `GET /dashboard/{token}/document/{document_id}` — Retrieve uploaded document
+* `POST /dashboard/{token}/retry-extraction/{document_id}` — Retry failed GPT extraction
 
 Validate:
 
 * token exists
 * not revoked
-
-Return:
-
-* pet profile
-* preventive summary
-* reminders
-* documents
-* health score
-
-Editable endpoints:
-
-* update weight
-* update preventive dates
 
 Must:
 
@@ -398,23 +396,33 @@ Retry policy applied.
 
 Routes:
 
+**Core (original):**
 GET /admin/users
 GET /admin/pets
 GET /admin/reminders
 GET /admin/documents
+GET /admin/messages
 PATCH /admin/revoke-token/{pet_id}
 PATCH /admin/soft-delete-user/{user_id}
 POST /admin/trigger-reminder/{pet_id}
 
-Validate header:
+**Extended:**
+GET /admin/stats — Aggregated system statistics
+PATCH /admin/pets/{pet_id} — Edit pet data
+GET /admin/orders — List orders
+PATCH /admin/orders/{order_id}/status — Update order status
+GET /admin/order-recommendations — List order recommendations
+GET /admin/pet-preferences/{pet_id} — Get pet preferences
+GET /admin/preferences-stats — Preference statistics
+POST /admin/verify-key — Verify admin API key
+POST /admin/login — Admin dashboard login (uses ADMIN_DASHBOARD_PASSWORD)
 
-X-ADMIN-KEY
+Auth:
 
-Compare with ADMIN_SECRET_KEY.
+* API routes validate `X-ADMIN-KEY` header against `ADMIN_SECRET_KEY`
+* Dashboard login validates `ADMIN_DASHBOARD_PASSWORD` (separate from API key)
 
 Reject if mismatch.
-
-No RBAC.
 
 ---
 
@@ -505,6 +513,59 @@ No short ambiguous code.
 
 ---
 
+# MODULE 20 — BIRTHDAY REMINDER SERVICE
+
+Service: `birthday_service.py`
+
+Steps:
+
+1. Check pets with DOB set
+2. If today matches pet's birth month/day → send birthday template
+3. Uses `WHATSAPP_TEMPLATE_BIRTHDAY` template name
+
+Triggered as part of daily reminder engine cron.
+
+---
+
+# MODULE 21 — ORDER MANAGEMENT
+
+Service: `order_service.py`
+Models: `order.py`, `order_recommendation.py`
+
+Features:
+
+* Create orders from WhatsApp conversations
+* Track order status (pending, confirmed, delivered, cancelled)
+* Admin can view and update order status
+* Optional WhatsApp notification to `ORDER_NOTIFICATION_PHONE` on new orders
+
+---
+
+# MODULE 22 — RECOMMENDATION SERVICE
+
+Service: `recommendation_service.py`
+
+AI-powered product recommendations based on pet profile, preventive records, and preferences.
+
+---
+
+# MODULE 23 — DIAGNOSTIC TEST RESULTS
+
+Model: `diagnostic_test_result.py`
+
+Stores structured blood/urine test results extracted by GPT from uploaded reports.
+Displayed in dashboard via `BloodUrineSection` component.
+
+---
+
+# MODULE 24 — PET PREFERENCES & FUN FACTS
+
+Models: `pet_preference.py`, `shown_fun_fact.py`
+
+Tracks user-indicated pet preferences (food, grooming, etc.) and shown fun facts to avoid repetition.
+
+---
+
 # SYSTEM STATUS
 
 Now:
@@ -512,15 +573,15 @@ Now:
 * All schema frozen
 * All APIs defined
 * All retries defined
-* All templates defined
+* All templates defined (6 total including birthday)
 * All constraints defined
 * All expiry logic defined
 * All uniqueness rules defined
 * All MIME defined
 * All deduplication defined
 * All scoring defined
-* All auth defined
+* All auth defined (API key + dashboard password)
 * All tokens defined
-* No drift possible
+* All 24 modules implemented
 
 

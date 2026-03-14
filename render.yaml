@@ -48,7 +48,13 @@ services:
         value: petcircle_conflict_v1
       - key: WHATSAPP_TEMPLATE_ONBOARDING_COMPLETE
         value: petcircle_onboarding_complete_v1
+      - key: WHATSAPP_TEMPLATE_ORDER_FULFILLMENT_CHECK
+        value: order_fulfillment_check_v1
+      - key: WHATSAPP_TEMPLATE_BIRTHDAY
+        value: birthday_celebration_v1
       - key: ADMIN_SECRET_KEY
+        sync: false
+      - key: ADMIN_DASHBOARD_PASSWORD
         sync: false
       - key: DATABASE_URL
         sync: false
@@ -101,7 +107,13 @@ services:
         value: petcircle_conflict_v1
       - key: WHATSAPP_TEMPLATE_ONBOARDING_COMPLETE
         value: petcircle_onboarding_complete_v1
+      - key: WHATSAPP_TEMPLATE_ORDER_FULFILLMENT_CHECK
+        value: order_fulfillment_check_v1
+      - key: WHATSAPP_TEMPLATE_BIRTHDAY
+        value: birthday_celebration_v1
       - key: ADMIN_SECRET_KEY
+        sync: false
+      - key: ADMIN_DASHBOARD_PASSWORD
         sync: false
       - key: DATABASE_URL
         sync: false

@@ -38,7 +38,7 @@ from app.core.constants import (
 )
 from app.models.order import Order
 from app.models.pet import Pet
-from app.services.whatsapp_sender import send_text_message, send_interactive_buttons
+from app.services.whatsapp_sender import send_text_message, send_interactive_buttons, send_template_message
 from app.services.recommendation_service import (
     get_or_generate_recommendations,
     get_pet_top_preferences,
@@ -729,7 +729,7 @@ async def _notify_admin_whatsapp(db: Session, order: Order, user, pet) -> None:
         admin_phone_normalized = admin_phone.strip().replace("+", "")
         user_phone_normalized = user_phone.strip().replace("+", "")
 
-        # Safety check: never send admin interactive fulfillment buttons
+        # Safety check: never send the admin fulfillment template
         # back to the ordering user's own WhatsApp number.
         if admin_phone_normalized == user_phone_normalized:
             logger.warning(
@@ -743,21 +743,19 @@ async def _notify_admin_whatsapp(db: Session, order: Order, user, pet) -> None:
         order_category = str(order.category)
         label = ORDER_CATEGORY_LABELS.get(order_category, order_category)
 
-        msg = (
-            f"New Order Received!\n\n"
-            f"User: {user_name}\n"
-            f"Phone: {user_phone}\n"
-            f"Pet: {pet_name}\n"
-            f"Category: {label}\n"
-            f"Items: {order.items_description}\n\n"
-            "Has this order been fulfilled?"
+        await send_template_message(
+            db=db,
+            to_number=admin_phone,
+            template_name=settings.WHATSAPP_TEMPLATE_ORDER_FULFILLMENT_CHECK,
+            parameters=[
+                user_name,
+                user_phone,
+                pet_name,
+                label,
+                order.items_description,
+                str(order.id),
+            ],
         )
-
-        buttons = [
-            {"id": f"{ORDER_FULFILL_YES_PREFIX}{order.id}", "title": "Yes, fulfilled"},
-            {"id": f"{ORDER_FULFILL_NO_PREFIX}{order.id}", "title": "No, order cancelled"},
-        ]
-        await send_interactive_buttons(db, admin_phone, msg, buttons)
         logger.info("Admin notified about order %s", str(order.id))
     except Exception as e:
         # Never crash on notification failure — order is already confirmed.

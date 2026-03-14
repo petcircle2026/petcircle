@@ -30,6 +30,16 @@ Layer 3: Tools (the execution)
 | Process Document Upload | `process_document_upload.md` | document_upload.py, gpt_extraction.py |
 | Handle Reminder Response | `handle_reminder_response.md` | reminder_response.py, preventive_calculator.py |
 | Resolve Conflict Expiry | `resolve_conflict_expiry.md` | conflict_expiry.py |
+| Birthday Reminders | `BIRTHDAY_REMINDER_GUIDE.md` | birthday_service.py, reminder_engine.py |
+
+### Birthday Feature Documentation
+
+| Document | Purpose |
+|----------|---------|
+| `BIRTHDAY_REMINDER_GUIDE.md` | Full workflow for birthday reminder logic |
+| `BIRTHDAY_QUICK_REFERENCE.md` | Quick reference for birthday feature |
+| `BIRTHDAY_FEATURE_IMPLEMENTATION_SUMMARY.md` | Implementation details and decisions |
+| `SETUP_BIRTHDAY_REMINDERS.md` | Setup instructions for birthday reminders |
 
 ## Principles
 

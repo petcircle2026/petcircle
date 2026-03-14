@@ -110,6 +110,10 @@ Required GitHub Secrets:
 
 All variables listed in `backend/envs/.env.production.example` must be set. The app will crash on startup if any are missing.
 
+Order notification specific variables:
+- `WHATSAPP_TEMPLATE_ORDER_FULFILLMENT_CHECK` (required): approved WhatsApp template name used when a user places an order.
+- `ORDER_NOTIFICATION_PHONE` (optional): admin phone number that receives the order fulfillment check template. If unset, admin WhatsApp notification is skipped.
+
 ---
 
 ## Git Branching Strategy

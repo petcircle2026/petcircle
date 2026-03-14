@@ -30,6 +30,7 @@ Message Router (app/services/message_router.py)
     +---> Document Upload + GPT Extraction
     +---> Conflict Engine
     +---> Reminder Response Handler
+    +---> Order Service (order placement + admin fulfillment check)
     +---> Query Engine
     |
     v
@@ -67,6 +68,12 @@ Next.js Dashboard (token-based access)
 3. **Token-based dashboard**: No login system. Secure random tokens shared via WhatsApp.
 4. **Supabase for everything**: PostgreSQL + Storage in one managed service.
 5. **Environment-aware config**: `APP_ENV` controls which env file is loaded (development/test/production).
+
+## Order Notification Flow
+
+- When a user confirms an order, the backend sends a WhatsApp template notification to `ORDER_NOTIFICATION_PHONE` (if configured).
+- The template name is loaded from `WHATSAPP_TEMPLATE_ORDER_FULFILLMENT_CHECK`.
+- If `ORDER_NOTIFICATION_PHONE` is not configured, the order is still saved and user confirmation is unaffected.
 
 ## Security Model
 

@@ -11,17 +11,20 @@ Complete test instructions for WhatsApp flows, Admin Dashboard, and User Dashboa
 ## Prerequisites
 
 Before testing:
-1. Backend is deployed and `/health` returns `{"status":"ok"}`
+1. Backend is deployed and `/health` returns `{"status":"healthy","timezone":"Asia/Kolkata"}`
 2. Frontend is deployed on Vercel
 3. WhatsApp Cloud API is configured in Meta Business Manager
-4. All 5 WhatsApp templates are approved:
+4. All 7 WhatsApp templates are approved:
    - `petcircle_reminder_v1`
    - `petcircle_overdue_v1`
    - `petcircle_nudge_v1`
    - `petcircle_conflict_v1`
    - `petcircle_onboarding_complete_v1`
+   - `birthday_celebration_v1`
+   - `order_fulfillment_check_v1`
 5. Webhook URL is set in Meta: `https://pet-circle.onrender.com/webhook/whatsapp`
 6. Verify token matches `WHATSAPP_VERIFY_TOKEN` in environment
+7. `ORDER_NOTIFICATION_PHONE` is set if you want to verify admin order notifications
 
 ---
 
@@ -47,7 +50,7 @@ Before testing:
 - [ ] Dashboard link works in browser
 - [ ] Pet profile shows: Buddy, Dog, Golden Retriever, Male, 15/03/2020, 25.5 kg, Neutered: Yes
 - [ ] Health score ring displays (should be 0/100 since no records done yet)
-- [ ] 7 preventive items seeded (Rabies Vaccine, Core Vaccine, Deworming, Tick/Flea, Annual Checkup, Preventive Blood Test, Dental Check)
+- [ ] 16 preventive items seeded across essential and complementary categories (Rabies Vaccine, Core Vaccine, Deworming, Tick/Flea, Annual Checkup, Preventive Blood Test, Dental Check, Chronic Care, Food Ordering, Nutrition Planning, Supplements, Bath & Grooming, Nail Trimming, Ear Cleaning, Birthday Celebration)
 - [ ] All items show status "upcoming" with no last done date
 
 ---
@@ -248,7 +251,7 @@ Before testing:
 |-------|----------|-------|
 | Score displays | Number 0-100 in circular ring | |
 | Color matches score | Green (>=80), Yellow (50-79), Red (<50) | |
-| Essential/Extra counts | Shows "Essential: X/Y" and "Extra: X/Y" | |
+| Mandatory/Recommended counts | Shows "Mandatory: X/Y" and "Recommended: X/Y" | |
 
 ### 11c: Preventive Records Table
 | Action | Expected | Pass? |
@@ -364,7 +367,7 @@ Test these endpoints directly (use browser or curl):
 
 | Endpoint | Method | Expected | Pass? |
 |----------|--------|----------|-------|
-| `/health` | GET | `{"status":"ok"}` | |
+| `/health` | GET | `{"status":"healthy","timezone":"Asia/Kolkata"}` | |
 | `/webhook/whatsapp?hub.mode=subscribe&hub.verify_token={TOKEN}&hub.challenge=test123` | GET | `test123` (webhook verification) | |
 | `/admin/verify-key` with wrong key | POST | `403 Forbidden` | |
 | `/dashboard/nonexistent` | GET | `404` or error JSON | |

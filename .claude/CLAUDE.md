@@ -15,19 +15,28 @@ You're working inside the **WAT framework** (Workflows, Agents, Tools). This arc
   - `workflows/record_preventive_event.md`
   - `workflows/handle_conflict.md`
   - `workflows/send_reminder.md`
+  - `workflows/process_document_upload.md`
+  - `workflows/handle_reminder_response.md`
+  - `workflows/resolve_conflict_expiry.md`
+  - `workflows/BIRTHDAY_REMINDER_GUIDE.md`
 
 **Layer 2: Agents (The Decision-Maker)**
 - Responsible for orchestrating workflows across the WhatsApp automation pipeline
-- Reads workflows, identifies required inputs, calls tools in correct order, handles failures
+- Reads workflows, identifies required inputs, calls services in correct order, handles failures
 - Example: When a new record is uploaded, the agent validates it, checks conflicts, updates DB, triggers GPT extraction, and schedules reminders
 
 **Layer 3: Tools (The Execution)**
-- Deterministic scripts in `tools/` handle the actual work
-- Examples:
-  - WhatsApp Cloud API calls
-  - OpenAI GPT extraction
-  - Database CRUD operations
-  - Reminder scheduling
+- Deterministic service modules in `backend/app/services/` handle the actual work
+- Key services:
+  - `whatsapp_sender.py` — WhatsApp Cloud API calls
+  - `gpt_extraction.py` — OpenAI GPT extraction
+  - `message_router.py` — Routes incoming messages to appropriate handlers
+  - `onboarding.py` — Onboarding state machine
+  - `reminder_engine.py` — Reminder scheduling and sending
+  - `conflict_engine.py` — Conflict detection and resolution
+  - `birthday_service.py` — Birthday reminder logic
+  - `order_service.py` — Product order management
+  - `recommendation_service.py` — AI-powered order recommendations
 - Credentials stored in `.env` only — never hardcoded
 
 ---
@@ -35,20 +44,20 @@ You're working inside the **WAT framework** (Workflows, Agents, Tools). This arc
 ## Core Production Principles
 
 **1. Never process logic inside the webhook**
-- Webhook does only: signature verification, payload validation, enqueue
+- Webhook does only: signature verification, payload validation, dispatch to background task
 - Returns `200 OK` immediately
 
-**2. Queue all AI or external API calls**
-- GPT extraction, third-party lookups, and reminders belong in workers
-- Enables retries, rate-limiting, and isolation
+**2. Offload all AI or external API calls to background tasks**
+- GPT extraction, third-party lookups, and reminders run in `asyncio.create_task()` background tasks
+- Enables non-blocking processing; webhook returns immediately
 
 **3. DB is source of truth**
 - No in-memory state
 - Every transition must be written to PostgreSQL
 
 **4. Separate environments**
-- Local: ngrok + local Postgres + Redis
-- Production: managed services
+- Development: ngrok + Supabase dev project
+- Production: Render + Supabase production project
 - Never share credentials or URLs between environments
 
 **5. Security is structural**
@@ -62,29 +71,29 @@ You're working inside the **WAT framework** (Workflows, Agents, Tools). This arc
 
 ## How to Operate
 
-**1. Use existing tools first**
-- Check `tools/` before creating new scripts
+**1. Use existing services first**
+- Check `backend/app/services/` before creating new modules
 
 **2. Follow message processing flow**
 
 ```
 Inbound Message (Meta Webhook)
-  → Verify signature (tools/verify_webhook_signature.py)
-  → Validate payload (tools/validate_message_payload.py)
-  → Enqueue job (tools/enqueue_message_job.py)
+  → Verify signature (app/core/security.py: verify_webhook_signature)
+  → Parse & validate payload (app/routers/webhook.py: _extract_message_data)
+  → Dispatch background task via asyncio.create_task()
   → Return 200
 
-Worker picks up job:
-  → Load conversation state (tools/get_conversation_state.py)
-  → Run business logic (conflict detection, reminder scheduling, GPT extraction)
-  → Update DB (tools/update_conversation_state.py)
-  → Send WhatsApp reply/template (tools/send_whatsapp_message.py)
-  → Log activity (tools/log_message.py)
+Background task runs:
+  → Route message (app/services/message_router.py: route_message)
+  → Execute business logic (onboarding, document upload, conflict, reminder response, query)
+  → Update DB via service layer (direct SQLAlchemy queries)
+  → Send WhatsApp reply/template (app/services/whatsapp_sender.py)
+  → Log activity (message_logs table)
 ```
 
 **3. Learn from failures**
 - Trace the error
-- Identify if failure is tool, workflow, or infrastructure
+- Identify if failure is service, workflow, or infrastructure
 - Fix root cause
 - Update workflow to prevent recurrence
 
@@ -192,7 +201,7 @@ Next.js Dashboard (Token-based Access)
 - Core logic engine
 
 **Data Layer**
-- Supabase PostgreSQL tables: users, pets, preventive_records, reminders, documents, message_logs, consent_logs, dashboard_tokens
+- Supabase PostgreSQL tables: users, pets, preventive_records, preventive_master, reminders, documents, message_logs, dashboard_tokens, conflict_flags, orders, order_recommendations, diagnostic_test_results, pet_preferences, shown_fun_facts
 - Strict relational structure
 
 **Reminder Engine**
@@ -215,7 +224,8 @@ Next.js Dashboard (Token-based Access)
 ### 5️⃣ What This Architecture Avoids (Intentionally)
 
 - No microservices, Redis, Kafka, Docker complexity
-- No separate auth provider, payment integration, or background job queue
+- No separate auth provider or payment integration
+- Background processing via asyncio.create_task() (no external job queue)
 - Clean monolithic backend with clear layers
 
 ### 6️⃣ Final Architecture Summary
@@ -235,7 +245,7 @@ Next.js Dashboard (Token-based Access)
 
 ## Bottom Line
 
-You are the bridge between workflows (instructions) and tools (execution). Orchestrate PetCircle Phase 1 with precision:
+You are the bridge between workflows (instructions) and services (execution). Orchestrate PetCircle with precision:
 - Enforce constraints
 - Never skip steps
 - Handle failures safely
