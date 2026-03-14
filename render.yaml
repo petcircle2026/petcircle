@@ -9,17 +9,16 @@ services:
   # --- Dev API ---
   - type: web
     name: petcircle-api-dev
-    runtime: python
+    env: docker
     region: singapore
     plan: free
     branch: dev
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: .
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: APP_ENV
         value: development
-      - key: PYTHON_VERSION
-        value: "3.11.0"
       - key: OPENAI_API_KEY
         sync: false
       - key: SUPABASE_URL
@@ -68,17 +67,16 @@ services:
   # --- Production API ---
   - type: web
     name: petcircle-api
-    runtime: python
+    env: docker
     region: singapore
     plan: free
     branch: main
-    buildCommand: cd backend && pip install -r requirements.txt
-    startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    rootDir: .
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     envVars:
       - key: APP_ENV
         value: production
-      - key: PYTHON_VERSION
-        value: "3.11.0"
       - key: OPENAI_API_KEY
         sync: false
       - key: SUPABASE_URL

@@ -67,3 +67,17 @@ See [workflows/environment-setup.md](docs/environment-setup.md) for dev/test/pro
 | Backend Hosting | Render |
 | Frontend Hosting | Vercel |
 | Cron Jobs | GitHub Actions |
+
+## Render Docker Auto-Deploy
+
+This repository is configured for Docker-based Render deploys via [render.yaml](render.yaml).
+
+Use these settings in Render:
+- Service type: Web Service
+- Environment: Docker
+- Root Directory: .
+- Dockerfile Path: ./Dockerfile
+- Branch: main (production), dev (development)
+- Auto-Deploy: On
+
+After this is connected to the GitHub repository, every push to the configured branch triggers a new deployment automatically.
