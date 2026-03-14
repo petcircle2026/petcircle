@@ -9,11 +9,9 @@ build/
 *.egg
 venv/
 .venv/
-env/
-.env
-.env.*
 
 # === Environment (real secrets) ===
+**/.env*
 backend/.env
 backend/envs/.env.local
 backend/envs/.env.production
